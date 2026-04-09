@@ -10,6 +10,7 @@ from vad import record_audio
 from tts import synthesize
 from audio_player import play_audio
 from cloud_asr import CloudASR
+from asr_corrector import correct_asr_result
 
 # 导入新架构模块
 from models.intent import IntentType
@@ -39,12 +40,16 @@ asr_client = CloudASR(api_key=config.asr.api_key, model=config.asr.model)
 
 
 def recognize(audio_bytes) -> str:
-    """语音识别（使用阿里云 ASR）"""
+    """语音识别（使用阿里云 ASR）+ 纠错"""
     try:
         result = asr_client.recognize_from_bytes(audio_bytes)
 
-        if result and not result.startswith("云端 ASR 错误"):
-            return result
+        if result and not result.startswith("云端ASR错误"):
+            # 对识别结果进行纠错
+            corrected = correct_asr_result(result, chat_executor.get_history())
+            if corrected != result:
+                logger.info(f"  [Corrected] {result} → {corrected}")
+            return corrected
         else:
             logger.warning(f"  [Error] Cloud ASR failed: {result}")
             return ""

@@ -76,7 +76,7 @@ class TestConfiguration:
 
     def test_sample_rate(self):
         from config import config
-        assert config.audio.sample_rate == 44100, "SAMPLE_RATE should be 44100"
+        assert config.audio.sample_rate == 16000, "SAMPLE_RATE should be 16000 for ASR optimization"
 
     def test_edge_tts_voice(self):
         from config import config
@@ -93,6 +93,21 @@ class TestConfiguration:
         from config import config
         assert config.interpreter.auto_run is not None
         assert config.interpreter.verbose is not None
+
+    def test_asr_language_hints(self):
+        from config import config
+        assert config.asr.language_hints is not None
+        assert 'zh' in config.asr.language_hints
+        assert 'en' in config.asr.language_hints
+
+    def test_asr_disfluency_removal(self):
+        from config import config
+        assert config.asr.disfluency_removal_enabled is not None
+
+    def test_hotwords_config(self):
+        from config import config
+        assert config.asr.hotwords is not None
+        assert config.asr.hotwords.enabled is not None
 
 
 class TestLLMAPI:
@@ -124,7 +139,7 @@ class TestCloudASR:
         import numpy as np
         import soundfile as sf
 
-        sample_rate = 44100
+        sample_rate = 16000  # 标准 ASR 采样率
         duration = 1
         t = np.linspace(0, duration, sample_rate * duration)
         frequency = 440
@@ -197,3 +212,40 @@ class TestVoiceAssistantAI:
         assert ChatExecutor is not None
         assert ComputerExecutor is not None
         assert CommandRouter is not None
+
+
+class TestASRCorrector:
+    """Test ASR correction functionality"""
+
+    def test_corrector_imports(self):
+        from asr_corrector import correct_asr_result, _needs_correction
+        assert correct_asr_result is not None
+        assert _needs_correction is not None
+
+    def test_needs_correction_detection(self):
+        from asr_corrector import _needs_correction
+
+        # 技术相关内容应该需要纠错
+        assert _needs_correction("帮我打开维埃斯扣的") is True
+        assert _needs_correction("运行皮松脚本") is True
+
+        # 包含英文的内容不需要纠错
+        assert _needs_correction("Open VS Code") is False
+
+    def test_short_text_no_correction(self):
+        from asr_corrector import correct_asr_result
+
+        # 短文本不需要纠错
+        result = correct_asr_result("好")
+        assert result == "好"
+
+    def test_corrector_with_history(self):
+        from asr_corrector import correct_asr_result
+
+        # 带历史的纠错
+        history = [
+            {"role": "user", "content": "帮我打开 VS Code"},
+            {"role": "assistant", "content": "好的，正在打开 VS Code"}
+        ]
+        result = correct_asr_result("运行皮松脚本", history)
+        assert result is not None
