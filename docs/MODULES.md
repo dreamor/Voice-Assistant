@@ -4,11 +4,11 @@
 
 | 模块文件 | 功能 | 依赖服务 |
 |----------|------|----------|
-| `voice_assistant_ai.py` | 主程序，流程控制 | 全部模块 |
+| `voice_assistant_ai.py` | 主程序，流程控制，Interpreter/AI 模式切换 | 全部模块 |
 | `cloud_asr.py` | 阿里云语音识别 | DashScope API |
 | `vad.py` | 语音活动检测 | sounddevice |
 | `tts.py` | 语音合成 | Edge-TTS |
-| `ai_client.py` | AI对话客户端 | OpenRouter API |
+| `ai_client.py` | AI对话客户端 | LLM API |
 | `audio_player.py` | 音频播放 | pygame |
 
 ---
@@ -19,22 +19,22 @@
 - 串联各模块，协调工作流程
 - 处理用户交互（键盘输入）
 - 管理对话历史
-- 支持 Interpreter 和 AI 两种模式
+- 支持 Interpreter 和 AI 两种模式切换
 
-### 主要函数
+### 核心函数
 
 ```python
 def call_llm(prompt: str, system_prompt: str = None) -> str
     """直接调用 LLM API"""
 
 def execute_code(code: str, language: str = "python") -> str
-    """执行代码（Python/Bash）"""
+    """执行 Python/Bash 代码"""
 
 def handle_with_interpreter(user_text: str) -> str
-    """使用 Interpreter 模式处理"""
+    """Interpreter 模式：检测操作意图，执行代码"""
 
 def handle_with_ai(user_text: str) -> str
-    """使用 AI 聊天模式处理"""
+    """AI 模式：流式对话"""
 
 def recognize(audio_bytes)
     """语音识别"""
@@ -48,8 +48,25 @@ def main()
 
 ### 工作模式
 
-1. **Interpreter 模式**: 分析用户意图，必要时执行代码
-2. **AI 聊天模式**: 纯粹的 AI 对话
+#### Interpreter 模式 (默认)
+- 检测用户指令中的操作关键词
+- 调用 LLM 生成可执行代码
+- 执行 Python 或 Bash 代码
+- 返回执行结果
+
+**操作关键词**:
+```python
+computer_keywords = [
+    "打开", "关闭", "创建", "删除", "截屏", "截图", "新建", "运行", "执行",
+    "打开文件", "关闭窗口", "启动", "停止", "复制", "移动", "重命名",
+    "搜索", "查找", "下载", "上传", "安装", "卸载", "控制", "操作"
+]
+```
+
+#### AI 模式
+- 纯对话模式
+- 使用流式 API 获取 LLM 回复
+- 保持对话上下文
 
 ### 交互控制
 
@@ -60,6 +77,17 @@ def main()
 | H | 显示对话历史 |
 | I | 切换 Interpreter/AI 模式 |
 | Q | 退出程序 |
+
+### 配置变量
+
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| `ASR_API_KEY` | ASR服务API密钥 | 必填 |
+| `ASR_MODEL` | ASR模型 | paraformer-realtime-v2 |
+| `LLM_API_KEY` | LLM服务API密钥 | 必填 |
+| `LLM_MODEL` | AI模型 | kimi-k2.5 |
+| `LLM_BASE_URL` | LLM服务地址 | https://dashscope.aliyuncs.com/compatible-mode/v1 |
+| `SAMPLE_RATE` | 采样率 | 44100 |
 
 ---
 
@@ -81,16 +109,6 @@ class CloudASR:
 
     def recognize_from_bytes(self, audio_bytes, sample_rate=44100)
         """从音频字节识别"""
-```
-
-### 使用示例
-
-```python
-from cloud_asr import CloudASR
-
-asr = CloudASR(api_key="your-api-key", model="paraformer-realtime-v2")
-result = asr.recognize_from_file("audio.wav")
-print(result)  # 识别结果文本
 ```
 
 ### 配置变量
@@ -157,35 +175,18 @@ def synthesize(text)
     """语音合成，返回音频字节数据"""
 ```
 
-### 使用示例
-
-```python
-from tts import synthesize
-
-audio_data = synthesize("你好，我是语音助手")
-# audio_data 是 MP3 格式的字节数据
-```
-
 ### 配置变量
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
 | `EDGE_TTS_VOICE` | TTS音色 | zh-CN-XiaoxiaoNeural |
 
-### 可用音色
-
-| 音色ID | 说明 |
-|--------|------|
-| zh-CN-XiaoxiaoNeural | 晓晓（女声） |
-| zh-CN-YunxiNeural | 云希（男声） |
-| zh-CN-YunyangNeural | 云扬（男声） |
-
 ---
 
 ## ai_client.py (AI对话)
 
 ### 功能
-- 使用 OpenRouter API 进行 AI 对话
+- 使用 LLM API 进行 AI 对话
 - 支持流式输出
 - 管理对话上下文
 
@@ -194,18 +195,6 @@ audio_data = synthesize("你好，我是语音助手")
 ```python
 def ask_ai_stream(text, conversation_history=None)
     """流式获取AI回复，返回生成器"""
-```
-
-### 使用示例
-
-```python
-from ai_client import ask_ai_stream
-
-history = []
-for response in ask_ai_stream("你好", history):
-    print(response, end='')
-
-# response 是生成器，需要迭代获取
 ```
 
 ### 配置变量
@@ -232,22 +221,6 @@ def play_audio(audio_data)
     """播放音频数据（MP3格式）"""
 ```
 
-### 使用示例
-
-```python
-from audio_player import play_audio
-from tts import synthesize
-
-audio = synthesize("你好")
-play_audio(audio)
-```
-
-### 技术细节
-
-- 使用临时文件存储 MP3 数据
-- 播放完成后自动删除临时文件
-- 使用 pygame.mixer 进行播放控制
-
 ---
 
 ## test_system.py (测试)
@@ -258,7 +231,7 @@ play_audio(audio)
 |--------|----------|
 | `TestImports` | 验证所有依赖包可导入 |
 | `TestConfiguration` | 验证配置正确加载 |
-| `TestOpenRouterAPI` | 验证 OpenRouter API 连接 |
+| `TestLLMAPI` | 验证 LLM API 连接 |
 | `TestCloudASR` | 验证云端ASR功能 |
 | `TestEdgeTTS` | 验证TTS合成功能 |
 | `TestAudioDevices` | 验证音频设备可用性 |
