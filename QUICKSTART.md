@@ -2,13 +2,31 @@
 
 ## 5 分钟快速启动
 
-### 步骤 1: 安装依赖
+### 步骤 1: 安装 uv
 
 ```bash
-pip install -r requirements.txt
+# macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 或使用 pip
+pip install uv
 ```
 
-### 步骤 2: 配置 API
+> **系统要求**: Python 3.10 或更高版本
+
+### 步骤 2: 安装依赖
+
+```bash
+# 使用启动脚本（推荐）
+./start.sh
+
+# 或手动安装
+uv venv --python 3.12
+source .venv/bin/activate
+uv pip install -e ".[dev,local-llm]"
+```
+
+### 步骤 3: 配置 API
 
 1. 复制配置示例：
 ```bash
@@ -24,17 +42,23 @@ LLM_API_KEY=你的API密钥
 
 > **注意**：ASR 和 LLM 可使用相同的阿里云 DashScope API Key。
 
-### 步骤 3: 运行测试
+### 步骤 4: 运行测试
 
 ```bash
+source .venv/bin/activate
 pytest test_system.py -v
 ```
 
 所有测试通过即可继续。
 
-### 步骤 4: 启动
+### 步骤 5: 启动
 
 ```bash
+# 使用启动脚本
+./start.sh
+
+# 或手动启动
+source .venv/bin/activate
 python voice_assistant_ai.py
 ```
 
@@ -84,6 +108,42 @@ python voice_assistant_ai.py
 - 适用于纯聊天场景
 - 不执行电脑操作
 
+### LLM 模式切换
+
+按 `L` 键切换本地/在线 LLM：
+
+| 模式 | 模型 | 说明 |
+|------|------|------|
+| 在线 | kimi-k2.5 | 需要网络，API 调用 |
+| 本地 | gemma-4-E2B-it | 离线运行，需下载模型 |
+
+## 本地模型设置
+
+### 下载模型
+
+从 HuggingFace 下载 Gemma-4-E2B-it LiteRT-LM 模型（约 2.4GB）：
+
+```bash
+# 使用 huggingface-cli
+huggingface-cli download litert-community/gemma-4-E2B-it-litert-lm \
+  --local-dir ./model_weights
+```
+
+或手动下载后放置到 `model_weights/gemma-4-E2B-it.litertlm`
+
+### 启用本地模型
+
+1. 安装本地模型依赖：
+```bash
+uv pip install -e ".[local-llm]"
+```
+
+2. 运行时按 `L` 键切换，或修改 `config.yaml`：
+```yaml
+llm:
+  use_local: true
+```
+
 ## 交互控制
 
 | 按键 | 功能 |
@@ -92,6 +152,7 @@ python voice_assistant_ai.py
 | C | 清除对话历史 |
 | H | 显示对话历史 |
 | I | 切换 自动/AI 模式 |
+| L | 切换 本地/在线 LLM |
 | Q | 退出程序 |
 
 ## 常见问题
@@ -111,10 +172,11 @@ python voice_assistant_ai.py
 - 检查阿里云 API 余额
 - 检查网络连接
 
-### Q: 语音识别失败？
+### Q: 本地模型加载失败？
 
-- 确认使用 44100 Hz 采样率
-- 检查阿里云 API 余额
+- 确认 Python 版本 >= 3.10
+- 确认模型文件存在于 `model_weights/gemma-4-E2B-it.litertlm`
+- 确认已安装 `litert-lm-api-nightly`
 
 ### Q: 电脑操作不执行？
 
@@ -125,4 +187,5 @@ python voice_assistant_ai.py
 
 - 调整 `config.yaml` 中的 `vad.threshold` 优化录音灵敏度
 - 更换 `audio.edge_tts_voice` 使用其他音色
+- 下载本地模型实现完全离线运行
 - 阅读 [完整文档](docs/README.md) 了解更多

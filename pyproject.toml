@@ -1,0 +1,53 @@
+[project]
+name = "voice-assistant"
+version = "2.0.0"
+description = "Voice Assistant with local/online LLM support"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Voice Assistant Team" }
+]
+
+dependencies = [
+    # Audio
+    "numpy>=1.21.0,<2.0.0",
+    "sounddevice>=0.4.0",
+    "soundfile>=0.13.1",
+    "pygame>=2.6.1",
+    # TTS
+    "edge-tts>=7.2.0",
+    # STT
+    "dashscope>=1.25.0",
+    # HTTP
+    "requests>=2.32.0",
+    # Config
+    "python-dotenv>=1.2.0",
+    "PyYAML>=6.0",
+    # Open Interpreter
+    "open-interpreter>=0.3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pip-audit>=2.7.0",
+]
+local-llm = [
+    "litert-lm-api-nightly>=0.10.0",
+]
+
+[project.scripts]
+voice-assistant = "voice_assistant_ai:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=8.0.0",
+    "pip-audit>=2.7.0",
+]
+
+[tool.uv.sources]
