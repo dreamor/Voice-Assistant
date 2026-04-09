@@ -6,19 +6,19 @@
 import io
 import logging
 
-from config import config
-from vad import record_audio
-from tts import synthesize
-from audio_player import play_audio
-from cloud_asr import CloudASR
-from asr_corrector import correct_asr_result
-import ai_client  # 导入以访问本地 LLM 客户端
+from voice_assistant.config import config
+from voice_assistant.audio.vad import record_audio
+from voice_assistant.audio.tts import synthesize
+from voice_assistant.audio.player import play_audio
+from voice_assistant.audio.cloud_asr import CloudASR
+from voice_assistant.core.asr_corrector import correct_asr_result
+import voice_assistant.core.ai_client as ai_client  # 导入以访问本地 LLM 客户端
 
 # 导入新架构模块
-from models.intent import IntentType
-from executors.computer_executor import ComputerExecutor
-from executors.chat_executor import ChatExecutor
-from services.router_service import CommandRouter, simple_classify_intent
+from voice_assistant.models.intent import IntentType
+from voice_assistant.executors.computer import ComputerExecutor
+from voice_assistant.executors.chat import ChatExecutor
+from voice_assistant.services.router import CommandRouter, simple_classify_intent
 
 # 配置日志
 logging.basicConfig(
@@ -95,10 +95,25 @@ def speak_and_play(text: str):
     if not text:
         return
     logger.info(f"  [Speaking] {text[:50]}...")
-    audio_data = synthesize(text)
-    logger.info(f"  [OK] {len(audio_data)} bytes")
-    logger.info("  [Playing]")
-    play_audio(audio_data)
+
+    import tempfile
+    import os
+
+    with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as tmp:
+        tmp_path = tmp.name
+
+    try:
+        if synthesize(text, tmp_path):
+            with open(tmp_path, 'rb') as f:
+                audio_data = f.read()
+            logger.info(f"  [OK] {len(audio_data)} bytes")
+            logger.info("  [Playing]")
+            play_audio(audio_data)
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except:
+            pass
 
 
 def main():

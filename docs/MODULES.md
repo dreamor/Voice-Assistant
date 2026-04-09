@@ -1,22 +1,47 @@
 # 模块说明
 
+## 项目结构
+
+```
+voice-assistant/
+├── config.yaml           # 配置文件
+├── .env                  # 环境变量（API密钥）
+├── run.py                # 入口脚本
+├── start.sh              # 启动脚本
+├── pyproject.toml        # 项目配置
+└── src/voice_assistant/  # 源代码包
+    ├── __init__.py
+    ├── main.py           # 主程序
+    ├── config/           # 配置模块
+    ├── audio/            # 音频模块
+    ├── core/             # 核心模块
+    ├── executors/        # 执行器模块
+    ├── models/           # 数据模型
+    ├── services/         # 服务模块
+    └── security/         # 安全模块
+```
+
 ## 模块概览
 
-| 模块文件 | 功能 | 依赖服务 |
+| 模块路径 | 功能 | 依赖服务 |
 |----------|------|----------|
-| `voice_assistant_ai.py` | 主程序，流程控制，模式切换 | 全部模块 |
-| `cloud_asr.py` | 阿里云语音识别 | DashScope API |
-| `local_llm.py` | 本地 LLM 推理 | LiteRT-LM |
-| `vad.py` | 语音活动检测 | sounddevice |
-| `tts.py` | 语音合成 | Edge-TTS |
-| `ai_client.py` | AI对话客户端（在线/本地） | LLM API / LiteRT-LM |
-| `audio_player.py` | 音频播放 | pygame |
-| `security_utils.py` | 安全工具（输入验证、限流） | - |
-| `asr_corrector.py` | ASR 结果纠错 | LLM |
+| `voice_assistant.main` | 主程序，流程控制，模式切换 | 全部模块 |
+| `voice_assistant.audio.cloud_asr` | 阿里云语音识别 | DashScope API |
+| `voice_assistant.core.local_llm` | 本地 LLM 推理 | LiteRT-LM |
+| `voice_assistant.audio.vad` | 语音活动检测 | sounddevice |
+| `voice_assistant.audio.tts` | 语音合成 | Edge-TTS |
+| `voice_assistant.core.ai_client` | AI对话客户端（在线/本地） | LLM API / LiteRT-LM |
+| `voice_assistant.audio.player` | 音频播放 | pygame |
+| `voice_assistant.security.validation` | 安全工具（输入验证、限流） | - |
+| `voice_assistant.core.asr_corrector` | ASR 结果纠错 | LLM |
+| `voice_assistant.executors.interpreter` | Open Interpreter 执行器 | Open Interpreter |
+| `voice_assistant.executors.computer` | 计算机控制执行器 | pyautogui |
+| `voice_assistant.executors.chat` | 对话执行器 | LLM |
+| `voice_assistant.services.router` | 指令路由服务 | - |
 
 ---
 
-## voice_assistant_ai.py (主程序)
+## voice_assistant.main (主程序)
 
 ### 功能
 - 串联各模块，协调工作流程
@@ -87,7 +112,7 @@ computer_keywords = [
 
 ---
 
-## cloud_asr.py (语音识别)
+## voice_assistant.audio.cloud_asr (语音识别)
 
 ### 功能
 - 使用阿里云 DashScope Paraformer 进行语音识别
@@ -130,7 +155,7 @@ class HotwordsManager:
 
 ---
 
-## local_llm.py (本地 LLM)
+## voice_assistant.core.local_llm (本地 LLM)
 
 ### 功能
 - 使用 LiteRT-LM 进行本地推理
@@ -178,7 +203,7 @@ class LocalLLMClient:
 
 ---
 
-## vad.py (语音活动检测)
+## voice_assistant.audio.vad (语音活动检测)
 
 ### 功能
 - 实时监听麦克风输入
@@ -216,7 +241,7 @@ def record_audio(max_seconds=30)
 
 ---
 
-## tts.py (语音合成)
+## voice_assistant.audio.tts (语音合成)
 
 ### 功能
 - 使用 Microsoft Edge-TTS 进行语音合成
@@ -228,7 +253,7 @@ def record_audio(max_seconds=30)
 def preprocess_text(text)
     """文本预处理，使TTS发音更自然"""
 
-def synthesize(text)
+def synthesize(text, output_path=None)
     """语音合成，返回音频字节数据"""
 ```
 
@@ -240,7 +265,7 @@ def synthesize(text)
 
 ---
 
-## ai_client.py (AI对话)
+## voice_assistant.core.ai_client (AI对话)
 
 ### 功能
 - 使用 LLM API 进行 AI 对话
@@ -277,7 +302,7 @@ def ask_online_ai_stream(text, conversation_history=None)
 
 ---
 
-## audio_player.py (音频播放)
+## voice_assistant.audio.player (音频播放)
 
 ### 功能
 - 使用 pygame 播放音频
@@ -292,7 +317,7 @@ def play_audio(audio_data)
 
 ---
 
-## security_utils.py (安全工具)
+## voice_assistant.security.validation (安全工具)
 
 ### 功能
 - 输入验证
@@ -322,7 +347,7 @@ def validate_audio_input(audio_bytes: bytes) -> bytes
 
 ---
 
-## asr_corrector.py (ASR 纠错)
+## voice_assistant.core.asr_corrector (ASR 纠错)
 
 ### 功能
 - LLM 驱动的 ASR 结果纠错
@@ -341,7 +366,60 @@ def _needs_correction(text: str) -> bool
 
 ---
 
-## test_system.py (测试)
+## voice_assistant.executors (执行器模块)
+
+### BaseExecutor (基类)
+
+```python
+class BaseExecutor(ABC):
+    @abstractmethod
+    def execute(self, text: str, conversation_history: list = None) -> str
+        """执行指令"""
+```
+
+### ChatExecutor (对话执行器)
+
+```python
+class ChatExecutor(BaseExecutor):
+    def execute(self, text: str, conversation_history: list = None) -> str
+        """纯对话模式"""
+```
+
+### ComputerExecutor (计算机控制执行器)
+
+```python
+class ComputerExecutor(BaseExecutor):
+    def execute(self, text: str, conversation_history: list = None) -> str
+        """计算机控制操作"""
+```
+
+### InterpreterExecutor (Open Interpreter 执行器)
+
+```python
+class InterpreterExecutor(BaseExecutor):
+    def execute(self, text: str, conversation_history: list = None) -> str
+        """使用 Open Interpreter 执行复杂任务"""
+```
+
+---
+
+## voice_assistant.services.router (路由服务)
+
+### 功能
+- 分析用户指令意图
+- 路由到合适的执行器
+
+### 类: CommandRouter
+
+```python
+class CommandRouter:
+    def route(self, text: str, conversation_history: list = None) -> str
+        """路由指令到合适的执行器"""
+```
+
+---
+
+## 测试
 
 ### 测试覆盖
 
@@ -360,6 +438,9 @@ def _needs_correction(text: str) -> bool
 ### 运行测试
 
 ```bash
-source .venv/bin/activate
-pytest test_system.py -v
+# 使用 pytest
+pytest tests/ -v
+
+# 或使用 uv
+uv run pytest tests/ -v
 ```

@@ -13,8 +13,8 @@ from typing import Optional
 import dashscope
 import numpy as np
 from dashscope.audio.asr import Recognition, Transcription
-from config import config
-from security_utils import validate_audio_input, asr_limiter, RateLimitError
+from voice_assistant.config import config
+from voice_assistant.security.validation import validate_audio_input, asr_limiter, RateLimitError
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,8 @@ class HotwordsManager:
             热词列表
         """
         try:
-            project_root = Path(__file__).parent
+            # 查找项目根目录
+            project_root = Path(__file__).resolve().parent.parent.parent.parent
             full_path = project_root / config_file
 
             with open(full_path, 'r', encoding='utf-8') as f:
@@ -233,12 +234,3 @@ class CloudASR:
 
         except Exception as e:
             return f"云端ASR错误: {e}"
-
-
-if __name__ == "__main__":
-    asr = CloudASR()
-    print("CloudASR 初始化成功")
-    print(f"  Model: {asr.model}")
-    print(f"  Language Hints: {asr.language_hints}")
-    print(f"  Disfluency Removal: {asr.disfluency_removal_enabled}")
-    print(f"  Hotwords: {'已启用' if asr._vocabulary_id else '未启用'}")

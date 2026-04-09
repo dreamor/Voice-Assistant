@@ -4,8 +4,8 @@
 import logging
 from typing import Any, Optional
 
-from .base import BaseExecutor
-from models.intent import IntentType
+from voice_assistant.executors.base import BaseExecutor
+from voice_assistant.models.intent import IntentType
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ class ComputerExecutor(BaseExecutor):
     def _get_executor(self):
         """懒加载执行器"""
         if self._executor is None:
-            from interpreter_executor import InterpreterExecutor
+            from voice_assistant.executors.interpreter import InterpreterExecutor
             self._executor = InterpreterExecutor(
                 auto_run=self.auto_run,
                 verbose=self.verbose

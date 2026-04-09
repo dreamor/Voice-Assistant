@@ -63,4 +63,4 @@ echo ""
 
 # 启动应用
 source .venv/bin/activate
-python voice_assistant_ai.py
+python run.py

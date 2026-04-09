@@ -108,9 +108,21 @@ class AppConfig:
     logging: LoggingConfig
 
 
+def _find_project_root() -> Path:
+    """查找项目根目录"""
+    # 从当前文件所在目录向上查找，直到找到 config.yaml
+    current = Path(__file__).resolve().parent
+    while current.parent != current:
+        if (current / "config.yaml").exists():
+            return current
+        current = current.parent
+    # 如果找不到，返回 src 的父目录
+    return Path(__file__).resolve().parent.parent.parent
+
+
 def load_config(config_path: str = "config.yaml") -> AppConfig:
     """从 YAML 和环境变量加载配置"""
-    project_root = Path(__file__).parent
+    project_root = _find_project_root()
     full_path = project_root / config_path
 
     with open(full_path, 'r', encoding='utf-8') as f:

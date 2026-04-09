@@ -7,8 +7,8 @@ import json
 import logging
 import re
 import requests
-from config import config
-from security_utils import validate_text_input, llm_limiter, RateLimitError, InputValidationError
+from voice_assistant.config import config
+from voice_assistant.security.validation import validate_text_input, llm_limiter, RateLimitError, InputValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ def get_local_llm_client():
 
     if _local_llm_client is None:
         try:
-            from local_llm import LocalLLMClient, LITERT_LM_AVAILABLE
+            from voice_assistant.core.local_llm import LocalLLMClient, LITERT_LM_AVAILABLE
 
             if not LITERT_LM_AVAILABLE:
                 logger.warning("LiteRT-LM 未安装，本地模型不可用")
@@ -186,7 +186,7 @@ def ask_online_ai_stream(text, conversation_history=None):
                 continue
 
             line = line.decode('utf-8', errors='replace')
-            if not line.startswith('data: '):
+            if not line.startswith(' '):
                 continue
 
             data_str = line[6:]

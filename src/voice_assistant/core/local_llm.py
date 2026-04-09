@@ -199,7 +199,7 @@ class LocalLLMClient:
         return False
 
 
-def download_gemma_model(output_dir: str = "models") -> str:
+def download_gemma_model(output_dir: str = "model_weights") -> str:
     """下载 Gemma-4-E2B-it LiteRT-LM 模型
 
     Args:
@@ -242,31 +242,3 @@ def download_gemma_model(output_dir: str = "models") -> str:
         raise LocalLLMError("模型下载超时")
     except FileNotFoundError:
         raise LocalLLMError("litert-lm CLI 未安装，请运行: pip install litert-lm")
-
-
-if __name__ == "__main__":
-    # 测试代码
-    print("本地 LLM 模块测试:")
-
-    if not LITERT_LM_AVAILABLE:
-        print("  LiteRT-LM 未安装，请运行:")
-        print("  pip install litert-lm-api-nightly")
-    else:
-        print("  LiteRT-LM 已安装")
-
-        # 测试模型路径
-        model_path = "model_weights/gemma-4-E2B-it.litertlm"
-        if os.path.exists(model_path):
-            print(f"  模型文件存在: {model_path}")
-
-            try:
-                with LocalLLMClient(model_path) as client:
-                    print("  发送测试消息...")
-                    for chunk in client.ask_stream("你好"):
-                        print(f"  回复: {chunk}")
-            except Exception as e:
-                print(f"  测试失败: {e}")
-        else:
-            print(f"  模型文件不存在: {model_path}")
-            print("  请先下载模型:")
-            print("  litert-lm run --from-huggingface-repo=litert-community/gemma-4-E2B-it-litert-lm gemma-4-E2B-it.litertlm --prompt=test --output=models")
