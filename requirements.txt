@@ -1,0 +1,22 @@
+# Voice Assistant Dependencies
+
+# Audio
+numpy==2.4.3
+sounddevice==0.5.5
+soundfile==0.13.1
+pygame==2.6.1
+
+# TTS
+edge-tts==7.2.7
+
+# STT
+dashscope==1.25.14
+
+# HTTP
+requests==2.32.3
+
+# Config
+python-dotenv==1.2.2
+
+# Testing
+pytest==9.0.2
