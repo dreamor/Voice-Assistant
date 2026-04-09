@@ -4,8 +4,9 @@
 
 ## 功能特性
 
-- **语音识别 (ASR)**: 阿里云 DashScope Paraformer 实时识别
-- **LLM 对话**: 阿里云百炼，支持对话理解和代码生成
+- **语音识别 (ASR)**: 阿里云 DashScope Paraformer 实时识别，支持中英文混合识别优化
+- **LLM 对话**: 支持在线 API 和本地模型切换
+- **本地模型支持**: 使用 LiteRT-LM 运行 Gemma-4-E2B-it，完全离线运行
 - **语音合成 (TTS)**: Microsoft Edge-TTS，自然流畅
 - **VAD 语音检测**: 自动检测说话开始/结束，无需手动操作
 - **智能意图识别**: 自动判断用户意图，路由到对应执行器
@@ -19,7 +20,9 @@ voice_assistant/
 ├── .env                     # 敏感配置（API Key 等）
 ├── .env.example             # 配置示例
 ├── config.yaml              # 应用配置
-├── requirements.txt         # 依赖清单
+├── pyproject.toml           # 项目配置（uv）
+├── requirements.txt         # 依赖清单（兼容）
+├── start.sh                 # 启动脚本
 ├── voice_assistant_ai.py    # 主程序
 ├── config/                  # 配置模块
 │   └── __init__.py
@@ -36,22 +39,42 @@ voice_assistant/
 │   └── router_service.py   # 命令路由器
 ├── interpreter_executor.py  # Open Interpreter 执行器
 ├── cloud_asr.py            # 语音识别模块
+├── local_llm.py            # 本地 LLM 模块
 ├── vad.py                  # 语音检测模块
 ├── tts.py                  # 语音合成模块
 ├── ai_client.py            # AI 对话模块
 ├── audio_player.py         # 音频播放模块
+├── model_weights/          # 本地模型文件（需下载）
 └── docs/                   # 文档
 ```
 
 ## 快速开始
 
-### 1. 安装依赖
+### 1. 安装 uv
 
 ```bash
-pip install -r requirements.txt
+# macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 或使用 pip
+pip install uv
 ```
 
-### 2. 配置
+### 2. 安装依赖
+
+```bash
+# 使用启动脚本（推荐）
+./start.sh
+
+# 或手动安装
+uv venv --python 3.12
+source .venv/bin/activate
+uv pip install -e ".[dev,local-llm]"
+```
+
+> **注意**: 需要 Python 3.10 或更高版本
+
+### 3. 配置
 
 ```bash
 cp .env.example .env
@@ -64,17 +87,23 @@ cp .env.example .env
 
 **必需配置：**
 - `ASR_API_KEY` - 语音识别 API 密钥
-- `LLM_API_KEY` - AI 对话 API 密钥
+- `LLM_API_KEY` - AI 对话 API 密钥（在线模式）
 
-### 3. 运行测试
+### 4. 运行测试
 
 ```bash
+source .venv/bin/activate
 pytest test_system.py -v
 ```
 
-### 4. 启动
+### 5. 启动
 
 ```bash
+# 使用启动脚本
+./start.sh
+
+# 或手动启动
+source .venv/bin/activate
 python voice_assistant_ai.py
 ```
 
@@ -88,7 +117,34 @@ python voice_assistant_ai.py
 | `C` | 清除对话历史 |
 | `H` | 显示对话历史 |
 | `I` | 切换 自动模式/AI 对话模式 |
+| `L` | 切换 本地/在线 LLM 模式 |
 | `Q` | 退出程序 |
+
+### LLM 模式切换
+
+按 `L` 键可在本地模型和在线 API 之间切换：
+
+| 模式 | 模型 | 说明 |
+|------|------|------|
+| 在线 | kimi-k2.5 | 需要网络，API 调用 |
+| 本地 | gemma-4-E2B-it | 离线运行，隐私保护 |
+
+### 本地模型设置
+
+1. 下载模型文件（约 2.4GB）：
+```bash
+# 从 HuggingFace 下载
+# 放置到 model_weights/gemma-4-E2B-it.litertlm
+```
+
+2. 配置 `config.yaml`：
+```yaml
+llm:
+  use_local: false  # true 强制使用本地模型
+  local:
+    model_path: "model_weights/gemma-4-E2B-it.litertlm"
+    model_name: "gemma-4-E2B-it"
+```
 
 ### 工作流程
 
@@ -137,15 +193,21 @@ app:
 asr:
   model: "paraformer-realtime-v2"
   base_url: "https://dashscope.aliyuncs.com/api/v1"
+  language_hints: ["zh", "en"]  # 中英文混合识别
+  disfluency_removal_enabled: true  # 过滤语气词
 
 llm:
   model: "kimi-k2.5"
   base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
   max_tokens: 2000
   temperature: 0.7
+  use_local: false  # 本地模型开关
+  local:
+    model_path: "model_weights/gemma-4-E2B-it.litertlm"
+    model_name: "gemma-4-E2B-it"
 
 audio:
-  sample_rate: 44100
+  sample_rate: 16000  # ASR 标准采样率
   edge_tts_voice: "zh-CN-XiaoxiaoNeural"
 
 vad:
@@ -179,6 +241,7 @@ LLM_API_KEY=your-llm-api-key
 | `ComputerExecutor` | 电脑控制执行器（Open Interpreter） |
 | `ChatExecutor` | 对话执行器（LLM 对话） |
 | `CommandRouter` | 命令路由器，根据意图自动路由 |
+| `LocalLLMClient` | 本地 LLM 客户端（LiteRT-LM） |
 
 ### 意图类型
 
@@ -191,6 +254,7 @@ LLM_API_KEY=your-llm-api-key
 ## 测试
 
 ```bash
+source .venv/bin/activate
 pytest test_system.py -v
 ```
 

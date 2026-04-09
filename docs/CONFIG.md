@@ -23,7 +23,7 @@ cp .env.example .env
 | 变量名 | 必填 | 说明 |
 |--------|------|------|
 | `ASR_API_KEY` | ✅ | 语音识别 API 密钥 |
-| `LLM_API_KEY` | ✅ | AI 对话 API 密钥 |
+| `LLM_API_KEY` | ✅ | AI 对话 API 密钥（在线模式） |
 
 ### 获取 API Key
 
@@ -52,12 +52,23 @@ app:
 asr:
   model: "paraformer-realtime-v2"
   base_url: "https://dashscope.aliyuncs.com/api/v1"
+  language_hints: ["zh", "en"]
+  disfluency_removal_enabled: true
+  max_sentence_silence: 1200
+  hotwords:
+    enabled: true
+    config_file: "config/hotwords.json"
 ```
 
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
 | `model` | ASR 模型 | paraformer-realtime-v2 |
 | `base_url` | ASR 服务地址 | https://dashscope.aliyuncs.com/api/v1 |
+| `language_hints` | 语言提示 | ["zh", "en"] |
+| `disfluency_removal_enabled` | 过滤语气词 | true |
+| `max_sentence_silence` | 句间停顿容忍(ms) | 1200 |
+| `hotwords.enabled` | 启用热词 | true |
+| `hotwords.config_file` | 热词配置文件 | config/hotwords.json |
 
 **可用模型：**
 
@@ -74,16 +85,25 @@ llm:
   base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
   max_tokens: 2000
   temperature: 0.7
+  use_local: false
+  local:
+    model_path: "model_weights/gemma-4-E2B-it.litertlm"
+    model_name: "gemma-4-E2B-it"
+    system_prompt: "你是一个友好的中文语音助手，回复要简洁口语化，适合语音播放。"
 ```
 
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
-| `model` | AI 模型 | kimi-k2.5 |
+| `model` | AI 模型（在线） | kimi-k2.5 |
 | `base_url` | LLM 服务地址 | https://dashscope.aliyuncs.com/compatible-mode/v1 |
 | `max_tokens` | 最大响应长度 | 2000 |
 | `temperature` | 创造性程度 | 0.7 |
+| `use_local` | 使用本地模型 | false |
+| `local.model_path` | 本地模型路径 | model_weights/gemma-4-E2B-it.litertlm |
+| `local.model_name` | 本地模型名称 | gemma-4-E2B-it |
+| `local.system_prompt` | 系统提示词 | 友好的中文语音助手 |
 
-**推荐模型：**
+**推荐模型（在线）：**
 
 | 模型ID | 说明 |
 |--------|------|
@@ -91,22 +111,28 @@ llm:
 | `qwen-turbo` | Qwen Turbo |
 | `qwen-plus` | Qwen Plus |
 
+**本地模型：**
+
+| 模型 | 说明 | 大小 |
+|------|------|------|
+| `gemma-4-E2B-it` | Gemma 4 2B 参数 | ~2.4GB |
+
 ### 音频配置
 
 ```yaml
 audio:
-  sample_rate: 44100
+  sample_rate: 16000
   edge_tts_voice: "zh-CN-XiaoxiaoNeural"
 ```
 
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
-| `sample_rate` | 采样率 (Hz) | 44100 |
+| `sample_rate` | 采样率 (Hz) | 16000 |
 | `edge_tts_voice` | TTS 音色 | zh-CN-XiaoxiaoNeural |
 
 **采样率说明：**
-- `44100`: CD 音质，推荐
-- `16000`: 低采样率，文件更小
+- `16000`: ASR 标准采样率（推荐）
+- `44100`: CD 音质
 - `48000`: 高音质
 
 **Edge-TTS 中文音色：**
@@ -182,6 +208,39 @@ logging:
 
 ---
 
+## 本地模型配置
+
+### 下载模型
+
+```bash
+# 使用 huggingface-cli
+huggingface-cli download litert-community/gemma-4-E2B-it-litert-lm \
+  --local-dir ./model_weights
+```
+
+或从 HuggingFace 手动下载：
+https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm
+
+### 模型文件
+
+下载后将模型文件放置到：
+```
+model_weights/gemma-4-E2B-it.litertlm
+```
+
+### 切换模式
+
+**方式 1：运行时切换**
+- 按 `L` 键切换本地/在线模式
+
+**方式 2：配置文件**
+```yaml
+llm:
+  use_local: true  # 强制使用本地模型
+```
+
+---
+
 ## 完整配置示例
 
 ### .env
@@ -204,15 +263,26 @@ app:
 asr:
   model: "paraformer-realtime-v2"
   base_url: "https://dashscope.aliyuncs.com/api/v1"
+  language_hints: ["zh", "en"]
+  disfluency_removal_enabled: true
+  max_sentence_silence: 1200
+  hotwords:
+    enabled: true
+    config_file: "config/hotwords.json"
 
 llm:
   model: "kimi-k2.5"
   base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
   max_tokens: 2000
   temperature: 0.7
+  use_local: false
+  local:
+    model_path: "model_weights/gemma-4-E2B-it.litertlm"
+    model_name: "gemma-4-E2B-it"
+    system_prompt: "你是一个友好的中文语音助手，回复要简洁口语化，适合语音播放。"
 
 audio:
-  sample_rate: 44100
+  sample_rate: 16000
   edge_tts_voice: "zh-CN-XiaoxiaoNeural"
 
 vad:
@@ -241,6 +311,7 @@ logging:
 运行测试验证配置是否正确：
 
 ```bash
+source .venv/bin/activate
 pytest test_system.py -v
 ```
 
@@ -249,3 +320,4 @@ pytest test_system.py -v
 - 配置文件是否正确加载
 - API 密钥是否有效
 - 音频设备是否可用
+- 本地模型是否可用（如已下载）

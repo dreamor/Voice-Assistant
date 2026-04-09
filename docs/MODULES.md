@@ -4,12 +4,15 @@
 
 | 模块文件 | 功能 | 依赖服务 |
 |----------|------|----------|
-| `voice_assistant_ai.py` | 主程序，流程控制，Interpreter/AI 模式切换 | 全部模块 |
+| `voice_assistant_ai.py` | 主程序，流程控制，模式切换 | 全部模块 |
 | `cloud_asr.py` | 阿里云语音识别 | DashScope API |
+| `local_llm.py` | 本地 LLM 推理 | LiteRT-LM |
 | `vad.py` | 语音活动检测 | sounddevice |
 | `tts.py` | 语音合成 | Edge-TTS |
-| `ai_client.py` | AI对话客户端 | LLM API |
+| `ai_client.py` | AI对话客户端（在线/本地） | LLM API / LiteRT-LM |
 | `audio_player.py` | 音频播放 | pygame |
+| `security_utils.py` | 安全工具（输入验证、限流） | - |
+| `asr_corrector.py` | ASR 结果纠错 | LLM |
 
 ---
 
@@ -20,23 +23,18 @@
 - 处理用户交互（键盘输入）
 - 管理对话历史
 - 支持 Interpreter 和 AI 两种模式切换
+- 支持本地/在线 LLM 切换
 
 ### 核心函数
 
 ```python
-def call_llm(prompt: str, system_prompt: str = None) -> str
-    """直接调用 LLM API"""
+def toggle_llm_mode() -> tuple[bool, str]
+    """切换本地/在线 LLM 模式"""
 
-def execute_code(code: str, language: str = "python") -> str
-    """执行 Python/Bash 代码"""
+def get_llm_mode() -> str
+    """获取当前 LLM 模式"""
 
-def handle_with_interpreter(user_text: str) -> str
-    """Interpreter 模式：检测操作意图，执行代码"""
-
-def handle_with_ai(user_text: str) -> str
-    """AI 模式：流式对话"""
-
-def recognize(audio_bytes)
+def recognize(audio_bytes) -> str
     """语音识别"""
 
 def speak_and_play(text: str)
@@ -76,6 +74,7 @@ computer_keywords = [
 | C | 清除对话历史 |
 | H | 显示对话历史 |
 | I | 切换 Interpreter/AI 模式 |
+| L | 切换 本地/在线 LLM |
 | Q | 退出程序 |
 
 ### 配置
@@ -93,6 +92,8 @@ computer_keywords = [
 ### 功能
 - 使用阿里云 DashScope Paraformer 进行语音识别
 - 支持文件和字节输入
+- 支持热词优化
+- 中英文混合识别优化
 
 ### 类: CloudASR
 
@@ -101,11 +102,22 @@ class CloudASR:
     def __init__(self, api_key=None, model=None)
         """初始化云端ASR"""
 
-    def recognize_from_file(self, audio_file_path, sample_rate=44100)
+    def recognize_from_file(self, audio_file_path, sample_rate=None)
         """从音频文件识别"""
 
-    def recognize_from_bytes(self, audio_bytes, sample_rate=44100)
+    def recognize_from_bytes(self, audio_bytes, sample_rate=None)
         """从音频字节识别"""
+```
+
+### 热词管理
+
+```python
+class HotwordsManager:
+    def create_vocabulary(self, vocabulary: list) -> str
+        """创建热词列表"""
+
+    def load_hotwords_from_file(self, config_file: str) -> list
+        """从文件加载热词配置"""
 ```
 
 ### 配置变量
@@ -115,6 +127,54 @@ class CloudASR:
 | `ASR_API_KEY` | ASR服务API密钥 | 必填 |
 | `ASR_MODEL` | ASR模型 | paraformer-realtime-v2 |
 | `ASR_BASE_URL` | ASR服务地址 | https://dashscope.aliyuncs.com/api/v1 |
+
+---
+
+## local_llm.py (本地 LLM)
+
+### 功能
+- 使用 LiteRT-LM 进行本地推理
+- 支持流式输出
+- 与在线 LLM 兼容的接口
+
+### 类: LocalLLMEngine
+
+```python
+class LocalLLMEngine:
+    def __init__(self, model_path: str, system_prompt: str = None)
+        """初始化本地 LLM 引擎"""
+
+    def send_message(self, text: str) -> str
+        """发送消息并获取完整回复"""
+
+    def send_message_stream(self, text: str) -> Generator[str, None, None]
+        """发送消息并流式获取回复"""
+
+    def close(self)
+        """关闭引擎，释放资源"""
+```
+
+### 类: LocalLLMClient
+
+```python
+class LocalLLMClient:
+    def __init__(self, model_path: str, system_prompt: str = None)
+        """初始化客户端"""
+
+    def ask_stream(self, text: str, conversation_history=None) -> Generator
+        """流式获取回复（兼容在线 LLM 接口）"""
+
+    def close(self)
+        """关闭客户端"""
+```
+
+### 配置
+
+| 参数 | 说明 | 默认值 |
+|------|------|--------|
+| `llm.local.model_path` | 模型文件路径 | model_weights/gemma-4-E2B-it.litertlm |
+| `llm.local.model_name` | 模型名称 | gemma-4-E2B-it |
+| `llm.local.system_prompt` | 系统提示词 | 友好的中文语音助手 |
 
 ---
 
@@ -184,14 +244,27 @@ def synthesize(text)
 
 ### 功能
 - 使用 LLM API 进行 AI 对话
+- 支持本地/在线模型切换
 - 支持流式输出
 - 管理对话上下文
 
 ### 主要函数
 
 ```python
+def get_local_llm_client() -> LocalLLMClient
+    """获取本地 LLM 客户端（单例）"""
+
+def close_local_llm_client()
+    """关闭本地 LLM 客户端"""
+
 def ask_ai_stream(text, conversation_history=None)
-    """流式获取AI回复，返回生成器"""
+    """流式获取AI回复（自动选择本地或在线）"""
+
+def ask_local_ai_stream(text, conversation_history=None)
+    """使用本地模型获取AI回复"""
+
+def ask_online_ai_stream(text, conversation_history=None)
+    """使用在线API获取AI回复"""
 ```
 
 ### 配置变量
@@ -201,7 +274,6 @@ def ask_ai_stream(text, conversation_history=None)
 | `LLM_API_KEY` | LLM服务API密钥 | 必填 |
 | `LLM_MODEL` | AI模型 | kimi-k2.5 |
 | `LLM_BASE_URL` | LLM服务地址 | https://dashscope.aliyuncs.com/compatible-mode/v1 |
-| `SYSTEM_PROMPT` | 系统提示词 | 友好的中文语音助手 |
 
 ---
 
@@ -220,6 +292,55 @@ def play_audio(audio_data)
 
 ---
 
+## security_utils.py (安全工具)
+
+### 功能
+- 输入验证
+- 速率限制
+- 安全常量
+
+### 主要类和函数
+
+```python
+class RateLimiter:
+    def __init__(self, max_requests: int, window_seconds: int)
+    def check(self) -> None  # 超限抛出 RateLimitError
+
+def validate_text_input(text: str) -> str
+    """验证文本输入"""
+
+def validate_audio_input(audio_bytes: bytes) -> bytes
+    """验证音频输入"""
+```
+
+### 安全常量
+
+| 常量 | 值 | 说明 |
+|------|-----|------|
+| `MAX_TEXT_LENGTH` | 1000 | 最大文本长度 |
+| `MAX_AUDIO_SIZE` | 10MB | 最大音频大小 |
+
+---
+
+## asr_corrector.py (ASR 纠错)
+
+### 功能
+- LLM 驱动的 ASR 结果纠错
+- 检测音译错误并修正
+- 基于对话上下文优化
+
+### 主要函数
+
+```python
+def correct_asr_result(text: str, conversation_history: list = None) -> str
+    """纠正 ASR 识别结果"""
+
+def _needs_correction(text: str) -> bool
+    """判断是否需要纠错"""
+```
+
+---
+
 ## test_system.py (测试)
 
 ### 测试覆盖
@@ -233,9 +354,12 @@ def play_audio(audio_data)
 | `TestEdgeTTS` | 验证TTS合成功能 |
 | `TestAudioDevices` | 验证音频设备可用性 |
 | `TestVoiceAssistantAI` | 验证主模块加载 |
+| `TestASRCorrector` | 验证 ASR 纠错功能 |
+| `TestSecurityUtils` | 验证安全工具功能 |
 
 ### 运行测试
 
 ```bash
+source .venv/bin/activate
 pytest test_system.py -v
 ```
