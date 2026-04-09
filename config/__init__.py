@@ -18,11 +18,23 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
+class HotwordsConfig:
+    """热词配置"""
+    enabled: bool
+    config_file: str
+    vocabulary_id: Optional[str]
+
+
+@dataclass(frozen=True)
 class ASRConfig:
     """ASR 配置"""
     model: str
     base_url: str
     api_key: str
+    language_hints: list
+    disfluency_removal_enabled: bool
+    max_sentence_silence: int
+    hotwords: HotwordsConfig
 
 
 @dataclass(frozen=True)
@@ -101,6 +113,14 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
             model=cfg['asr']['model'],
             base_url=cfg['asr']['base_url'],
             api_key=os.getenv('ASR_API_KEY'),
+            language_hints=cfg['asr'].get('language_hints', ['zh', 'en']),
+            disfluency_removal_enabled=cfg['asr'].get('disfluency_removal_enabled', False),
+            max_sentence_silence=cfg['asr'].get('max_sentence_silence', 800),
+            hotwords=HotwordsConfig(
+                enabled=cfg['asr'].get('hotwords', {}).get('enabled', False),
+                config_file=cfg['asr'].get('hotwords', {}).get('config_file', 'config/hotwords.json'),
+                vocabulary_id=cfg['asr'].get('hotwords', {}).get('vocabulary_id'),
+            ),
         ),
         llm=LLMConfig(
             model=cfg['llm']['model'],

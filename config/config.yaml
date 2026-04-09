@@ -10,6 +10,15 @@ app:
 asr:
   model: "paraformer-realtime-v2"
   base_url: "https://dashscope.aliyuncs.com/api/v1"
+  # 中英文混合识别优化参数
+  language_hints: ["zh", "en"]
+  disfluency_removal_enabled: true  # 过滤语气词（嗯、啊等）
+  max_sentence_silence: 1200  # 句间停顿容忍时间（毫秒）
+  # 热词配置
+  hotwords:
+    enabled: true
+    config_file: "config/hotwords.json"
+    vocabulary_id: null  # 运行时自动创建/更新
 
 # LLM 配置（AI 对话）
 llm:
@@ -20,7 +29,7 @@ llm:
 
 # 音频配置
 audio:
-  sample_rate: 44100
+  sample_rate: 16000  # 标准 ASR 采样率，提升识别准确率
   edge_tts_voice: "zh-CN-XiaoxiaoNeural"
 
 # VAD 配置
