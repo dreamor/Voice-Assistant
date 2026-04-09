@@ -38,6 +38,14 @@ class ASRConfig:
 
 
 @dataclass(frozen=True)
+class LocalLLMConfig:
+    """本地 LLM 配置"""
+    model_path: str
+    model_name: str
+    system_prompt: str
+
+
+@dataclass(frozen=True)
 class LLMConfig:
     """LLM 配置"""
     model: str
@@ -45,6 +53,8 @@ class LLMConfig:
     api_key: str
     max_tokens: int
     temperature: float
+    use_local: bool
+    local: LocalLLMConfig
 
 
 @dataclass(frozen=True)
@@ -128,6 +138,12 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
             api_key=os.getenv('LLM_API_KEY'),
             max_tokens=cfg['llm']['max_tokens'],
             temperature=cfg['llm']['temperature'],
+            use_local=cfg['llm'].get('use_local', False),
+            local=LocalLLMConfig(
+                model_path=cfg['llm'].get('local', {}).get('model_path', 'models/gemma-4-E2B-it.litertlm'),
+                model_name=cfg['llm'].get('local', {}).get('model_name', 'gemma-4-E2B-it'),
+                system_prompt=cfg['llm'].get('local', {}).get('system_prompt', '你是一个友好的中文语音助手。'),
+            ),
         ),
         audio=AudioConfig(
             sample_rate=cfg['audio']['sample_rate'],

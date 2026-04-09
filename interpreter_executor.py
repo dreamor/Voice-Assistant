@@ -1,6 +1,7 @@
 """
 Open Interpreter 执行器
 使用真正的 Open Interpreter 库实现电脑控制
+支持在线和本地模型
 """
 import logging
 from typing import Optional
@@ -24,6 +25,7 @@ class InterpreterExecutor:
         self.auto_run = auto_run
         self.verbose = verbose
         self._interpreter = None
+        self._use_local = config.llm.use_local
 
     def _get_interpreter(self):
         """懒加载 interpreter（避免未安装时报错）"""
@@ -36,18 +38,61 @@ class InterpreterExecutor:
                 interpreter.auto_run = self.auto_run
                 interpreter.verbose = self.verbose
 
-                # 配置 LLM（从 config 读取）
+                # 配置 LLM
                 llm_cfg = config.llm
-                # litellm 需要 openai/ 前缀表示 OpenAI 兼容 API
-                interpreter.llm.model = f"openai/{llm_cfg.model}"
-                interpreter.llm.api_key = llm_cfg.api_key
-                interpreter.llm.api_base = llm_cfg.base_url
+
+                if llm_cfg.use_local:
+                    # 本地模型配置
+                    # Open Interpreter 需要通过本地服务器或特殊配置使用本地模型
+                    # 这里我们使用自定义的本地 LLM 包装器
+                    self._configure_local_llm(interpreter, llm_cfg)
+                else:
+                    # 在线 API 配置
+                    # litellm 需要 openai/ 前缀表示 OpenAI 兼容 API
+                    interpreter.llm.model = f"openai/{llm_cfg.model}"
+                    interpreter.llm.api_key = llm_cfg.api_key
+                    interpreter.llm.api_base = llm_cfg.base_url
 
             except ImportError:
                 logger.error("Open Interpreter 未安装，请运行：pip install open-interpreter")
                 raise
 
         return self._interpreter
+
+    def _configure_local_llm(self, interpreter, llm_cfg):
+        """配置本地 LLM
+
+        Open Interpreter 通过 litellm 支持 OpenAI 兼容 API。
+        对于本地模型，我们需要启动一个本地服务器或使用自定义 LLM 类。
+
+        当前实现：使用本地 OpenAI 兼容服务器（如果可用）
+        未来：直接集成 LiteRT-LM
+        """
+        logger.info(f"配置本地模型: {llm_cfg.local.model_name}")
+
+        # 检查是否有本地 OpenAI 兼容服务器
+        # 例如：使用 ollama、vllm 或 lm-studio
+        local_server_url = "http://localhost:11434/v1"  # Ollama 默认地址
+
+        try:
+            import requests
+            response = requests.get(f"{local_server_url.replace('/v1', '')}/api/tags", timeout=2)
+            if response.status_code == 200:
+                logger.info(f"检测到本地 Ollama 服务器")
+                interpreter.llm.model = f"openai/{llm_cfg.local.model_name}"
+                interpreter.llm.api_base = local_server_url
+                interpreter.llm.api_key = "dummy"  # Ollama 不需要 API key
+                self._use_local = True
+                return
+        except Exception:
+            logger.info("未检测到本地 Ollama 服务器")
+
+        # 如果没有本地服务器，回退到在线模式
+        logger.warning("本地模型服务器不可用，回退到在线模式")
+        interpreter.llm.model = f"openai/{llm_cfg.model}"
+        interpreter.llm.api_key = llm_cfg.api_key
+        interpreter.llm.api_base = llm_cfg.base_url
+        self._use_local = False
 
     def execute(self, user_command: str) -> dict:
         """

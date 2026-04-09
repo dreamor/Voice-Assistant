@@ -1,6 +1,7 @@
 """
 语音助手 - Open Interpreter 版本（重构后）
 功能：麦克风收音 → STT → 意图识别 → 路由执行 → 语音反馈
+支持本地/在线模型切换
 """
 import io
 import logging
@@ -11,6 +12,7 @@ from tts import synthesize
 from audio_player import play_audio
 from cloud_asr import CloudASR
 from asr_corrector import correct_asr_result
+import ai_client  # 导入以访问本地 LLM 客户端
 
 # 导入新架构模块
 from models.intent import IntentType
@@ -37,6 +39,36 @@ router = CommandRouter(executors=[computer_executor, chat_executor])
 
 # 初始化 ASR
 asr_client = CloudASR(api_key=config.asr.api_key, model=config.asr.model)
+
+# 本地模型状态
+_use_local_llm = config.llm.use_local
+
+
+def toggle_llm_mode():
+    """切换本地/在线 LLM 模式"""
+    global _use_local_llm
+    _use_local_llm = not _use_local_llm
+
+    # 更新 ai_client 的行为
+    # 注意：config 是 frozen dataclass，不能直接修改
+    # 我们通过全局变量控制
+    if _use_local_llm:
+        # 尝试初始化本地客户端
+        client = ai_client.get_local_llm_client()
+        if client is None:
+            logger.warning("本地模型不可用，保持在线模式")
+            _use_local_llm = False
+            return False, "在线"
+        return True, "本地"
+    else:
+        # 关闭本地客户端
+        ai_client.close_local_llm_client()
+        return True, "在线"
+
+
+def get_llm_mode() -> str:
+    """获取当前 LLM 模式"""
+    return "本地" if _use_local_llm else "在线"
 
 
 def recognize(audio_bytes) -> str:
@@ -70,16 +102,21 @@ def speak_and_play(text: str):
 
 
 def main():
+    global _use_local_llm
+
     logger.info("\n" + "=" * 50)
     logger.info(f"  {config.name} v{config.version}")
     logger.info("=" * 50)
     logger.info(f"  ASR: {config.asr.model}")
-    logger.info(f"  LLM: {config.llm.model}")
+    llm_mode = "本地" if _use_local_llm else "在线"
+    llm_name = config.llm.local.model_name if _use_local_llm else config.llm.model
+    logger.info(f"  LLM: {llm_name} ({llm_mode})")
     logger.info("=" * 50)
     logger.info("  [ENTER] Start recording")
     logger.info("  [C]     Clear history")
     logger.info("  [H]     Show history")
     logger.info("  [I]     Toggle Auto/AI")
+    logger.info("  [L]     Toggle Local/Online LLM")
     logger.info("  [Q]     Quit")
     logger.info("=" * 50)
     logger.info("\nReady!\n")
@@ -89,9 +126,12 @@ def main():
 
     while True:
         mode = "自动" if auto_mode else "AI 对话"
-        cmd = input(f"[ENTER=Record / C=Clear / H=History / I=Toggle / Q=Quit] (模式:{mode}): ").strip().lower()
+        llm_mode = get_llm_mode()
+        cmd = input(f"[ENTER=Record / C=Clear / H=History / I=Toggle / L=LLM / Q=Quit] (模式:{mode}, LLM:{llm_mode}): ").strip().lower()
 
         if cmd == 'q':
+            # 清理资源
+            ai_client.close_local_llm_client()
             logger.info("Bye!")
             break
         elif cmd == 'c':
@@ -113,6 +153,13 @@ def main():
         elif cmd == 'i':
             auto_mode = not auto_mode
             logger.info(f"[OK] Switched to {mode}\n")
+            continue
+        elif cmd == 'l':
+            success, new_mode = toggle_llm_mode()
+            if success:
+                logger.info(f"[OK] LLM 模式切换为: {new_mode}\n")
+            else:
+                logger.warning(f"[Failed] LLM 模式切换失败\n")
             continue
 
         logger.info("\n[Recording] Speak now...")
