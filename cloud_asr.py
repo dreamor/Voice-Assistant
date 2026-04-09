@@ -128,7 +128,7 @@ class CloudASR:
         else:
             logger.warning("热词配置为空，跳过热词初始化")
 
-    def recognize_from_file(self, audio_file_path, sample_rate=None):
+    def recognize_from_file(self, audio_file_path: str, sample_rate: int | None = None) -> str:
         """从音频文件识别
 
         Args:
@@ -174,7 +174,7 @@ class CloudASR:
         except Exception as e:
             return f"云端ASR错误: {e}"
 
-    def recognize_from_bytes(self, audio_bytes, sample_rate=None):
+    def recognize_from_bytes(self, audio_bytes: bytes, sample_rate: int | None = None) -> str:
         """从音频字节数据识别
 
         Args:

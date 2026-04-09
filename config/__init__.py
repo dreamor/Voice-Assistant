@@ -156,8 +156,8 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
 try:
     config = load_config()
 except Exception as e:
-    logger.warning(f"配置加载失败：{e}，将使用环境变量")
-    config = None
+    logger.error(f"配置加载失败：{e}")
+    raise RuntimeError(f"配置加载失败，请检查 config.yaml 和 .env 文件: {e}") from e
 
 
 __all__ = ['config', 'load_config', 'AppConfig']

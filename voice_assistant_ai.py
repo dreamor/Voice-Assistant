@@ -44,7 +44,7 @@ def recognize(audio_bytes) -> str:
     try:
         result = asr_client.recognize_from_bytes(audio_bytes)
 
-        if result and not result.startswith("云端 ASR 错误"):
+        if result and not result.startswith("云端ASR错误"):
             # 对识别结果进行纠错
             corrected = correct_asr_result(result, chat_executor.get_history())
             if corrected != result:
