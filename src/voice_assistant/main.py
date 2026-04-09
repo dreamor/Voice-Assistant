@@ -15,7 +15,7 @@ from voice_assistant.core.asr_corrector import correct_asr_result
 import voice_assistant.core.ai_client as ai_client  # 导入以访问本地 LLM 客户端
 
 # 导入新架构模块
-from voice_assistant.models.intent import IntentType
+from voice_assistant.model.intent import IntentType
 from voice_assistant.executors.computer import ComputerExecutor
 from voice_assistant.executors.chat import ChatExecutor
 from voice_assistant.services.router import CommandRouter, simple_classify_intent

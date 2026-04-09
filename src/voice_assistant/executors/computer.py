@@ -5,7 +5,7 @@ import logging
 from typing import Any, Optional
 
 from voice_assistant.executors.base import BaseExecutor
-from voice_assistant.models.intent import IntentType
+from voice_assistant.model.intent import IntentType
 
 logger = logging.getLogger(__name__)
 
