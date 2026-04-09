@@ -22,5 +22,8 @@ PyYAML>=6.0
 # Testing
 pytest>=8.0.0
 
+# Security
+pip-audit>=2.7.0
+
 # Open Interpreter (电脑控制)
 open-interpreter>=0.3.0
