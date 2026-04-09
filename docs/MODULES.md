@@ -78,16 +78,13 @@ computer_keywords = [
 | I | 切换 Interpreter/AI 模式 |
 | Q | 退出程序 |
 
-### 配置变量
+### 配置
 
-| 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `ASR_API_KEY` | ASR服务API密钥 | 必填 |
-| `ASR_MODEL` | ASR模型 | paraformer-realtime-v2 |
-| `LLM_API_KEY` | LLM服务API密钥 | 必填 |
-| `LLM_MODEL` | AI模型 | kimi-k2.5 |
-| `LLM_BASE_URL` | LLM服务地址 | https://dashscope.aliyuncs.com/compatible-mode/v1 |
-| `SAMPLE_RATE` | 采样率 | 44100 |
+项目使用配置分离架构：
+- `.env` - 敏感信息（API Key）
+- `config.yaml` - 非敏感配置
+
+详见 [CONFIG.md](CONFIG.md)。
 
 ---
 

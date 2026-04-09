@@ -2,15 +2,10 @@
 TTS (Text-to-Speech) 模块
 使用 Edge-TTS 进行语音合成
 """
-import os
 import re
 import asyncio
 import edge_tts
-from dotenv import load_dotenv
-
-load_dotenv()
-
-EDGE_TTS_VOICE = os.getenv("EDGE_TTS_VOICE")
+from config import config
 
 
 def preprocess_text(text):
@@ -21,16 +16,31 @@ def preprocess_text(text):
     return text
 
 
-def synthesize(text):
-    """语音合成"""
-    processed = preprocess_text(text)
+async def _synthesize_async(text, output_file):
+    """异步合成语音"""
+    voice = config.audio.edge_tts_voice
+    communicate = edge_tts.Communicate(text, voice)
+    await communicate.save(output_file)
 
-    async def generate():
-        communicate = edge_tts.Communicate(processed, EDGE_TTS_VOICE)
-        audio = b""
-        async for chunk in communicate.stream():
-            if chunk["type"] == "audio":
-                audio += chunk["data"]
-        return audio
 
-    return asyncio.run(generate())
+def synthesize(text, output_file):
+    """同步接口：将文本转换为语音
+
+    Args:
+        text: 要合成的文本
+        output_file: 输出音频文件路径（MP3格式）
+
+    Returns:
+        bool: 是否成功
+    """
+    try:
+        processed_text = preprocess_text(text)
+        asyncio.run(_synthesize_async(processed_text, output_file))
+        return True
+    except Exception as e:
+        print(f"TTS错误: {e}")
+        return False
+
+
+if __name__ == "__main__":
+    print(f"Edge TTS Voice: {config.audio.edge_tts_voice}")

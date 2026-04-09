@@ -1,19 +1,15 @@
 """
 AI Client 模块
-使用 OpenRouter API 进行 AI 对话
+使用 LLM API 进行 AI 对话
 """
 import json
-import os
 import re
 import requests
-from dotenv import load_dotenv
+from config import config
 
-load_dotenv()
 
-LLM_API_KEY = os.getenv("LLM_API_KEY")
-LLM_BASE_URL = os.getenv("LLM_BASE_URL")
-LLM_MODEL = os.getenv("LLM_MODEL")
-SYSTEM_PROMPT = os.getenv("SYSTEM_PROMPT")
+# 默认系统提示词
+DEFAULT_SYSTEM_PROMPT = "你是一个友好的中文语音助手，回复要简洁口语化，适合语音播放。"
 
 
 def ask_ai_stream(text, conversation_history=None):
@@ -21,10 +17,11 @@ def ask_ai_stream(text, conversation_history=None):
     if conversation_history is None:
         conversation_history = []
 
+    llm_cfg = config.llm
     cleaned_text = re.sub(r'\s+', ' ', text).strip()
 
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT}
+        {"role": "system", "content": DEFAULT_SYSTEM_PROMPT}
     ]
 
     if conversation_history:
@@ -36,15 +33,16 @@ def ask_ai_stream(text, conversation_history=None):
         print("  [AI] Thinking...")
 
         response = requests.post(
-            f"{LLM_BASE_URL}/chat/completions",
+            f"{llm_cfg.base_url}/chat/completions",
             headers={
-                "Authorization": f"Bearer {LLM_API_KEY}",
+                "Authorization": f"Bearer {llm_cfg.api_key}",
                 "Content-Type": "application/json",
             },
             json={
-                "model": LLM_MODEL,
+                "model": llm_cfg.model,
                 "messages": messages,
-                "max_tokens": 500,
+                "max_tokens": llm_cfg.max_tokens,
+                "temperature": llm_cfg.temperature,
                 "stream": True,
             },
             stream=True,
@@ -87,8 +85,9 @@ def ask_ai_stream(text, conversation_history=None):
             conversation_history.append({"role": "user", "content": cleaned_text})
             conversation_history.append({"role": "assistant", "content": final_content})
 
-            if len(conversation_history) > 20:
-                conversation_history[:] = conversation_history[-20:]
+            max_turns = config.history.max_turns
+            if len(conversation_history) > max_turns:
+                conversation_history[:] = conversation_history[-max_turns:]
         else:
             yield "抱歉，没有得到有效回复。"
 

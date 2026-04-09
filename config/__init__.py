@@ -12,7 +12,7 @@ import yaml
 from dotenv import load_dotenv
 
 # 加载 .env 文件
-load_dotenv()
+load_dotenv(override=True)
 
 logger = logging.getLogger(__name__)
 

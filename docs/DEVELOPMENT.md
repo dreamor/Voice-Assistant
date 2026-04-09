@@ -21,7 +21,7 @@ pip install -r requirements.txt
 
 ```bash
 # 复制配置示例
-cp .env.sample .env
+cp .env.example .env
 
 # 编辑 .env 填入 API 密钥
 # 必须填写:
@@ -238,7 +238,7 @@ cd voice-assistant-ai
 pip install -r requirements.txt
 
 # 3. 配置 .env
-cp .env.sample .env
+cp .env.example .env
 nano .env
 
 # 4. 运行

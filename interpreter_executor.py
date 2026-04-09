@@ -5,6 +5,8 @@ Open Interpreter 执行器
 import logging
 from typing import Optional
 
+from config import config
+
 logger = logging.getLogger(__name__)
 
 
@@ -34,14 +36,12 @@ class InterpreterExecutor:
                 interpreter.auto_run = self.auto_run
                 interpreter.verbose = self.verbose
 
-                # 配置 LLM（使用项目配置的阿里云百炼）
-                import os
-                from dotenv import load_dotenv
-                load_dotenv()
-
-                interpreter.llm.model = os.getenv("LLM_MODEL", "qwen-plus")
-                interpreter.llm.api_key = os.getenv("LLM_API_KEY")
-                interpreter.llm.api_base = os.getenv("LLM_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+                # 配置 LLM（从 config 读取）
+                llm_cfg = config.llm
+                # litellm 需要 openai/ 前缀表示 OpenAI 兼容 API
+                interpreter.llm.model = f"openai/{llm_cfg.model}"
+                interpreter.llm.api_key = llm_cfg.api_key
+                interpreter.llm.api_base = llm_cfg.base_url
 
             except ImportError:
                 logger.error("Open Interpreter 未安装，请运行：pip install open-interpreter")

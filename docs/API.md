@@ -21,8 +21,8 @@ def __init__(self, api_key=None, model=None)
 ```
 
 **参数:**
-- `api_key` (str, optional): ASR 服务 API 密钥，默认为环境变量 `ASR_API_KEY`
-- `model` (str, optional): ASR 模型名称，默认为环境变量 `ASR_MODEL`
+- `api_key` (str, optional): ASR 服务 API 密钥，默认从 `config.asr.api_key` 读取
+- `model` (str, optional): ASR 模型名称，默认从 `config.asr.model` 读取
 
 ---
 
@@ -282,18 +282,35 @@ result = execute_code("print('hello')", "python")
 
 ---
 
-## 常量参考
+## 配置参考
 
-### 环境变量
+项目使用配置分离架构：
 
-| 变量 | 模块 | 说明 |
-|------|------|------|
-| `ASR_API_KEY` | cloud_asr | ASR 服务 API 密钥 |
-| `ASR_MODEL` | cloud_asr | ASR 模型 |
-| `LLM_API_KEY` | ai_client | LLM 服务 API 密钥 |
-| `LLM_MODEL` | ai_client | AI 模型 |
-| `SAMPLE_RATE` | vad, tts | 音频采样率 |
-| `EDGE_TTS_VOICE` | tts | TTS 音色 |
-| `VAD_THRESHOLD` | vad | 声音检测阈值 |
-| `VAD_SILENCE_TIMEOUT` | vad | 静默超时 |
-| `SYSTEM_PROMPT` | ai_client | 系统提示词 |
+| 文件 | 内容 |
+|------|------|
+| `.env` | API Key（敏感信息） |
+| `config.yaml` | 模型、参数等（非敏感配置） |
+
+### .env 配置
+
+| 变量 | 说明 |
+|------|------|
+| `ASR_API_KEY` | ASR 服务 API 密钥 |
+| `LLM_API_KEY` | LLM 服务 API 密钥 |
+
+### config.yaml 配置
+
+通过 `from config import config` 访问配置对象：
+
+```python
+config.asr.model          # ASR 模型
+config.asr.base_url       # ASR 服务地址
+config.llm.model          # AI 模型
+config.llm.max_tokens     # 最大响应长度
+config.audio.sample_rate  # 采样率
+config.audio.edge_tts_voice  # TTS 音色
+config.vad.threshold      # 声音检测阈值
+config.interpreter.auto_run  # 自动执行代码
+```
+
+详见 [CONFIG.md](CONFIG.md)。

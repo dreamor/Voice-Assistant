@@ -58,11 +58,13 @@ cp .env.example .env
 # 编辑 .env，填入 API Key
 ```
 
+**配置架构：**
+- `.env` - 敏感信息（API Key）
+- `config.yaml` - 非敏感配置（模型、参数等）
+
 **必需配置：**
 - `ASR_API_KEY` - 语音识别 API 密钥
 - `LLM_API_KEY` - AI 对话 API 密钥
-
-其他配置在 `config.yaml` 中调整。
 
 ### 3. 运行测试
 
