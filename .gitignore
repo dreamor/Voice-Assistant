@@ -53,4 +53,8 @@ Thumbs.db
 htmlcov/
 # Model weights (large files)
 model_weights/
+
+# Models directory - keep structure but ignore large model files
+models/*
+!models/.gitkeep
 default.profraw
