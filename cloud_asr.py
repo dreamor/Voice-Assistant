@@ -85,7 +85,7 @@ class CloudASR:
                     audio_data = np.frombuffer(audio_bytes, dtype=np.float32)
                     if audio_data.max() <= 1.0:
                         audio_data = (audio_data * 32767).astype(np.int16)
-                except:
+                except (ValueError, TypeError):
                     audio_data = np.frombuffer(audio_bytes, dtype=np.int16)
 
                 with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
@@ -97,7 +97,7 @@ class CloudASR:
             finally:
                 try:
                     os.unlink(tmp_path)
-                except:
+                except OSError:
                     pass
 
         except Exception as e:
@@ -109,4 +109,3 @@ if __name__ == "__main__":
     print("CloudASR 配置:")
     print(f"  Model: {asr.model}")
     print(f"  Base URL: {asr.base_url}")
-    print(f"  API Key: {asr.api_key[:10]}...")

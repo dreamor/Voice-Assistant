@@ -2,10 +2,13 @@
 TTS (Text-to-Speech) 模块
 使用 Edge-TTS 进行语音合成
 """
+import logging
 import re
 import asyncio
 import edge_tts
 from config import config
+
+logger = logging.getLogger(__name__)
 
 
 def preprocess_text(text):
@@ -38,7 +41,7 @@ def synthesize(text, output_file):
         asyncio.run(_synthesize_async(processed_text, output_file))
         return True
     except Exception as e:
-        print(f"TTS错误: {e}")
+        logger.error(f"TTS错误: {e}")
         return False
 
 

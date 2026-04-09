@@ -69,7 +69,7 @@ def ask_ai_stream(text, conversation_history=None):
 
             try:
                 data = json.loads(data_str)
-            except:
+            except json.JSONDecodeError:
                 continue
 
             delta = data.get('choices', [{}])[0].get('delta', {})
