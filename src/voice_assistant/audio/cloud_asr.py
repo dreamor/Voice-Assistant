@@ -131,7 +131,7 @@ class CloudASR:
             logger.warning("热词配置为空，跳过热词初始化")
 
     def recognize_from_file(self, audio_file_path: str, sample_rate: Optional[int] = None) -> str:
-        """从音频文件识别
+        """从音频文件识别 - 使用 DashScope SDK
 
         Args:
             audio_file_path: WAV文件路径
@@ -139,9 +139,6 @@ class CloudASR:
 
         Returns:
             识别的文本，如果识别失败返回错误信息
-
-        Raises:
-            RateLimitError: 超过速率限制
         """
         if sample_rate is None:
             sample_rate = config.audio.sample_rate
@@ -150,36 +147,82 @@ class CloudASR:
         asr_limiter.check()
 
         try:
-            # 构建识别参数
-            recognition_params = {
-                'model': self.model,
-                'format': 'wav',
-                'sample_rate': sample_rate,
-                'language_hints': self.language_hints,
-                'disfluency_removal_enabled': self.disfluency_removal_enabled,
-                'max_sentence_silence': self.max_sentence_silence,
-            }
+            from dashscope.audio.asr import Recognition, RecognitionCallback
+            
+            # 存储识别结果
+            result_container = {"text": "", "finished": False, "error": None}
+            
+            class ASRCallback(RecognitionCallback):
+                def on_open(self):
+                    logger.info("  [ASR] Connection opened")
+                
+                def on_event(self, result):
+                    # 获取识别句子
+                    sentence = result.get_sentence()
+                    if sentence and 'text' in sentence:
+                        text = sentence['text']
+                        result_container["text"] += text
+                        logger.info(f"  [ASR] Got: {text}")
+                
+                def on_complete(self):
+                    logger.info("  [ASR] Complete")
+                    result_container["finished"] = True
+                
+                def on_error(self, result):
+                    logger.error(f"  [ASR] Error: {result.get_sentence()}")
+                    result_container["error"] = str(result)
+                    result_container["finished"] = True
+                
+                def on_close(self):
+                    logger.info("  [ASR] Connection closed")
 
-            # 如果有热词 ID，添加到参数中
-            if self._vocabulary_id:
-                recognition_params['vocabulary_id'] = self._vocabulary_id
+            # 读取音频文件
+            with open(audio_file_path, 'rb') as f:
+                audio_data = f.read()
 
-            recognition = Recognition(**recognition_params)
-            result = recognition.call(audio_file_path)
+            # 如果是 WAV 格式，跳过文件头
+            if audio_data[:4] == b'RIFF':
+                audio_data = audio_data[44:]
 
-            if result.status_code == HTTPStatus.OK and result.output:
-                sentences = result.output.get('sentence', [])
-                if sentences:
-                    text_parts = []
-                    for sent in sentences:
-                        if isinstance(sent, dict) and 'text' in sent:
-                            text_parts.append(sent['text'])
-                    if text_parts:
-                        return ''.join(text_parts)
+            # 创建 Recognition 对象
+            recognition = Recognition(
+                model=self.model,
+                format='wav',
+                sample_rate=sample_rate,
+                language_hints=self.language_hints or ["zh", "en"],
+                disfluency_removal_enabled=self.disfluency_removal_enabled,
+                max_sentence_silence=self.max_sentence_silence,
+                callback=ASRCallback()
+            )
 
+            # 开始识别
+            recognition.start()
+            
+            # 发送音频数据（分块发送，每块约 16KB）
+            chunk_size = 16000
+            for i in range(0, len(audio_data), chunk_size):
+                chunk = audio_data[i:i+chunk_size]
+                recognition.send_audio_frame(chunk)
+            
+            # 停止识别
+            recognition.stop()
+
+            # 等待结果（最多30秒）
+            import time
+            start = time.time()
+            while not result_container["finished"] and time.time() - start < 30:
+                time.sleep(0.1)
+
+            if result_container["error"]:
+                return f"云端ASR错误: {result_container['error']}"
+            
+            if result_container["text"]:
+                return result_container["text"]
+            
             return "未识别到内容"
 
         except Exception as e:
+            logger.error(f"ASR 识别失败: {e}")
             return f"云端ASR错误: {e}"
 
     def recognize_from_bytes(self, audio_bytes: bytes, sample_rate: Optional[int] = None) -> str:

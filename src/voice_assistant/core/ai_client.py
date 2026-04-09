@@ -67,11 +67,10 @@ def ask_ai_stream(text, conversation_history=None):
         InputValidationError: 输入验证失败
         RateLimitError: 超过速率限制
     """
-    # 检查是否有本地客户端（表示本地模式已激活）
-    client = get_local_llm_client()
-
-    # 根据本地客户端状态选择模式
-    if client is not None:
+    # 根据 config.llm.use_local 决定使用本地还是在线模型
+    use_local = config.llm.use_local
+    
+    if use_local:
         yield from ask_local_ai_stream(text, conversation_history)
     else:
         yield from ask_online_ai_stream(text, conversation_history)
@@ -186,10 +185,15 @@ def ask_online_ai_stream(text, conversation_history=None):
                 continue
 
             line = line.decode('utf-8', errors='replace')
-            if not line.startswith(' '):
+            
+            # 处理 SSE 格式: data: {...}
+            if line.startswith('data:'):
+                data_str = line[5:].strip()
+            elif line.startswith(' '):
+                data_str = line[6:].strip()
+            else:
                 continue
 
-            data_str = line[6:]
             if data_str == '[DONE]':
                 break
 

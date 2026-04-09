@@ -39,22 +39,25 @@ if [ ! -d ".venv" ]; then
     uv venv --python 3.12
 fi
 
-# 安装依赖
-echo -e "${YELLOW}检查依赖...${NC}"
-uv pip install -e ".[dev,local-llm]"
-
-# 检查环境变量
-if [ ! -f ".env" ]; then
-    echo -e "${YELLOW}警告: .env 文件不存在${NC}"
-    echo -e "请复制 .env.example 并填入 API 密钥"
-fi
-
 # 检查本地模型
+USE_LOCAL_LLM=false
 if [ -f "model_weights/gemma-4-E2B-it.litertlm" ]; then
+    USE_LOCAL_LLM=true
     echo -e "${GREEN}✓ 本地模型已就绪${NC}"
+elif grep -q "use_local:\s*true" config.yaml 2>/dev/null; then
+    USE_LOCAL_LLM=true
+    echo -e "${GREEN}✓ 本地模型配置已启用${NC}"
 else
     echo -e "${YELLOW}提示: 本地模型未安装，将使用在线模式${NC}"
     echo -e "下载模型: 参考 docs/CONFIG.md"
+fi
+
+# 安装依赖
+echo -e "${YELLOW}检查依赖...${NC}"
+if [ "$USE_LOCAL_LLM" = true ]; then
+    uv pip install -e ".[dev,local-llm]"
+else
+    uv pip install -e ".[dev]"
 fi
 
 echo "================================"

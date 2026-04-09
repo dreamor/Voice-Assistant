@@ -53,8 +53,8 @@ class InterpreterExecutor:
                     interpreter.llm.api_key = llm_cfg.api_key
                     interpreter.llm.api_base = llm_cfg.base_url
 
-            except ImportError:
-                logger.error("Open Interpreter 未安装，请运行：pip install open-interpreter")
+            except Exception as e:
+                logger.error(f"Open Interpreter 初始化失败: {e}")
                 raise
 
         return self._interpreter
@@ -108,6 +108,12 @@ class InterpreterExecutor:
                 "messages": list  # Open Interpreter 的完整消息历史
             }
         """
+        # 设置 UTF-8 编码
+        import sys
+        import io
+        if sys.stdout.encoding != 'utf-8':
+            sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+        
         try:
             interpreter = self._get_interpreter()
 
@@ -151,23 +157,34 @@ class InterpreterExecutor:
         if not messages:
             return "任务完成"
 
+        # 检查是否有执行错误
+        for msg in messages:
+            if msg.get("role") == "computer" and msg.get("type") == "console":
+                content = msg.get("content", "")
+                if content and "error" in content.lower():
+                    return "执行失败"
+
+        # 检查代码是否成功执行（通过 computer 角色的 output）
+        code_executed = False
+        for msg in messages:
+            if msg.get("role") == "computer" and msg.get("type") == "output":
+                code_executed = True
+                break
+            if msg.get("role") == "computer" and msg.get("type") == "console":
+                content = msg.get("content", "")
+                if content:
+                    code_executed = True
+                    break
+
+        if code_executed:
+            return "任务完成"
+
         # 提取最后的 assistant message
         for msg in reversed(messages):
             if msg.get("role") == "assistant" and msg.get("type") == "message":
                 content = msg.get("content", "").strip()
                 if content:
                     return content
-
-        # 如果没有 message 类型的响应，检查是否有执行结果
-        output_parts = []
-        for msg in messages:
-            if msg.get("role") == "computer" and msg.get("type") == "console":
-                content = msg.get("content", "").strip()
-                if content and not content.startswith("Error"):
-                    output_parts.append(content)
-
-        if output_parts:
-            return "\n".join(output_parts)
 
         return "任务完成"
 

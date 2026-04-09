@@ -38,12 +38,13 @@ class ComputerExecutor(BaseExecutor):
     def can_handle(self, intent_type: str) -> bool:
         return intent_type == IntentType.COMPUTER_CONTROL.value
 
-    def execute(self, user_command: str, **kwargs) -> dict[str, Any]:
+    def execute(self, user_text: str = None, user_command: str = None, **kwargs) -> dict[str, Any]:
         """
         执行电脑控制命令
 
         Args:
-            user_command: 用户命令文本
+            user_text: 用户命令文本（路由传入）
+            user_command: 用户命令文本（备用）
 
         Returns:
             {
@@ -52,9 +53,12 @@ class ComputerExecutor(BaseExecutor):
                 "messages": list
             }
         """
+        # 兼容 user_text 和 user_command
+        command = user_text or user_command or ""
+        
         try:
             executor = self._get_executor()
-            return executor.execute(user_command)
+            return executor.execute(command)
         except Exception as e:
             logger.error(f"ComputerExecutor 执行失败：{e}")
             return {
