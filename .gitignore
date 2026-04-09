@@ -48,3 +48,6 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+# Model weights (large files)
+model_weights/
+default.profraw

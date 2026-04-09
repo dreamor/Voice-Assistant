@@ -29,7 +29,7 @@ llm:
   # 本地模型切换
   use_local: false  # true 使用本地模型，false 使用在线 API
   local:
-    model_path: "models/gemma-4-E2B-it.litertlm"
+    model_path: "model_weights/gemma-4-E2B-it.litertlm"
     model_name: "gemma-4-E2B-it"
     system_prompt: "你是一个友好的中文语音助手，回复要简洁口语化，适合语音播放。"
 

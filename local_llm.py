@@ -255,7 +255,7 @@ if __name__ == "__main__":
         print("  LiteRT-LM 已安装")
 
         # 测试模型路径
-        model_path = "models/gemma-4-E2B-it.litertlm"
+        model_path = "model_weights/gemma-4-E2B-it.litertlm"
         if os.path.exists(model_path):
             print(f"  模型文件存在: {model_path}")
 
