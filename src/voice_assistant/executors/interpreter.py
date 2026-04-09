@@ -4,7 +4,13 @@ Open Interpreter 执行器
 支持在线和本地模型
 """
 import logging
+import os
 from typing import Optional
+
+# 禁用 litellm 远程 cost map 获取（避免 SSL 警告）
+os.environ["LITELLM_DROP_PARAMS"] = "true"
+os.environ["LITELLM_MODEL_ALIASES"] = "{}"
+os.environ["LITELLM_MAX_PARALLEL_REQUESTS"] = "0"
 
 from voice_assistant.config import config
 
@@ -52,6 +58,10 @@ class InterpreterExecutor:
                     interpreter.llm.model = f"openai/{llm_cfg.model}"
                     interpreter.llm.api_key = llm_cfg.api_key
                     interpreter.llm.api_base = llm_cfg.base_url
+                    
+                    # 设置 context_window 和 max_tokens 避免警告
+                    interpreter.llm.context_window = 32000
+                    interpreter.llm.max_tokens = 4096
 
             except Exception as e:
                 logger.error(f"Open Interpreter 初始化失败: {e}")
