@@ -6,7 +6,7 @@ Open Interpreter 执行器
 import logging
 from typing import Optional
 
-from config import config
+from voice_assistant.config import config
 
 logger = logging.getLogger(__name__)
 

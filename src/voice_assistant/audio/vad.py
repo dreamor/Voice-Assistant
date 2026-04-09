@@ -5,7 +5,7 @@ VAD (Voice Activity Detection) 模块
 import time
 import numpy as np
 import sounddevice as sd
-from config import config
+from voice_assistant.config import config
 
 
 def calculate_rms(audio_data):

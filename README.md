@@ -16,36 +16,42 @@
 ## 项目结构
 
 ```
-voice_assistant/
+voice-assistant/
 ├── .env                     # 敏感配置（API Key 等）
 ├── .env.example             # 配置示例
 ├── config.yaml              # 应用配置
 ├── pyproject.toml           # 项目配置（uv）
-├── requirements.txt         # 依赖清单（兼容）
+├── run.py                   # 入口脚本
 ├── start.sh                 # 启动脚本
-├── voice_assistant_ai.py    # 主程序
-├── config/                  # 配置模块
-│   └── __init__.py
-├── models/                  # 数据模型
+├── src/voice_assistant/     # 源代码包
 │   ├── __init__.py
-│   └── intent.py           # 意图数据类
-├── executors/               # 执行器模块
-│   ├── __init__.py
-│   ├── base.py             # 执行器基类
-│   ├── computer_executor.py # 电脑控制执行器
-│   └── chat_executor.py    # 对话执行器
-├── services/                # 服务模块
-│   ├── __init__.py
-│   └── router_service.py   # 命令路由器
-├── interpreter_executor.py  # Open Interpreter 执行器
-├── cloud_asr.py            # 语音识别模块
-├── local_llm.py            # 本地 LLM 模块
-├── vad.py                  # 语音检测模块
-├── tts.py                  # 语音合成模块
-├── ai_client.py            # AI 对话模块
-├── audio_player.py         # 音频播放模块
-├── model_weights/          # 本地模型文件（需下载）
-└── docs/                   # 文档
+│   ├── main.py              # 主程序
+│   ├── config/              # 配置模块
+│   ├── audio/               # 音频模块
+│   │   ├── vad.py           # 语音检测
+│   │   ├── tts.py           # 语音合成
+│   │   ├── player.py        # 音频播放
+│   │   └── cloud_asr.py     # 语音识别
+│   ├── core/                # 核心模块
+│   │   ├── ai_client.py     # AI 对话
+│   │   ├── local_llm.py     # 本地 LLM
+│   │   └── asr_corrector.py # ASR 纠错
+│   ├── executors/           # 执行器模块
+│   │   ├── base.py          # 执行器基类
+│   │   ├── chat.py          # 对话执行器
+│   │   ├── computer.py      # 电脑控制执行器
+│   │   └── interpreter.py   # Open Interpreter 执行器
+│   ├── models/              # 数据模型
+│   │   └── intent.py        # 意图数据类
+│   ├── services/            # 服务模块
+│   │   └── router.py        # 命令路由器
+│   └── security/            # 安全模块
+│       └── validation.py    # 输入验证
+├── config/                  # 配置文件目录
+│   └── hotwords.json        # 热词配置
+├── model_weights/           # 本地模型文件（需下载）
+├── tests/                   # 测试文件
+└── docs/                    # 文档
 ```
 
 ## 快速开始
@@ -93,7 +99,7 @@ cp .env.example .env
 
 ```bash
 source .venv/bin/activate
-pytest test_system.py -v
+pytest tests/ -v
 ```
 
 ### 5. 启动
@@ -104,7 +110,7 @@ pytest test_system.py -v
 
 # 或手动启动
 source .venv/bin/activate
-python voice_assistant_ai.py
+python run.py
 ```
 
 ## 使用说明
@@ -236,12 +242,12 @@ LLM_API_KEY=your-llm-api-key
 
 | 模块 | 职责 |
 |------|------|
-| `Intent` | 意图数据类，LLM 与执行器之间的标准接口 |
-| `BaseExecutor` | 执行器基类，定义标准接口 |
-| `ComputerExecutor` | 电脑控制执行器（Open Interpreter） |
-| `ChatExecutor` | 对话执行器（LLM 对话） |
-| `CommandRouter` | 命令路由器，根据意图自动路由 |
-| `LocalLLMClient` | 本地 LLM 客户端（LiteRT-LM） |
+| `voice_assistant.models.intent` | 意图数据类，LLM 与执行器之间的标准接口 |
+| `voice_assistant.executors.base` | 执行器基类，定义标准接口 |
+| `voice_assistant.executors.computer` | 电脑控制执行器（Open Interpreter） |
+| `voice_assistant.executors.chat` | 对话执行器（LLM 对话） |
+| `voice_assistant.services.router` | 命令路由器，根据意图自动路由 |
+| `voice_assistant.core.local_llm` | 本地 LLM 客户端（LiteRT-LM） |
 
 ### 意图类型
 
@@ -255,7 +261,7 @@ LLM_API_KEY=your-llm-api-key
 
 ```bash
 source .venv/bin/activate
-pytest test_system.py -v
+pytest tests/ -v
 ```
 
 测试覆盖：依赖包、配置读取、API 连接、各模块功能

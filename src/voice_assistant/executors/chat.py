@@ -4,8 +4,8 @@
 import logging
 from typing import Any, Optional
 
-from .base import BaseExecutor
-from models.intent import IntentType
+from voice_assistant.executors.base import BaseExecutor
+from voice_assistant.models.intent import IntentType
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ class ChatExecutor(BaseExecutor):
         初始化对话执行器
 
         Args:
-            max_response_length: 响应最大长度（避免 TTS 太长）
+            max_response_length: 响应最大长度（避免 TTS 太长��
         """
         self.max_response_length = max_response_length
         self._conversation_history: list = []
@@ -47,7 +47,7 @@ class ChatExecutor(BaseExecutor):
             }
         """
         try:
-            from ai_client import ask_ai_stream
+            from voice_assistant.core.ai_client import ask_ai_stream
 
             history = conversation_history or self._conversation_history
 

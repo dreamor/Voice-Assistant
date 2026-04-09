@@ -156,37 +156,3 @@ class RateLimiter:
 # 全局速率限制器实例
 asr_limiter = RateLimiter(calls=MAX_ASR_CALLS_PER_MINUTE, period=60.0)
 llm_limiter = RateLimiter(calls=MAX_LLM_CALLS_PER_MINUTE, period=60.0)
-
-
-if __name__ == "__main__":
-    # 测试代码
-    print("安全工具模块测试:")
-
-    # 测试文本验证
-    try:
-        result = validate_text_input("Hello World")
-        print(f"  文本验证: ✅ '{result}'")
-    except InputValidationError as e:
-        print(f"  文本验证: ❌ {e}")
-
-    # 测试长文本
-    try:
-        validate_text_input("x" * 2000)
-        print("  长文本验证: ❌ 应该失败")
-    except InputValidationError as e:
-        print(f"  长文本验证: ✅ 正确拒绝")
-
-    # 测试速率限制
-    @rate_limit(calls=3, period=1.0)
-    def test_func():
-        return "ok"
-
-    print("  速率限制测试:")
-    for i in range(5):
-        try:
-            result = test_func()
-            print(f"    调用 {i+1}: ✅")
-        except RateLimitError as e:
-            print(f"    调用 {i+1}: ✅ 正确限制")
-
-    print("\n安全工具模块就绪")

@@ -6,7 +6,7 @@ import logging
 import re
 from typing import Optional
 
-from config import config
+from voice_assistant.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -135,18 +135,3 @@ def _llm_correct(text: str, conversation_history: list = None) -> Optional[str]:
     except Exception as e:
         logger.warning(f"LLM 纠错请求失败: {e}")
         return None
-
-
-if __name__ == "__main__":
-    # 测试纠错功能
-    test_cases = [
-        "帮我打开维埃斯扣的",
-        "运行皮松脚本",
-        "启动多克容器",
-        "打开计算器",  # 不需要纠错
-    ]
-
-    print("ASR 纠错测试:")
-    for text in test_cases:
-        corrected = correct_asr_result(text)
-        print(f"  '{text}' → '{corrected}'")

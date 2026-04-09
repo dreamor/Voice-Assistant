@@ -6,7 +6,7 @@ import logging
 import re
 import asyncio
 import edge_tts
-from config import config
+from voice_assistant.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,3 @@ def synthesize(text, output_file):
     except Exception as e:
         logger.error(f"TTS错误: {e}")
         return False
-
-
-if __name__ == "__main__":
-    print(f"Edge TTS Voice: {config.audio.edge_tts_voice}")
