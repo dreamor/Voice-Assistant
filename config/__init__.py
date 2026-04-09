@@ -1,0 +1,143 @@
+"""
+配置管理模块
+从 config.yaml 和 .env 加载配置
+"""
+import os
+import logging
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional
+
+import yaml
+from dotenv import load_dotenv
+
+# 加载 .env 文件
+load_dotenv()
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class ASRConfig:
+    """ASR 配置"""
+    model: str
+    base_url: str
+    api_key: str
+
+
+@dataclass(frozen=True)
+class LLMConfig:
+    """LLM 配置"""
+    model: str
+    base_url: str
+    api_key: str
+    max_tokens: int
+    temperature: float
+
+
+@dataclass(frozen=True)
+class AudioConfig:
+    """音频配置"""
+    sample_rate: int
+    edge_tts_voice: str
+
+
+@dataclass(frozen=True)
+class VADConfig:
+    """VAD 配置"""
+    threshold: float
+    silence_timeout: float
+    min_speech: float
+    wait_timeout: float
+    max_recording: float
+
+
+@dataclass(frozen=True)
+class InterpreterConfig:
+    """Open Interpreter 配置"""
+    auto_run: bool
+    verbose: bool
+
+
+@dataclass(frozen=True)
+class HistoryConfig:
+    """对话历史配置"""
+    max_turns: int
+
+
+@dataclass(frozen=True)
+class LoggingConfig:
+    """日志配置"""
+    level: str
+    format: str
+
+
+@dataclass(frozen=True)
+class AppConfig:
+    """应用配置"""
+    name: str
+    version: str
+    asr: ASRConfig
+    llm: LLMConfig
+    audio: AudioConfig
+    vad: VADConfig
+    interpreter: InterpreterConfig
+    history: HistoryConfig
+    logging: LoggingConfig
+
+
+def load_config(config_path: str = "config.yaml") -> AppConfig:
+    """从 YAML 和环境变量加载配置"""
+    project_root = Path(__file__).parent
+    full_path = project_root / config_path
+
+    with open(full_path, 'r', encoding='utf-8') as f:
+        cfg = yaml.safe_load(f)
+
+    return AppConfig(
+        name=cfg['app']['name'],
+        version=cfg['app']['version'],
+        asr=ASRConfig(
+            model=cfg['asr']['model'],
+            base_url=cfg['asr']['base_url'],
+            api_key=os.getenv('ASR_API_KEY'),
+        ),
+        llm=LLMConfig(
+            model=cfg['llm']['model'],
+            base_url=cfg['llm']['base_url'],
+            api_key=os.getenv('LLM_API_KEY'),
+            max_tokens=cfg['llm']['max_tokens'],
+            temperature=cfg['llm']['temperature'],
+        ),
+        audio=AudioConfig(
+            sample_rate=cfg['audio']['sample_rate'],
+            edge_tts_voice=cfg['audio']['edge_tts_voice'],
+        ),
+        vad=VADConfig(
+            threshold=cfg['vad']['threshold'],
+            silence_timeout=cfg['vad']['silence_timeout'],
+            min_speech=cfg['vad']['min_speech'],
+            wait_timeout=cfg['vad']['wait_timeout'],
+            max_recording=cfg['vad']['max_recording'],
+        ),
+        interpreter=InterpreterConfig(
+            auto_run=cfg['interpreter']['auto_run'],
+            verbose=cfg['interpreter']['verbose'],
+        ),
+        history=HistoryConfig(max_turns=cfg['history']['max_turns']),
+        logging=LoggingConfig(
+            level=cfg['logging']['level'],
+            format=cfg['logging']['format'],
+        ),
+    )
+
+
+# 全局配置实例
+try:
+    config = load_config()
+except Exception as e:
+    logger.warning(f"配置加载失败：{e}，将使用环境变量")
+    config = None
+
+
+__all__ = ['config', 'load_config', 'AppConfig']

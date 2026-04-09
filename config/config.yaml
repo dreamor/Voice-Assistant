@@ -1,0 +1,46 @@
+# Voice Assistant 配置文件
+# 敏感信息（API Key 等）请放入 .env 文件
+
+# 应用配置
+app:
+  name: "Voice Assistant"
+  version: "2.0.0"
+
+# ASR 配置（语音识别）
+asr:
+  model: "paraformer-realtime-v2"
+  base_url: "https://dashscope.aliyuncs.com/api/v1"
+
+# LLM 配置（AI 对话）
+llm:
+  model: "kimi-k2.5"
+  base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+  max_tokens: 2000
+  temperature: 0.7
+
+# 音频配置
+audio:
+  sample_rate: 44100
+  edge_tts_voice: "zh-CN-XiaoxiaoNeural"
+
+# VAD 配置
+vad:
+  threshold: 0.02
+  silence_timeout: 1.5
+  min_speech: 0.3
+  wait_timeout: 10
+  max_recording: 30
+
+# Open Interpreter 配置
+interpreter:
+  auto_run: true
+  verbose: false
+
+# 对话历史配置
+history:
+  max_turns: 20
+
+# 日志配置
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(levelname)s - %(message)s"

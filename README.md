@@ -1,6 +1,6 @@
 # Voice Assistant AI
 
-中文语音助手 - 麦克风收音 → 语音识别 → AI处理 → 语音合成 → 扬声器播放
+中文语音助手 - 麦克风收音 → 语音识别 → 意图识别 → 路由执行 → 语音反馈
 
 ## 功能特性
 
@@ -8,31 +8,39 @@
 - **LLM 对话**: 阿里云百炼，支持对话理解和代码生成
 - **语音合成 (TTS)**: Microsoft Edge-TTS，自然流畅
 - **VAD 语音检测**: 自动检测说话开始/结束，无需手动操作
-- **智能模式切换**:
-  - **Interpreter 模式**: 检测电脑操作指令，执行 Python/Bash 代码
-  - **AI 模式**: 纯对话模式，LLM 生成自然语言回复
+- **智能意图识别**: 自动判断用户意图，路由到对应执行器
+- **Open Interpreter 集成**: 真正的 Open Interpreter 库，强大的电脑控制能力
 - **对话上下文**: 支持多轮对话，保持上下文
 
 ## 项目结构
 
 ```
 voice_assistant/
-├── .env                     # 配置文件
-├── .env.sample             # 配置示例
-├── requirements.txt        # 依赖清单
-├── voice_assistant_ai.py   # 主程序
+├── .env                     # 敏感配置（API Key 等）
+├── .env.example             # 配置示例
+├── config.yaml              # 应用配置
+├── requirements.txt         # 依赖清单
+├── voice_assistant_ai.py    # 主程序
+├── config/                  # 配置模块
+│   └── __init__.py
+├── models/                  # 数据模型
+│   ├── __init__.py
+│   └── intent.py           # 意图数据类
+├── executors/               # 执行器模块
+│   ├── __init__.py
+│   ├── base.py             # 执行器基类
+│   ├── computer_executor.py # 电脑控制执行器
+│   └── chat_executor.py    # 对话执行器
+├── services/                # 服务模块
+│   ├── __init__.py
+│   └── router_service.py   # 命令路由器
+├── interpreter_executor.py  # Open Interpreter 执行器
 ├── cloud_asr.py            # 语音识别模块
 ├── vad.py                  # 语音检测模块
 ├── tts.py                  # 语音合成模块
 ├── ai_client.py            # AI 对话模块
 ├── audio_player.py         # 音频播放模块
-├── test_system.py          # 测试用例
 └── docs/                   # 文档
-    ├── ARCHITECTURE.md
-    ├── MODULES.md
-    ├── CONFIG.md
-    ├── DEVELOPMENT.md
-    └── API.md
 ```
 
 ## 快速开始
@@ -46,13 +54,15 @@ pip install -r requirements.txt
 ### 2. 配置
 
 ```bash
-cp .env.sample .env
+cp .env.example .env
 # 编辑 .env，填入 API Key
 ```
 
 **必需配置：**
 - `ASR_API_KEY` - 语音识别 API 密钥
 - `LLM_API_KEY` - AI 对话 API 密钥
+
+其他配置在 `config.yaml` 中调整。
 
 ### 3. 运行测试
 
@@ -66,8 +76,6 @@ pytest test_system.py -v
 python voice_assistant_ai.py
 ```
 
-或双击 `run_voice.bat`（Windows）
-
 ## 使用说明
 
 ### 命令
@@ -77,7 +85,7 @@ python voice_assistant_ai.py
 | `Enter` | 开始录音（VAD 自动检测说话） |
 | `C` | 清除对话历史 |
 | `H` | 显示对话历史 |
-| `I` | 切换 Interpreter/AI 模式 |
+| `I` | 切换 自动模式/AI 对话模式 |
 | `Q` | 退出程序 |
 
 ### 工作流程
@@ -87,72 +95,96 @@ python voice_assistant_ai.py
     ↓
 ASR 语音识别 → 文本
     ↓
-判断指令类型
+意图识别（自动分类）
     │
     ├── 电脑操作（打开/关闭/创建/删除等）
     │       ↓
-    │   Interpreter 模式
+    │   ComputerExecutor (Open Interpreter)
     │       ↓
-    │   LLM 解析意图 → 生成代码 → 执行 → 语音反馈
+    │   解析意图 → 生成代码 → 执行 → 语音反馈
     │
-    └── 非操作指令
+    └── 普通对话/问答
             ↓
-        AI 模式
+        ChatExecutor
             ↓
         LLM 对话生成 → 语音反馈
 ```
 
 ### 模式说明
 
-**Interpreter 模式** (默认):
-- 检测用户指令中的操作关键词
-- 自动调用 LLM 生成执行代码
-- 支持 Python 和 Bash 命令执行
-- 适用于：打开应用、创建文件、截屏、搜索等
+**自动模式** (默认):
+- 自动识别用户意图
+- 电脑操作 → Open Interpreter 执行
+- 普通对话 → LLM 对话生成
 
-**AI 模式**:
-- 纯对话模式
-- LLM 生成自然语言回复
-- 适用于：问答、聊天、咨询等
+**AI 对话模式**:
+- 强制使用 LLM 对话
+- 适用于纯聊天场景
 
 ## 配置说明
 
-### ASR (语音识别)
+### config.yaml
 
-| 变量 | 说明 | 默认值 |
+应用配置在 `config.yaml` 中：
+
+```yaml
+app:
+  name: "Voice Assistant"
+  version: "2.0.0"
+
+asr:
+  model: "paraformer-realtime-v2"
+  base_url: "https://dashscope.aliyuncs.com/api/v1"
+
+llm:
+  model: "kimi-k2.5"
+  base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+  max_tokens: 2000
+  temperature: 0.7
+
+audio:
+  sample_rate: 44100
+  edge_tts_voice: "zh-CN-XiaoxiaoNeural"
+
+vad:
+  threshold: 0.02
+  silence_timeout: 1.5
+  min_speech: 0.3
+  max_recording: 30
+
+interpreter:
+  auto_run: true
+  verbose: false
+```
+
+### .env
+
+敏感信息在 `.env` 中：
+
+```ini
+ASR_API_KEY=your-asr-api-key
+LLM_API_KEY=your-llm-api-key
+```
+
+## 架构说明
+
+### 核心模块
+
+| 模块 | 职责 |
+|------|------|
+| `Intent` | 意图数据类，LLM 与执行器之间的标准接口 |
+| `BaseExecutor` | 执行器基类，定义标准接口 |
+| `ComputerExecutor` | 电脑控制执行器（Open Interpreter） |
+| `ChatExecutor` | 对话执行器（LLM 对话） |
+| `CommandRouter` | 命令路由器，根据意图自动路由 |
+
+### 意图类型
+
+| 类型 | 说明 | 执行器 |
 |------|------|--------|
-| `ASR_API_KEY` | API 密钥 | 必填 |
-| `ASR_MODEL` | ASR 模型 | paraformer-realtime-v2 |
-| `ASR_BASE_URL` | API 地址 | https://dashscope.aliyuncs.com/api/v1 |
-
-### LLM (AI 对话)
-
-| 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `LLM_API_KEY` | API 密钥 | 必填 |
-| `LLM_MODEL` | AI 模型 | kimi-k2.5 |
-| `LLM_BASE_URL` | API 地址 | https://dashscope.aliyuncs.com/compatible-mode/v1 |
-
-### 音频
-
-| 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `SAMPLE_RATE` | 采样率 | 44100 |
-| `EDGE_TTS_VOICE` | TTS 音色 | zh-CN-XiaoxiaoNeural |
-
-### VAD
-
-| 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `VAD_THRESHOLD` | 声音阈值 | 0.02 |
-| `VAD_SILENCE_TIMEOUT` | 静默超时 | 1.5 秒 |
-| `VAD_MIN_SPEECH` | 最小语音时长 | 0.3 秒 |
-
-### AI
-
-| 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `SYSTEM_PROMPT` | 系统提示词 | 友好的中文语音助手 |
+| `COMPUTER_CONTROL` | 电脑操作 | ComputerExecutor |
+| `ORDINARY_CHAT` | 普通对话 | ChatExecutor |
+| `QUERY_ANSWER` | 问答查询 | ChatExecutor |
 
 ## 测试
 
@@ -169,4 +201,8 @@ pytest test_system.py -v
 - [模块说明](docs/MODULES.md) - 各模块详解
 - [配置说明](docs/CONFIG.md) - 配置参数
 - [开发指南](docs/DEVELOPMENT.md) - 开发指南
-- [API参考](docs/API.md) - 接口文档
+- [API 参考](docs/API.md) - 接口文档
+
+## License
+
+MIT
