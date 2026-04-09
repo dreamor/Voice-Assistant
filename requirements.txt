@@ -25,5 +25,9 @@ pytest>=8.0.0
 # Security
 pip-audit>=2.7.0
 
+# Local LLM (LiteRT-LM) - 可选依赖
+# 取消注释以下行以启用本地模型支持
+# litert-lm-api-nightly>=0.10.0
+
 # Open Interpreter (电脑控制)
 open-interpreter>=0.3.0
