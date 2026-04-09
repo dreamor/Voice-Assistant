@@ -249,3 +249,75 @@ class TestASRCorrector:
         ]
         result = correct_asr_result("运行皮松脚本", history)
         assert result is not None
+
+
+class TestSecurityUtils:
+    """Test security utilities"""
+
+    def test_security_imports(self):
+        from security_utils import (
+            validate_text_input,
+            validate_audio_input,
+            rate_limit,
+            RateLimiter,
+            SecurityError,
+            RateLimitError,
+            InputValidationError
+        )
+        assert validate_text_input is not None
+        assert validate_audio_input is not None
+        assert rate_limit is not None
+
+    def test_text_validation(self):
+        from security_utils import validate_text_input, InputValidationError
+
+        # 正常文本
+        result = validate_text_input("Hello World")
+        assert result == "Hello World"
+
+        # 空文本应该失败
+        with pytest.raises(InputValidationError):
+            validate_text_input("")
+
+        # 过长文本应该失败
+        with pytest.raises(InputValidationError):
+            validate_text_input("x" * 2000)
+
+    def test_audio_validation(self):
+        from security_utils import validate_audio_input, InputValidationError
+
+        # 正常音频数据
+        result = validate_audio_input(b"RIFF" + b"x" * 100)
+        assert result == b"RIFF" + b"x" * 100
+
+        # 空音频应该失败
+        with pytest.raises(InputValidationError):
+            validate_audio_input(b"")
+
+    def test_rate_limit(self):
+        from security_utils import rate_limit, RateLimitError
+
+        @rate_limit(calls=3, period=1.0)
+        def test_func():
+            return "ok"
+
+        # 前 3 次应该成功
+        for _ in range(3):
+            assert test_func() == "ok"
+
+        # 第 4 次应该失败
+        with pytest.raises(RateLimitError):
+            test_func()
+
+    def test_rate_limiter_class(self):
+        from security_utils import RateLimiter, RateLimitError
+
+        limiter = RateLimiter(calls=2, period=1.0)
+
+        # 前 2 次检查应该通过
+        limiter.check()
+        limiter.check()
+
+        # 第 3 次应该失败
+        with pytest.raises(RateLimitError):
+            limiter.check()

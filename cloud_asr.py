@@ -14,6 +14,7 @@ import dashscope
 import numpy as np
 from dashscope.audio.asr import Recognition, Transcription
 from config import config
+from security_utils import validate_audio_input, asr_limiter, RateLimitError
 
 logger = logging.getLogger(__name__)
 
@@ -137,9 +138,15 @@ class CloudASR:
 
         Returns:
             识别的文本，如果识别失败返回错误信息
+
+        Raises:
+            RateLimitError: 超过速率限制
         """
         if sample_rate is None:
             sample_rate = config.audio.sample_rate
+
+        # 速率限制检查
+        asr_limiter.check()
 
         try:
             # 构建识别参数
@@ -183,11 +190,21 @@ class CloudASR:
 
         Returns:
             识别的文本，如果识别失败返回错误信息
+
+        Raises:
+            RateLimitError: 超过速率限制
+            InputValidationError: 输入验证失败
         """
         import soundfile as sf
 
         if sample_rate is None:
             sample_rate = config.audio.sample_rate
+
+        # 输入验证
+        validate_audio_input(audio_bytes)
+
+        # 速率限制检查
+        asr_limiter.check()
 
         try:
             if audio_bytes[:4] == b'RIFF':
@@ -220,10 +237,8 @@ class CloudASR:
 
 if __name__ == "__main__":
     asr = CloudASR()
-    print("CloudASR 配置:")
+    print("CloudASR 初始化成功")
     print(f"  Model: {asr.model}")
-    print(f"  Base URL: {asr.base_url}")
     print(f"  Language Hints: {asr.language_hints}")
     print(f"  Disfluency Removal: {asr.disfluency_removal_enabled}")
-    print(f"  Max Sentence Silence: {asr.max_sentence_silence}ms")
-    print(f"  Vocabulary ID: {asr._vocabulary_id or '未启用'}")
+    print(f"  Hotwords: {'已启用' if asr._vocabulary_id else '未启用'}")
