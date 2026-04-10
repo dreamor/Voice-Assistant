@@ -16,6 +16,7 @@ class ChatExecutor(BaseExecutor):
     def __init__(self, max_response_length: int = 200, use_local: bool = False):
         self.max_response_length = max_response_length
         self._use_local = use_local
+        self._conversation_history: list = []
 
     def can_handle(self, intent_type: str) -> bool:
         return intent_type in [
@@ -25,6 +26,7 @@ class ChatExecutor(BaseExecutor):
 
     def execute(self, user_text: str,
                 conversation_history: list | None = None,
+                direct_response: str | None = None,
                 **kwargs) -> dict[str, Any]:
         """
         执行对话
@@ -32,6 +34,7 @@ class ChatExecutor(BaseExecutor):
         Args:
             user_text: 用户输入文本
             conversation_history: 对话历史记录
+            direct_response: 预生成的回复（多模态路径使用，跳过 LLM 推理）
 
         Returns:
             {
@@ -41,14 +44,18 @@ class ChatExecutor(BaseExecutor):
             }
         """
         try:
-            from voice_assistant.core.ai_client import ask_ai_stream
-
             history = conversation_history or self._conversation_history
 
-            # 流式获取响应
-            response = ""
-            for partial in ask_ai_stream(user_text, history, use_local=self._use_local):
-                response = partial
+            if direct_response is not None:
+                # Multimodal path: use pre-generated response directly
+                response = direct_response
+            else:
+                # Normal path: call LLM
+                from voice_assistant.core.ai_client import ask_ai_stream
+
+                response = ""
+                for partial in ask_ai_stream(user_text, history, use_local=self._use_local):
+                    response = partial
 
             # 限制长度
             if len(response) > self.max_response_length:

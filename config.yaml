@@ -43,7 +43,7 @@ audio:
 vad:
   threshold: 0.02
   silence_timeout: 1.5
-  min_speech: 0.3
+  min_speech: 0.15  # 降低阈值，允许短语音（如单个词"北京"）
   wait_timeout: 10
   max_recording: 30
 

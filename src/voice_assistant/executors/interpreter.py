@@ -5,7 +5,6 @@ Open Interpreter 执行器
 """
 import logging
 import os
-from typing import Optional
 
 # 禁用 litellm 远程 cost map 获取（避免 SSL 警告）
 os.environ["LITELLM_DROP_PARAMS"] = "true"
@@ -31,7 +30,6 @@ class InterpreterExecutor:
         self.auto_run = auto_run
         self.verbose = verbose
         self._interpreter = None
-        self._use_local = config.llm.use_local
 
     def _get_interpreter(self):
         """懒加载 interpreter（避免未安装时报错）"""
@@ -58,7 +56,7 @@ class InterpreterExecutor:
                     interpreter.llm.model = f"openai/{llm_cfg.model}"
                     interpreter.llm.api_key = llm_cfg.api_key
                     interpreter.llm.api_base = llm_cfg.base_url
-                    
+
                     # 设置 context_window 和 max_tokens 避免警告
                     interpreter.llm.context_window = 32000
                     interpreter.llm.max_tokens = 4096
@@ -88,11 +86,10 @@ class InterpreterExecutor:
             import requests
             response = requests.get(f"{local_server_url.replace('/v1', '')}/api/tags", timeout=2)
             if response.status_code == 200:
-                logger.info(f"检测到本地 Ollama 服务器")
+                logger.info("检测到本地 Ollama 服务器")
                 interpreter.llm.model = f"openai/{llm_cfg.local.model_name}"
                 interpreter.llm.api_base = local_server_url
                 interpreter.llm.api_key = "dummy"  # Ollama 不需要 API key
-                self._use_local = True
                 return
         except Exception:
             logger.info("未检测到本地 Ollama 服务器")
@@ -102,7 +99,6 @@ class InterpreterExecutor:
         interpreter.llm.model = f"openai/{llm_cfg.model}"
         interpreter.llm.api_key = llm_cfg.api_key
         interpreter.llm.api_base = llm_cfg.base_url
-        self._use_local = False
 
     def execute(self, user_command: str) -> dict:
         """
@@ -119,11 +115,11 @@ class InterpreterExecutor:
             }
         """
         # 设置 UTF-8 编码
-        import sys
         import io
+        import sys
         if sys.stdout.encoding != 'utf-8':
             sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-        
+
         try:
             interpreter = self._get_interpreter()
 
@@ -205,7 +201,7 @@ class InterpreterExecutor:
 
 
 # 全局实例（可选）
-_executor: Optional[InterpreterExecutor] = None
+_executor: InterpreterExecutor | None = None
 
 
 def get_executor(auto_run: bool = True, verbose: bool = False) -> InterpreterExecutor:

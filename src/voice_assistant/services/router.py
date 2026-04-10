@@ -3,10 +3,10 @@
 根据意图类型自动路由到对应的执行器
 """
 import logging
-from typing import Any, Optional
+from typing import Any
 
-from voice_assistant.model.intent import Intent, IntentType
 from voice_assistant.executors.base import BaseExecutor
+from voice_assistant.model.intent import Intent, IntentType
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ class CommandRouter:
         """
         self.executors = executors
 
-    def route(self, intent: Intent, context: Optional[dict] = None) -> dict[str, Any]:
+    def route(self, intent: Intent, context: dict | None = None) -> dict[str, Any]:
         """
         根据意图路由到对应的执行器
 
@@ -43,13 +43,15 @@ class CommandRouter:
         logger.warning(f"未匹配的意图类型：{intent.intent_type}")
         return {"success": True, "response": "抱歉，我没有理解您的意思。"}
 
-    def _build_kwargs(self, intent: Intent, context: Optional[dict]) -> dict:
+    def _build_kwargs(self, intent: Intent, context: dict | None) -> dict:
         """根据意图类型构建执行参数"""
         kwargs = {'user_text': intent.original_text}
 
         if context:
             if 'history' in context:
                 kwargs['conversation_history'] = context['history']
+            if 'direct_response' in context:
+                kwargs['direct_response'] = context['direct_response']
 
         return kwargs
 

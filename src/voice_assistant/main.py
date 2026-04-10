@@ -120,6 +120,8 @@ def toggle_llm_mode():
 
     # 同步更新执行器
     chat_executor._use_local = _use_local_llm
+    # 重置 Open Interpreter 缓存，使其下次初始化时使用新的 LLM 模式
+    computer_executor._executor = None
 
     if _use_local_llm:
         # 尝试初始化本地客户端
@@ -275,7 +277,7 @@ def main():
         try:
             sf.write(tmp_wav_path, audio, config.audio.sample_rate, format='WAV')
 
-            # 多模态模式：音频直接送 Gemma 4
+            # 多模态模式：音频直接送 Gemma 4，但走路由判断
             if _use_local_llm and _use_multimodal_audio:
                 logger.info("\n[Step 1] Multimodal audio → Gemma 4...")
                 full_response = []
@@ -290,21 +292,10 @@ def main():
                     continue
                 logger.info(f"  [Gemma] {gemma_reply[:100]}...")
 
-                # Update conversation history with the multimodal response
-                updated_history = chat_executor._update_history(
-                    chat_executor._conversation_history,
-                    user_text="[语音]",
-                    response=gemma_reply,
-                )
-                chat_executor._conversation_history = updated_history
-
-                # 直接用 Gemma 的回复作为最终回复，跳过二次 LLM 推理
-                reply = gemma_reply
-                logger.info(f"  Reply: {reply[:200]}...")
-                logger.info("\n[Step 3] Speaking...")
-                speak_and_play(reply)
-                logger.info("\n" + "-" * 50 + "\n")
-                continue
+                # 将 Gemma 的回复作为后续路由的用户文本
+                user_text = gemma_reply
+                logger.info("\n[Step 2] Processing...")
+                # 继续走后面的路由逻辑（不 continue）
 
             else:
                 # 传统流程：ASR → 文本 → LLM
@@ -315,9 +306,10 @@ def main():
 
                 user_text = recognize(audio_bytes)
                 logger.info(f"  You: {user_text}")
+                gemma_reply = None  # 非多模态路径无预生成回复
 
                 if not user_text.strip():
-                    logger.warning("[Warning] No speech detected\n")
+                    logger.warning("[Warning] No speech detection\n")
                     continue
 
                 logger.info("\n[Step 2] Processing...")
@@ -328,14 +320,20 @@ def main():
                 intent = simple_classify_intent(user_text)
                 logger.info(f"  [Intent] {intent.intent_type.value} (confidence: {intent.confidence})")
                 context = {'history': chat_executor.get_history()}
+                # 多模态路径：将 Gemma 的预生成回复传给 ChatExecutor，跳过二次 LLM
+                if gemma_reply is not None:
+                    context['direct_response'] = gemma_reply
                 result = router.route(intent, context)
                 reply = result.get('response', '抱歉，我没有理解')
                 # 更新历史
                 if 'history_updated' in result:
                     chat_executor._conversation_history = result['history_updated']
             else:
-                # 强制 AI 对话模式
-                result = chat_executor.execute(user_text)
+                # 强制 AI 对话模式：多模态路径使用预生成回复，否则调用 LLM
+                if gemma_reply is not None:
+                    result = chat_executor.execute(user_text, direct_response=gemma_reply)
+                else:
+                    result = chat_executor.execute(user_text)
                 reply = result.get('response', '抱歉，发生错误')
 
             logger.info(f"  Reply: {reply[:200]}...")
