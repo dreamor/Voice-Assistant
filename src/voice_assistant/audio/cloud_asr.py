@@ -6,7 +6,6 @@ import json
 import logging
 import os
 import tempfile
-from http import HTTPStatus
 from pathlib import Path
 from typing import Optional
 
@@ -40,25 +39,27 @@ class HotwordsManager:
             热词列表 ID
         """
         try:
-            from dashscope.audio.asr import AsrPhraseManager
+            from dashscope.audio.asr import VocabularyService
 
-            manager = AsrPhraseManager()
-            result = manager.create_vocabulary(
+            service = VocabularyService()
+            self._vocabulary_id = service.create_vocabulary(
                 target_model=target_model,
-                prefix="voice_assistant",
+                prefix="vasr",
                 vocabulary=vocabulary
             )
 
-            if result.status_code == HTTPStatus.OK:
-                self._vocabulary_id = result.output.get('vocabulary_id')
+            if self._vocabulary_id:
                 logger.info(f"热词列表创建成功: {self._vocabulary_id}")
                 return self._vocabulary_id
             else:
-                logger.error(f"热词列表创建失败: {result.code} - {result.message}")
+                logger.error("热词列表创建失败: 返回 ID 为空")
                 return None
 
+        except ImportError as e:
+            logger.error(f"热词模块导入失败，请检查 dashscope 版本: {e}")
+            return None
         except Exception as e:
-            logger.error(f"热词列表创建异常: {e}")
+            logger.error(f"热词列表创建异常: {type(e).__name__}: {e}")
             return None
 
     def load_hotwords_from_file(self, config_file: str) -> list:
@@ -192,6 +193,7 @@ class CloudASR:
                 language_hints=self.language_hints or ["zh", "en"],
                 disfluency_removal_enabled=self.disfluency_removal_enabled,
                 max_sentence_silence=self.max_sentence_silence,
+                vocabulary_id=self._vocabulary_id,
                 callback=ASRCallback()
             )
 

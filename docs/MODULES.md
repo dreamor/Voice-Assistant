@@ -4,21 +4,43 @@
 
 ```
 voice-assistant/
+├── src/voice_assistant/  # 源代码包
+│   ├── __init__.py
+│   ├── __main__.py       # CLI 入口
+│   ├── main.py           # 主程序
+│   ├── config/           # 配置模块
+│   │   └── __init__.py
+│   ├── audio/            # 音频模块
+│   │   ├── __init__.py
+│   │   ├── vad.py        # 语音活动检测
+│   │   ├── tts.py        # 语音合成
+│   │   ├── cloud_asr.py  # 阿里云 ASR
+│   │   └── player.py     # 音频播放
+│   ├── core/             # 核心模块
+│   │   ├── __init__.py
+│   │   ├── ai_client.py  # AI对话客户端
+│   │   ├── local_llm.py  # 本地 LLM
+│   │   ├── dependencies.py  # 依赖注入
+│   │   └── asr_corrector.py # ASR 纠错
+│   ├── executors/        # 执行器模块
+│   │   ├── __init__.py
+│   │   ├── base.py       # 基类
+│   │   ├── chat.py       # 对话执行器
+│   │   ├── computer.py   # 计算机控制
+│   │   └── interpreter.py # Open Interpreter
+│   ├── models/           # 数据模型
+│   │   └── intent.py
+│   ├── services/         # 服务模块
+│   │   └── router.py     # 指令路由
+│   └── security/         # 安全模块
+│       └── validation.py
+├── tests/                # 测试目录
+├── scripts/              # 脚本
 ├── config.yaml           # 配置文件
 ├── .env                  # 环境变量（API密钥）
 ├── run.py                # 入口脚本
 ├── start.sh              # 启动脚本
-├── pyproject.toml        # 项目配置
-└── src/voice_assistant/  # 源代码包
-    ├── __init__.py
-    ├── main.py           # 主程序
-    ├── config/           # 配置模块
-    ├── audio/            # 音频模块
-    ├── core/             # 核心模块
-    ├── executors/        # 执行器模块
-    ├── models/           # 数据模型
-    ├── services/         # 服务模块
-    └── security/         # 安全模块
+└── pyproject.toml        # 项目配置
 ```
 
 ## 模块概览

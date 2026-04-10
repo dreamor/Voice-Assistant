@@ -5,7 +5,7 @@
 """
 import io
 import logging
-import os
+import sys
 
 import voice_assistant.core.ai_client as ai_client  # 导入以访问本地 LLM 客户端
 from voice_assistant.audio.cloud_asr import CloudASR
@@ -20,12 +20,69 @@ from voice_assistant.executors.computer import ComputerExecutor
 # 导入新架构模块
 from voice_assistant.services.router import CommandRouter, simple_classify_intent
 
+# 导入依赖验证
+from voice_assistant.core.dependencies import validate_environment, check_dependencies
+
 # 配置日志
 logging.basicConfig(
     level=getattr(logging, config.logging.level),
     format=config.logging.format
 )
 logger = logging.getLogger(__name__)
+
+
+def check_startup_dependencies() -> bool:
+    """启动时检查依赖
+
+    Returns:
+        True 如果可以启动，False 如果有必需依赖缺失
+    """
+    # 检查核心依赖和条件依赖
+    manager = check_dependencies(config, verbose=False)
+
+    # 打印检查结果
+    print("\n" + "=" * 50)
+    print("  依赖检查")
+    print("=" * 50)
+
+    for result in manager.results:
+        status_icon = {
+            "available": "✓",
+            "missing": "✗",
+            "version_mismatch": "⚠",
+            "not_required": "⊙",
+        }.get(result.status.value, "?")
+
+        if result.installed_version:
+            print(f"  {status_icon} {result.dependency.name}: {result.installed_version}")
+        elif result.status.value == "not_required":
+            print(f"  {status_icon} {result.dependency.name}: 跳过（配置未启用）")
+        else:
+            print(f"  {status_icon} {result.dependency.name}: 未安装")
+
+    print("=" * 50)
+
+    # 检查是否有阻止启动的错误
+    if manager.has_blocking_errors():
+        print("\n❌ 存在必需依赖缺失，无法启动\n")
+        missing = manager.get_missing_dependencies()
+        if missing:
+            print("请安装以下依赖:")
+            for dep in missing:
+                print(f"  {dep.get_install_command()}")
+            print()
+        return False
+
+    # 显示版本警告
+    warnings = manager.get_version_warnings()
+    if warnings:
+        print("\n⚠ 版本警告:")
+        for r in warnings:
+            print(f"  • {r.message}")
+        print()
+
+    print("✅ 依赖检查通过\n")
+    return True
 
 # 初始化执行器
 computer_executor = ComputerExecutor(
@@ -130,6 +187,10 @@ def speak_and_play(text: str):
 
 def main():
     global _use_local_llm
+
+    # 启动时检查依赖
+    if not check_startup_dependencies():
+        sys.exit(1)
 
     logger.info("\n" + "=" * 50)
     logger.info(f"  {config.name} v{config.version}")

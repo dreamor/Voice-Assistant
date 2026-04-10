@@ -20,24 +20,19 @@ if ! command -v uv &> /dev/null; then
     export PATH="$HOME/.local/bin:$PATH"
 fi
 
-# 检查 Python 版本
-PYTHON_VERSION=$(python3 --version 2>&1 | cut -d' ' -f2 | cut -d'.' -f1,2)
-REQUIRED_VERSION="3.10"
+# 检查 uv 是否能提供 Python 3.10+
+echo -e "${GREEN}✓ 使用 uv 管理 Python 环境${NC}"
 
-if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$PYTHON_VERSION" | sort -V | head -n1)" != "$REQUIRED_VERSION" ]; then
-    echo -e "${RED}错误: 需要 Python $REQUIRED_VERSION 或更高版本${NC}"
-    echo -e "当前版本: Python $PYTHON_VERSION"
-    echo -e "请安装 Python 3.10+ 后重试"
-    exit 1
-fi
-
-echo -e "${GREEN}✓ Python 版本: $PYTHON_VERSION${NC}"
-
-# 创建虚拟环境（如果不存在）
+# 创建虚拟环境时 uv 会自动下载所需 Python 版本
 if [ ! -d ".venv" ]; then
-    echo -e "${YELLOW}创建虚拟环境...${NC}"
+    echo -e "${YELLOW}创建虚拟环境（uv 将自动下载 Python 3.12）...${NC}"
     uv venv --python 3.12
+    echo -e "${GREEN}✓ 虚拟环境已创建${NC}"
 fi
+
+# 激活虚拟环境获取 Python 版本
+PYTHON_VERSION=$(source .venv/bin/activate && python --version 2>&1 | cut -d' ' -f2)
+echo -e "${GREEN}✓ Python 版本: $PYTHON_VERSION${NC}"
 
 # 检查本地模型
 USE_LOCAL_LLM=false
