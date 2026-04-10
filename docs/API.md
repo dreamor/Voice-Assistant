@@ -2,14 +2,16 @@
 
 本文件记录各模块的公共接口。
 
+> **注意**: 项目使用 `src/voice_assistant/` 作为源代码包。以下示例假设项目已正确安装或您正在从项目根目录运行。
+
 ---
 
-## cloud_asr 模块
+## voice_assistant.audio.cloud_asr 模块
 
 ### CloudASR 类
 
 ```python
-from cloud_asr import CloudASR
+from voice_assistant.audio.cloud_asr import CloudASR
 
 asr = CloudASR(api_key=None, model=None)
 ```
@@ -21,7 +23,7 @@ def __init__(self, api_key=None, model=None)
 ```
 
 **参数:**
-- `api_key` (str, optional): ASR 服务 API 密钥，默认从 `config.asr.api_key` 读取
+- `api_key` (str, optional): ASR 服务 API 密钥，默认从环境变量读取
 - `model` (str, optional): ASR 模型名称，默认从 `config.asr.model` 读取
 
 ---
@@ -77,12 +79,12 @@ print(result)  # "你好"
 
 ---
 
-## local_llm 模块
+## voice_assistant.core.local_llm 模块
 
 ### LocalLLMClient 类
 
 ```python
-from local_llm import LocalLLMClient
+from voice_assistant.core.local_llm import LocalLLMClient
 
 client = LocalLLMClient(model_path, system_prompt=None)
 ```
@@ -133,12 +135,12 @@ def close(self)
 
 ---
 
-## ai_client 模块
+## voice_assistant.core.ai_client 模块
 
 ### ask_ai_stream
 
 ```python
-from ai_client import ask_ai_stream
+from voice_assistant.core.ai_client import ask_ai_stream
 
 for response in ask_ai_stream("你好", history):
     print(response, end='')
@@ -173,7 +175,7 @@ for response in ask_ai_stream("我叫什么名字", history):
 ### get_local_llm_client
 
 ```python
-from ai_client import get_local_llm_client
+from voice_assistant.core.ai_client import get_local_llm_client
 
 client = get_local_llm_client()
 ```
@@ -188,7 +190,7 @@ client = get_local_llm_client()
 ### close_local_llm_client
 
 ```python
-from ai_client import close_local_llm_client
+from voice_assistant.core.ai_client import close_local_llm_client
 
 close_local_llm_client()
 ```
@@ -197,12 +199,12 @@ close_local_llm_client()
 
 ---
 
-## vad 模块
+## voice_assistant.audio.vad 模块
 
 ### calculate_rms
 
 ```python
-from vad import calculate_rms
+from voice_assistant.audio.vad import calculate_rms
 import numpy as np
 
 rms = calculate_rms(audio_data)
@@ -221,7 +223,7 @@ rms = calculate_rms(audio_data)
 ### record_audio
 
 ```python
-from vad import record_audio
+from voice_assistant.audio.vad import record_audio
 import numpy as np
 
 audio = record_audio(max_seconds=30)
@@ -244,12 +246,12 @@ print(f"录制了 {len(audio)} 个采样点")
 
 ---
 
-## tts 模块
+## voice_assistant.audio.tts 模块
 
 ### synthesize
 
 ```python
-from tts import synthesize
+from voice_assistant.audio.tts import synthesize
 
 audio_data = synthesize("你好")
 ```
@@ -264,8 +266,8 @@ audio_data = synthesize("你好")
 
 **示例:**
 ```python
-from tts import synthesize
-from audio_player import play_audio
+from voice_assistant.audio.tts import synthesize
+from voice_assistant.audio.player import play_audio
 
 # 合成并播放
 audio = synthesize("你好，我是语音助手")
@@ -277,7 +279,7 @@ play_audio(audio)
 ### preprocess_text
 
 ```python
-from tts import preprocess_text
+from voice_assistant.audio.tts import preprocess_text
 
 text = preprocess_text("你好世界")
 ```
@@ -297,12 +299,12 @@ text = preprocess_text("你好世界")
 
 ---
 
-## audio_player 模块
+## voice_assistant.audio.player 模块
 
 ### play_audio
 
 ```python
-from audio_player import play_audio
+from voice_assistant.audio.player import play_audio
 
 play_audio(audio_data)
 ```
@@ -314,8 +316,8 @@ play_audio(audio_data)
 
 **示例:**
 ```python
-from tts import synthesize
-from audio_player import play_audio
+from voice_assistant.audio.tts import synthesize
+from voice_assistant.audio.player import play_audio
 
 # 合成并播放
 audio = synthesize("你好")
@@ -325,12 +327,12 @@ print("播放完成")
 
 ---
 
-## security_utils 模块
+## voice_assistant.security.validation 模块
 
 ### RateLimiter 类
 
 ```python
-from security_utils import RateLimiter
+from voice_assistant.security.validation import RateLimiter
 
 limiter = RateLimiter(max_requests=10, window_seconds=60)
 limiter.check()  # 超限抛出 RateLimitError
@@ -347,7 +349,7 @@ limiter.check()  # 超限抛出 RateLimitError
 ### validate_text_input
 
 ```python
-from security_utils import validate_text_input
+from voice_assistant.security.validation import validate_text_input
 
 cleaned = validate_text_input(user_input)
 ```
@@ -368,7 +370,7 @@ cleaned = validate_text_input(user_input)
 ### validate_audio_input
 
 ```python
-from security_utils import validate_audio_input
+from voice_assistant.security.validation import validate_audio_input
 
 cleaned = validate_audio_input(audio_bytes)
 ```
@@ -386,12 +388,12 @@ cleaned = validate_audio_input(audio_bytes)
 
 ---
 
-## asr_corrector 模块
+## voice_assistant.core.asr_corrector 模块
 
 ### correct_asr_result
 
 ```python
-from asr_corrector import correct_asr_result
+from voice_assistant.core.asr_corrector import correct_asr_result
 
 corrected = correct_asr_result("打开 open interpreter", history)
 ```
@@ -414,12 +416,12 @@ result = correct_asr_result("打开 open interpreter")
 
 ---
 
-## voice_assistant_ai 模块 (主程序)
+## voice_assistant.main 模块 (主程序)
 
 ### toggle_llm_mode
 
 ```python
-from voice_assistant_ai import toggle_llm_mode
+from voice_assistant.main import toggle_llm_mode
 
 success, mode_name = toggle_llm_mode()
 ```
@@ -434,7 +436,7 @@ success, mode_name = toggle_llm_mode()
 ### get_llm_mode
 
 ```python
-from voice_assistant_ai import get_llm_mode
+from voice_assistant.main import get_llm_mode
 
 mode = get_llm_mode()  # "本地" 或 "在线"
 ```
@@ -443,6 +445,32 @@ mode = get_llm_mode()  # "本地" 或 "在线"
 
 **返回:**
 - (str): "本地" 或 "在线"
+
+---
+
+## voice_assistant.config 模块 (配置)
+
+### config 对象
+
+```python
+from voice_assistant.config import config
+```
+
+通过 `config` 对象访问配置：
+
+```python
+config.asr.model              # ASR 模型
+config.asr.base_url           # ASR 服务地址
+config.asr.language_hints     # 语言提示
+config.llm.model              # AI 模型（在线）
+config.llm.use_local          # 使用本地模型
+config.llm.local.model_path   # 本地模型路径
+config.llm.max_tokens         # 最大响应长度
+config.audio.sample_rate      # 采样率
+config.audio.edge_tts_voice   # TTS 音色
+config.vad.threshold          # 声音检测阈值
+config.interpreter.auto_run   # 自动执行代码
+```
 
 ---
 
@@ -461,23 +489,5 @@ mode = get_llm_mode()  # "本地" 或 "在线"
 |------|------|
 | `ASR_API_KEY` | ASR 服务 API 密钥 |
 | `LLM_API_KEY` | LLM 服务 API 密钥 |
-
-### config.yaml 配置
-
-通过 `from config import config` 访问配置对象：
-
-```python
-config.asr.model              # ASR 模型
-config.asr.base_url           # ASR 服务地址
-config.asr.language_hints     # 语言提示
-config.llm.model              # AI 模型（在线）
-config.llm.use_local          # 使用本地模型
-config.llm.local.model_path   # 本地模型路径
-config.llm.max_tokens         # 最大响应长度
-config.audio.sample_rate      # 采样率
-config.audio.edge_tts_voice   # TTS 音色
-config.vad.threshold          # 声音检测阈值
-config.interpreter.auto_run   # 自动执行代码
-```
 
 详见 [CONFIG.md](CONFIG.md)。

@@ -112,27 +112,112 @@ python voice_assistant_ai.py
 
 ## 开发
 
+### 可用命令
+
+<!-- AUTO-GENERATED -->
+| 命令 | 说明 |
+|------|------|
+| `./start.sh` | 自动检测并安装依赖，启动应用（推荐） |
+| `python run.py` | 直接运行主程序 |
+| `voice-assistant` | 安装后的 CLI 命令 |
+| `voice-assistant-check` | 环境检查脚本 |
+| `uv pip install -e .` | 安装项目为可编辑包 |
+| `uv pip install -e ".[dev]"` | 安装开发依赖 |
+| `uv pip install -e ".[local-llm]"` | 安装本地模型支持 |
+| `uv pip install -e ".[dev,local-llm]"` | 安装全部依赖 |
+| `uv run pytest` | 运行全部测试 |
+| `uv run pytest tests/ -v` | 运行指定测试目录 |
+| `uv run pytest tests/test_audio/ -v` | 只测试音频模块 |
+| `uv run pytest tests/test_core/ -v` | 只测试核心模块 |
+| `uv run pytest --cov` | 运行带覆盖率统计的测试 |
+<!-- AUTO-GENERATED END -->
+
+### 运行
+
+#### 首次启动
+
+```bash
+# 克隆项目后
+./start.sh
+
+# 脚本会:
+# 1. 检查 uv 是否已安装
+# 2. 检查 Python 版本 (>=3.10)
+# 3. 创建虚拟环境
+# 4. 检测本地模型是否存在
+# 5. 安装相应依赖
+# 6. 启动应用
+```
+
+#### 手动运行
+
+```bash
+# 激活虚拟环境
+source .venv/bin/activate
+
+# 运行程序
+python run.py
+
+# 或使用已安装的命令
+voice-assistant
+```
+
+#### 环境检查
+
+```bash
+# 检查环境配置
+voice-assistant-check
+```
+
 ### 代码结构
 
 ```
-voice_assistant/
-├── voice_assistant_ai.py      # 主程序
-├── cloud_asr.py               # 语音识别
-├── vad.py                     # 语音检测
-├── tts.py                     # 语音合成
-├── ai_client.py               # AI对话（在线/本地）
-├── local_llm.py               # 本地 LLM 推理
-├── audio_player.py            # 音频播放
-├── security_utils.py          # 安全工具
-├── asr_corrector.py           # ASR 纠错
-├── interpreter_executor.py    # Open Interpreter 执行器
-├── test_system.py             # 测试用例
-├── test_executors.py          # 执行器测试
-├── pyproject.toml             # 项目配置（uv）
+voice-assistant/
+├── src/voice_assistant/       # 源代码包
+│   ├── __init__.py
+│   ├── __main__.py            # CLI 入口
+│   ├── main.py                # 主程序
+│   ├── config/                # 配置模块
+│   │   └── __init__.py
+│   ├── audio/                 # 音频模块
+│   │   ├── __init__.py
+│   │   ├── vad.py             # 语音活动检测
+│   │   ├── tts.py             # 语音合成
+│   │   ├── cloud_asr.py       # 阿里云 ASR
+│   │   └── player.py          # 音频播放
+│   ├── core/                  # 核心模块
+│   │   ├── __init__.py
+│   │   ├── ai_client.py       # AI对话客户端
+│   │   ├── local_llm.py       # 本地 LLM
+│   │   ├── dependencies.py    # 依赖注入
+│   │   └── asr_corrector.py   # ASR 纠错
+│   ├── executors/             # 执行器模块
+│   │   ├── __init__.py
+│   │   ├── base.py            # 基类
+│   │   ├── chat.py            # 对话执行器
+│   │   ├── computer.py        # 计算机控制
+│   │   └── interpreter.py     # Open Interpreter
+│   ├── models/                # 数据模型
+│   │   └── intent.py
+│   ├── services/              # 服务模块
+│   │   └── router.py          # 指令路由
+│   └── security/              # 安全模块
+│       └── validation.py
+├── tests/                     # 测试目录
+│   ├── conftest.py
+│   ├── test_system.py
+│   ├── test_audio/
+│   ├── test_core/
+│   ├── test_executors/
+│   ├── test_security/
+│   └── test_services/
+├── scripts/
+│   └── check_env.py
+├── start.sh                   # 启动脚本
+├── run.py                     # 运行入口
+├── pyproject.toml             # 项目配置
 ├── config.yaml                # 应用配置
-├── .env                       # 环境变量（需创建）
-├── model_weights/             # 本地模型目录
-│   └── gemma-4-E2B-it.litertlm
+├── .env.example               # 环境变量示例
 └── docs/                      # 文档
 ```
 
@@ -243,33 +328,78 @@ if client:
 ### 运行全部测试
 
 ```bash
-uv run pytest test_system.py -v
+uv run pytest tests/ -v
 ```
 
 ### 运行特定测试
 
 ```bash
-# 只测试配置
-uv run pytest test_system.py::TestConfiguration -v
+# 系统集成测试
+uv run pytest tests/test_system.py -v
 
-# 只测试 ASR
-uv run pytest test_system.py::TestCloudASR -v
+# 音频模块测试
+uv run pytest tests/test_audio/ -v
 
-# 只测试执行器
-uv run pytest test_executors.py -v
+# 核心模块测试
+uv run pytest tests/test_core/ -v
+
+# 执行器测试
+uv run pytest tests/test_executors/ -v
+
+# 安全模块测试
+uv run pytest tests/test_security/ -v
+
+# 特定测试类
+uv run pytest tests/test_audio/test_vad.py::TestVAD -v
+```
+
+### 测试覆盖率
+
+```bash
+# 生成覆盖率报告
+uv run pytest tests/ --cov=voice_assistant --cov-report=html
+
+# 查看覆盖率
+open htmlcov/index.html
+```
+
+要求：测试覆盖率 >= 80%。
+
+### 测试结构
+
+```
+tests/
+├── conftest.py              # pytest 配置和 fixtures
+├── test_system.py           # 系统集成测试
+├── test_audio/
+│   ├── test_vad.py          # VAD 单元测试
+│   ├── test_player.py       # 音频播放测试
+│   └── test_cloud_asr_extended.py  # ASR 扩展测试
+├── test_core/
+│   ├── test_dependencies.py # 依赖注入测试
+│   └── test_ai_client.py    # AI 客户端测试
+├── test_executors/
+│   └── test_base.py         # 执行器基类测试
+├── test_security/
+│   └── test_validation.py   # 安全验证测试
+└── test_services/
+    └── test_router.py       # 路由服务测试
 ```
 
 ### 测试覆盖
 
-- `TestImports`: 依赖包导入
-- `TestConfiguration`: 配置加载
-- `TestLLMAPI`: LLM API 连接
-- `TestCloudASR`: 语音识别
-- `TestEdgeTTS`: 语音合成
-- `TestAudioDevices`: 音频设备
-- `TestVoiceAssistantAI`: 主模块
-- `TestASRCorrector`: ASR 纠错
-- `TestSecurityUtils`: 安全工具
+| 测试类 | 测试内容 |
+|--------|----------|
+| `TestImports` | 验证所有依赖包可导入 |
+| `TestConfiguration` | 验证配置正确加载 |
+| `TestVAD` | 语音活动检测逻辑 |
+| `TestAudioPlayer` | 音频播放功能 |
+| `TestCloudASRExtended` | 阿里云 ASR 扩展功能 |
+| `TestDependencies` | 依赖注入容器 |
+| `TestBaseExecutor` | 执行器基类 |
+| `TestSecurityValidation` | 输入验证和速率限制 |
+
+### 运行全部测试
 
 ---
 
