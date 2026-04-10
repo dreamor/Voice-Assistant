@@ -32,7 +32,7 @@ llm:
     model_path: "models/gemma-4-E2B-it.litertlm"
     model_name: "gemma-4-E2B-it"
     system_prompt: "你是一个友好的中文语音助手，回复要简洁口语化，适合语音播放。"
-    use_multimodal_audio: true  # true=直接将音频送给 Gemma 4 多模态模型，false=先用 ASR 转文本再送 LLM
+    use_multimodal_audio: false  # true=直接将音频送给 Gemma 4 多模态模型，false=先用 ASR 转文本再送 LLM
 
 # 音频配置
 audio:
