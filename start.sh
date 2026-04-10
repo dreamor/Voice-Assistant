@@ -20,23 +20,21 @@ if ! command -v uv &> /dev/null; then
     export PATH="$HOME/.local/bin:$PATH"
 fi
 
-# 检查 uv 是否能提供 Python 3.10+
+# 使用 uv 管理 Python，自动下载所需版本
 echo -e "${GREEN}✓ 使用 uv 管理 Python 环境${NC}"
-
-# 创建虚拟环境时 uv 会自动下载所需 Python 版本
 if [ ! -d ".venv" ]; then
     echo -e "${YELLOW}创建虚拟环境（uv 将自动下载 Python 3.12）...${NC}"
     uv venv --python 3.12
     echo -e "${GREEN}✓ 虚拟环境已创建${NC}"
 fi
 
-# 激活虚拟环境获取 Python 版本
-PYTHON_VERSION=$(source .venv/bin/activate && python --version 2>&1 | cut -d' ' -f2)
-echo -e "${GREEN}✓ Python 版本: $PYTHON_VERSION${NC}"
+# 验证 venv 中的 Python 版本
+VENV_PYTHON=$(.venv/bin/python --version 2>&1 | cut -d' ' -f2 | cut -d'.' -f1,2)
+echo -e "${GREEN}✓ Python 版本: $VENV_PYTHON${NC}"
 
 # 检查本地模型
 USE_LOCAL_LLM=false
-if [ -f "model_weights/gemma-4-E2B-it.litertlm" ]; then
+if [ -f "models/gemma-4-E2B-it.litertlm" ]; then
     USE_LOCAL_LLM=true
     echo -e "${GREEN}✓ 本地模型已就绪${NC}"
 elif grep -q "use_local:\s*true" config.yaml 2>/dev/null; then
