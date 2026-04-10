@@ -5,23 +5,23 @@
 """
 import io
 import logging
+import os
 import sys
+import tempfile
 
-import voice_assistant.core.ai_client as ai_client  # 导入以访问本地 LLM 客户端
+import soundfile as sf
+
+import voice_assistant.core.ai_client as ai_client
 from voice_assistant.audio.cloud_asr import CloudASR
 from voice_assistant.audio.player import play_audio
 from voice_assistant.audio.tts import synthesize
 from voice_assistant.audio.vad import record_audio
 from voice_assistant.config import config
 from voice_assistant.core.asr_corrector import correct_asr_result
+from voice_assistant.core.dependencies import check_dependencies
 from voice_assistant.executors.chat import ChatExecutor
 from voice_assistant.executors.computer import ComputerExecutor
-
-# 导入新架构模块
 from voice_assistant.services.router import CommandRouter, simple_classify_intent
-
-# 导入依赖验证
-from voice_assistant.core.dependencies import validate_environment, check_dependencies
 
 # 配置日志
 logging.basicConfig(
@@ -165,9 +165,6 @@ def speak_and_play(text: str):
         return
     logger.info(f"  [Speaking] {text[:50]}...")
 
-    import os
-    import tempfile
-
     with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as tmp:
         tmp_path = tmp.name
 
@@ -264,17 +261,13 @@ def main():
         logger.info("\n[Recording] Speak now...")
         audio = record_audio(max_seconds=config.vad.max_recording)
 
-        if len(audio) < config.audio.sample_rate * 0.5:
+        if len(audio) < config.audio.sample_rate * 0.3:
             logger.warning("[Warning] Too short\n")
             continue
 
         logger.info(f"  [OK] Recorded {len(audio)/config.audio.sample_rate:.1f}s")
 
         # Write audio to temp WAV file (LiteRT needs a file path for multimodal input)
-        import tempfile
-
-        import soundfile as sf
-
         with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
             tmp_wav_path = tmp.name
 
@@ -289,12 +282,29 @@ def main():
                     full_response.append(chunk) if chunk else None
                     print(f"\r  [AI] {chunk}", end='', flush=True)
                 logger.info("")  # newline after streaming
-                user_text = full_response[-1] if full_response else ""
+                gemma_reply = full_response[-1] if full_response else ""
 
-                if not user_text.strip():
+                if not gemma_reply.strip():
                     logger.warning("[Warning] 未从模型得到有效回复\n")
                     continue
-                logger.info(f"  [Gemma] {user_text[:100]}...")
+                logger.info(f"  [Gemma] {gemma_reply[:100]}...")
+
+                # Update conversation history with the multimodal response
+                updated_history = chat_executor._update_history(
+                    chat_executor._conversation_history,
+                    user_text="[语音]",
+                    response=gemma_reply,
+                )
+                chat_executor._conversation_history = updated_history
+
+                # 直接用 Gemma 的回复作为最终回复，跳过二次 LLM 推理
+                reply = gemma_reply
+                logger.info(f"  Reply: {reply[:200]}...")
+                logger.info("\n[Step 3] Speaking...")
+                speak_and_play(reply)
+                logger.info("\n" + "-" * 50 + "\n")
+                continue
+
             else:
                 # 传统流程：ASR → 文本 → LLM
                 logger.info("\n[Step 1] Recognizing...")
