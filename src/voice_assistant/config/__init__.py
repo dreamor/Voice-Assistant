@@ -43,6 +43,7 @@ class LocalLLMConfig:
     model_path: str
     model_name: str
     system_prompt: str
+    use_multimodal_audio: bool = False
 
 
 @dataclass(frozen=True)
@@ -155,6 +156,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
                 model_path=cfg['llm'].get('local', {}).get('model_path', 'models/gemma-4-E2B-it.litertlm'),
                 model_name=cfg['llm'].get('local', {}).get('model_name', 'gemma-4-E2B-it'),
                 system_prompt=cfg['llm'].get('local', {}).get('system_prompt', '你是一个友好的中文语音助手。'),
+                use_multimodal_audio=cfg['llm'].get('local', {}).get('use_multimodal_audio', False),
             ),
         ),
         audio=AudioConfig(

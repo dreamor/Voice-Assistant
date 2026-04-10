@@ -32,6 +32,8 @@ dependencies = [
 dev = [
     "pytest>=8.0.0",
     "pip-audit>=2.7.0",
+    "pyright>=1.1.0",
+    "ruff>=0.4.0",
 ]
 local-llm = [
     "litert-lm-api-nightly",
@@ -59,3 +61,17 @@ dev-dependencies = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+
+[tool.pyright]
+pythonVersion = "3.10"
+typeCheckingMode = "basic"
+exclude = ["**/__pycache__", "venv", ".venv"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+exclude = ["__pycache__", "venv", ".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP"]
+ignore = ["E501"]

@@ -7,18 +7,17 @@ import io
 import logging
 import sys
 
-from voice_assistant.config import config
-from voice_assistant.audio.vad import record_audio
-from voice_assistant.audio.tts import synthesize
-from voice_assistant.audio.player import play_audio
-from voice_assistant.audio.cloud_asr import CloudASR
-from voice_assistant.core.asr_corrector import correct_asr_result
 import voice_assistant.core.ai_client as ai_client  # 导入以访问本地 LLM 客户端
+from voice_assistant.audio.cloud_asr import CloudASR
+from voice_assistant.audio.player import play_audio
+from voice_assistant.audio.tts import synthesize
+from voice_assistant.audio.vad import record_audio
+from voice_assistant.config import config
+from voice_assistant.core.asr_corrector import correct_asr_result
+from voice_assistant.executors.chat import ChatExecutor
+from voice_assistant.executors.computer import ComputerExecutor
 
 # 导入新架构模块
-from voice_assistant.model.intent import IntentType
-from voice_assistant.executors.computer import ComputerExecutor
-from voice_assistant.executors.chat import ChatExecutor
 from voice_assistant.services.router import CommandRouter, simple_classify_intent
 
 # 导入依赖验证
@@ -100,6 +99,18 @@ asr_client = CloudASR(api_key=config.asr.api_key, model=config.asr.model)
 
 # 本地模型状态
 _use_local_llm = config.llm.use_local
+_use_multimodal_audio = config.llm.local.use_multimodal_audio
+
+
+def toggle_multimodal_audio():
+    """切换多模态音频模式"""
+    global _use_multimodal_audio
+    _use_multimodal_audio = not _use_multimodal_audio
+    if _use_multimodal_audio and not _use_local_llm:
+        logger.warning("多模态音频模式仅在本地模型模式下生效")
+        _use_multimodal_audio = False
+        return False, "关闭"
+    return True, "开启" if _use_multimodal_audio else "关闭"
 
 
 def toggle_llm_mode():
@@ -112,7 +123,7 @@ def toggle_llm_mode():
     # 我们通过全局变量控制
     if _use_local_llm:
         # 尝试初始化本地客户端
-        client = ai_client.get_local_llm_client()
+        client = ai_client.get_local_llm_client(enable_audio=_use_multimodal_audio)
         if client is None:
             logger.warning("本地模型不可用，保持在线模式")
             _use_local_llm = False
@@ -154,8 +165,8 @@ def speak_and_play(text: str):
         return
     logger.info(f"  [Speaking] {text[:50]}...")
 
-    import tempfile
     import os
+    import tempfile
 
     with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as tmp:
         tmp_path = tmp.name
@@ -170,7 +181,7 @@ def speak_and_play(text: str):
     finally:
         try:
             os.unlink(tmp_path)
-        except:
+        except Exception:
             pass
 
 
@@ -188,12 +199,16 @@ def main():
     llm_mode = "本地" if _use_local_llm else "在线"
     llm_name = config.llm.local.model_name if _use_local_llm else config.llm.model
     logger.info(f"  LLM: {llm_name} ({llm_mode})")
+    if _use_local_llm:
+        multimodal_status = "ON" if _use_multimodal_audio else "OFF"
+        logger.info(f"  Multimodal Audio: {multimodal_status}")
     logger.info("=" * 50)
     logger.info("  [ENTER] Start recording")
     logger.info("  [C]     Clear history")
     logger.info("  [H]     Show history")
     logger.info("  [I]     Toggle Auto/AI")
     logger.info("  [L]     Toggle Local/Online LLM")
+    logger.info("  [M]     Toggle Multimodal Audio")
     logger.info("  [Q]     Quit")
     logger.info("=" * 50)
     logger.info("\nReady!\n")
@@ -236,7 +251,14 @@ def main():
             if success:
                 logger.info(f"[OK] LLM 模式切换为: {new_mode}\n")
             else:
-                logger.warning(f"[Failed] LLM 模式切换失败\n")
+                logger.warning("[Failed] LLM 模式切换失败\n")
+            continue
+        elif cmd == 'm':
+            success, new_mode = toggle_multimodal_audio()
+            if success:
+                logger.info(f"[OK] 多模态音频模式已: {new_mode}\n")
+            else:
+                logger.warning("[Failed] 多模态音频模式切换失败\n")
             continue
 
         logger.info("\n[Recording] Speak now...")
@@ -248,40 +270,74 @@ def main():
 
         logger.info(f"  [OK] Recorded {len(audio)/config.audio.sample_rate:.1f}s")
 
-        logger.info("\n[Step 1] Recognizing...")
-        with io.BytesIO() as buf:
-            import soundfile as sf
-            sf.write(buf, audio, config.audio.sample_rate, format='WAV')
-            audio_bytes = buf.getvalue()
+        # Write audio to temp WAV file (LiteRT needs a file path for multimodal input)
+        import tempfile
 
-        user_text = recognize(audio_bytes)
-        logger.info(f"  You: {user_text}")
+        import soundfile as sf
 
-        if not user_text.strip():
-            logger.warning("[Warning] No speech detected\n")
-            continue
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
+            tmp_wav_path = tmp.name
 
-        logger.info("\n[Step 2] Processing...")
-        if auto_mode:
-            # 自动模式：意图识别 + 路由
-            intent = simple_classify_intent(user_text)
-            logger.info(f"  [Intent] {intent.intent_type.value} (confidence: {intent.confidence})")
-            context = {'history': chat_executor.get_history()}
-            result = router.route(intent, context)
-            reply = result.get('response', '抱歉，我没有理解')
-            # 更新历史
-            if 'history_updated' in result:
-                chat_executor._conversation_history = result['history_updated']
-        else:
-            # 强制 AI 对话模式
-            result = chat_executor.execute(user_text)
-            reply = result.get('response', '抱歉，发生错误')
+        try:
+            sf.write(tmp_wav_path, audio, config.audio.sample_rate, format='WAV')
 
-        logger.info(f"  Reply: {reply[:200]}...")
+            # 多模态模式：音频直接送 Gemma 4
+            if _use_local_llm and _use_multimodal_audio:
+                logger.info("\n[Step 1] Multimodal audio → Gemma 4...")
+                full_response = []
+                for chunk in ai_client.ask_ai_stream_with_audio("", tmp_wav_path):
+                    full_response.append(chunk) if chunk else None
+                    print(f"\r  [AI] {chunk}", end='', flush=True)
+                logger.info("")  # newline after streaming
+                user_text = full_response[-1] if full_response else ""
 
-        logger.info("\n[Step 3] Speaking...")
-        speak_and_play(reply)
-        logger.info("\n" + "-" * 50 + "\n")
+                if not user_text.strip():
+                    logger.warning("[Warning] 未从模型得到有效回复\n")
+                    continue
+                logger.info(f"  [Gemma] {user_text[:100]}...")
+            else:
+                # 传统流程：ASR → 文本 → LLM
+                logger.info("\n[Step 1] Recognizing...")
+                with io.BytesIO() as buf:
+                    sf.write(buf, audio, config.audio.sample_rate, format='WAV')
+                    audio_bytes = buf.getvalue()
+
+                user_text = recognize(audio_bytes)
+                logger.info(f"  You: {user_text}")
+
+                if not user_text.strip():
+                    logger.warning("[Warning] No speech detected\n")
+                    continue
+
+                logger.info("\n[Step 2] Processing...")
+
+            logger.info("\n[Processing] Routing...")
+            if auto_mode:
+                # 自动模式：意图识别 + 路由
+                intent = simple_classify_intent(user_text)
+                logger.info(f"  [Intent] {intent.intent_type.value} (confidence: {intent.confidence})")
+                context = {'history': chat_executor.get_history()}
+                result = router.route(intent, context)
+                reply = result.get('response', '抱歉，我没有理解')
+                # 更新历史
+                if 'history_updated' in result:
+                    chat_executor._conversation_history = result['history_updated']
+            else:
+                # 强制 AI 对话模式
+                result = chat_executor.execute(user_text)
+                reply = result.get('response', '抱歉，发生错误')
+
+            logger.info(f"  Reply: {reply[:200]}...")
+
+            logger.info("\n[Step 3] Speaking...")
+            speak_and_play(reply)
+            logger.info("\n" + "-" * 50 + "\n")
+
+        finally:
+            try:
+                os.unlink(tmp_wav_path)
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":
