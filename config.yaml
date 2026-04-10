@@ -60,3 +60,8 @@ history:
 logging:
   level: "INFO"
   format: "%(asctime)s - %(levelname)s - %(message)s"
+
+# 意图识别配置（LLM 意图分类）
+intent:
+  model: "qwen-turbo"  # 轻量模型，适合分类任务
+  timeout: 5           # 超时时间（秒）

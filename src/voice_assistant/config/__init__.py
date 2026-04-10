@@ -2,11 +2,10 @@
 配置管理模块
 从 config.yaml 和 .env 加载配置
 """
-import os
 import logging
+import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 import yaml
 from dotenv import load_dotenv
@@ -22,7 +21,7 @@ class HotwordsConfig:
     """热词配置"""
     enabled: bool
     config_file: str
-    vocabulary_id: Optional[str]
+    vocabulary_id: str | None
 
 
 @dataclass(frozen=True)
@@ -89,6 +88,13 @@ class HistoryConfig:
 
 
 @dataclass(frozen=True)
+class IntentConfig:
+    """意图识别配置"""
+    model: str
+    timeout: int
+
+
+@dataclass(frozen=True)
 class LoggingConfig:
     """日志配置"""
     level: str
@@ -106,6 +112,7 @@ class AppConfig:
     vad: VADConfig
     interpreter: InterpreterConfig
     history: HistoryConfig
+    intent: IntentConfig
     logging: LoggingConfig
 
 
@@ -126,7 +133,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
     project_root = _find_project_root()
     full_path = project_root / config_path
 
-    with open(full_path, 'r', encoding='utf-8') as f:
+    with open(full_path, encoding='utf-8') as f:
         cfg = yaml.safe_load(f)
 
     return AppConfig(
@@ -175,6 +182,10 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
             verbose=cfg['interpreter']['verbose'],
         ),
         history=HistoryConfig(max_turns=cfg['history']['max_turns']),
+        intent=IntentConfig(
+            model=cfg.get('intent', {}).get('model', 'qwen-turbo'),
+            timeout=cfg.get('intent', {}).get('timeout', 5),
+        ),
         logging=LoggingConfig(
             level=cfg['logging']['level'],
             format=cfg['logging']['format'],

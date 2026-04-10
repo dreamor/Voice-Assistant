@@ -13,7 +13,7 @@ import numpy as np
 from voice_assistant.executors.chat import ChatExecutor
 from voice_assistant.executors.computer import ComputerExecutor
 from voice_assistant.model.intent import Intent, IntentType
-from voice_assistant.services.router import CommandRouter, simple_classify_intent
+from voice_assistant.services.router import CommandRouter
 
 
 class TestMultimodalRouting:
@@ -27,6 +27,8 @@ class TestMultimodalRouting:
 
     def test_gemmar_reply_routed_to_chat_executor(self):
         """Gemma reply classified as ordinary_chat reaches ChatExecutor."""
+        from voice_assistant.services.router import _keyword_classify_intent
+
         chat = ChatExecutor(max_response_length=200)
         computer = ComputerExecutor(auto_run=False)
         router = CommandRouter(executors=[computer, chat])
@@ -34,7 +36,7 @@ class TestMultimodalRouting:
         # Simulate Gemma's multimodal reply (no punctuation -> ORDINARY_CHAT)
         gemma_reply = "好的，请问还有什么可以帮您"
 
-        intent = simple_classify_intent(gemma_reply)
+        intent = _keyword_classify_intent(gemma_reply)
         assert intent.intent_type == IntentType.ORDINARY_CHAT
 
         # Use direct_response to skip LLM round-trip and verify routing
@@ -49,6 +51,8 @@ class TestMultimodalRouting:
 
     def test_gemmar_reply_routed_to_computer_executor(self):
         """Gemma reply containing computer keywords reaches ComputerExecutor."""
+        from voice_assistant.services.router import _keyword_classify_intent
+
         chat = ChatExecutor(max_response_length=200)
         computer = ComputerExecutor(auto_run=False)
         router = CommandRouter(executors=[computer, chat])
@@ -56,7 +60,7 @@ class TestMultimodalRouting:
         # Simulate Gemma's multimodal reply indicating computer action
         gemma_reply = "好的，我来帮您打开计算器。"
 
-        intent = simple_classify_intent(gemma_reply)
+        intent = _keyword_classify_intent(gemma_reply)
         assert intent.intent_type == IntentType.COMPUTER_CONTROL
         assert intent.confidence == 0.7
 
@@ -70,6 +74,8 @@ class TestMultimodalRouting:
 
     def test_gemmar_reply_computer_keywords_detected(self):
         """Verify keywords in Gemma-style reply trigger computer_control."""
+        from voice_assistant.services.router import _keyword_classify_intent
+
         # Various phrases that should route to computer_control
         for phrase in [
             "好的，我来帮您打开应用",
@@ -77,15 +83,17 @@ class TestMultimodalRouting:
             "让我帮您运行这个程序",
             "好的，我来复制这个文件",
         ]:
-            intent = simple_classify_intent(phrase)
+            intent = _keyword_classify_intent(phrase)
             assert intent.intent_type == IntentType.COMPUTER_CONTROL, (
                 f"'{phrase}' should be COMPUTER_CONTROL"
             )
 
     def test_gemmar_reply_query_triggers_query_answer(self):
         """Gemma reply with question mark triggers query_answer intent."""
+        from voice_assistant.services.router import _keyword_classify_intent
+
         gemma_reply = "北京天气不错，您想查询哪个城市？"
-        intent = simple_classify_intent(gemma_reply)
+        intent = _keyword_classify_intent(gemma_reply)
         assert intent.intent_type == IntentType.QUERY_ANSWER
 
 
