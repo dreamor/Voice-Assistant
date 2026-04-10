@@ -4,18 +4,23 @@
 """
 import logging
 import os
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator, Optional
+from typing import TYPE_CHECKING, Any
 
 logger = logging.getLogger(__name__)
 
 # LiteRT-LM 可选依赖
 try:
-    import litert_lm
+    import litert_lm  # pyright: ignore[reportMissingImports]
     LITERT_LM_AVAILABLE = True
 except ImportError:
+    litert_lm = None  # type: ignore[misc,assignment]
     LITERT_LM_AVAILABLE = False
     logger.warning("LiteRT-LM 未安装，本地模型功能不可用。请运行: pip install litert-lm-api-nightly")
+
+if TYPE_CHECKING:
+    import litert_lm  # pyright: ignore[reportMissingImports]
 
 
 class LocalLLMError(Exception):
@@ -27,7 +32,7 @@ class LocalLLMEngine:
     """本地 LLM 引擎，使用 LiteRT-LM"""
 
     def __init__(
-        self, model_path: str, system_prompt: Optional[str] = None,
+        self, model_path: str, system_prompt: str | None = None,
         enable_audio: bool = False,
     ):
         """初始化本地 LLM 引擎
@@ -46,8 +51,8 @@ class LocalLLMEngine:
         self.model_path = model_path
         self.system_prompt = system_prompt or "你是一个友好的中文语音助手，回复要简洁口语化，适合语音播放。"
         self.enable_audio = enable_audio
-        self._engine = None
-        self._conversation = None
+        self._engine: Any = None
+        self._conversation: Any = None
 
         # 验证模型文件
         if not os.path.exists(model_path):
@@ -57,6 +62,9 @@ class LocalLLMEngine:
 
     def _init_engine(self):
         """初始化 LiteRT-LM 引擎"""
+        if litert_lm is None:
+            raise LocalLLMError("LiteRT-LM 未安装")
+
         try:
             # 设置日志级别
             litert_lm.set_min_log_severity(litert_lm.LogSeverity.ERROR)
@@ -215,7 +223,7 @@ class LocalLLMClient:
     """本地 LLM 客户端，提供与在线 LLM 兼容的接口"""
 
     def __init__(
-        self, model_path: str, system_prompt: Optional[str] = None,
+        self, model_path: str, system_prompt: str | None = None,
         enable_audio: bool = False,
     ):
         """初始化客户端
@@ -228,7 +236,7 @@ class LocalLLMClient:
         self.model_path = model_path
         self.system_prompt = system_prompt
         self.enable_audio = enable_audio
-        self._engine: Optional[LocalLLMEngine] = None
+        self._engine: LocalLLMEngine | None = None
         self._conversation_history: list = []
 
     def _ensure_engine(self):
@@ -240,7 +248,7 @@ class LocalLLMClient:
             )
             self._engine.create_conversation()
 
-    def ask_stream(self, text: str, conversation_history: Optional[list] = None) -> Generator[str, None, None]:
+    def ask_stream(self, text: str, conversation_history: list | None = None) -> Generator[str, None, None]:
         """流式获取回复（兼容在线 LLM 接口）
 
         Args:
@@ -252,6 +260,7 @@ class LocalLLMClient:
         """
         try:
             self._ensure_engine()
+            assert self._engine is not None  # for pyright
 
             full_response = []
             for chunk in self._engine.send_message_stream(text):
@@ -277,6 +286,7 @@ class LocalLLMClient:
         """
         try:
             self._ensure_engine()
+            assert self._engine is not None  # for pyright
 
             full_response = []
             for chunk in self._engine.send_multimodal_audio_message_stream(

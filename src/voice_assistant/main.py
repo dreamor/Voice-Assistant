@@ -7,18 +7,17 @@ import io
 import logging
 import os
 
-from voice_assistant.config import config
-from voice_assistant.audio.vad import record_audio
-from voice_assistant.audio.tts import synthesize
-from voice_assistant.audio.player import play_audio
-from voice_assistant.audio.cloud_asr import CloudASR
-from voice_assistant.core.asr_corrector import correct_asr_result
 import voice_assistant.core.ai_client as ai_client  # 导入以访问本地 LLM 客户端
+from voice_assistant.audio.cloud_asr import CloudASR
+from voice_assistant.audio.player import play_audio
+from voice_assistant.audio.tts import synthesize
+from voice_assistant.audio.vad import record_audio
+from voice_assistant.config import config
+from voice_assistant.core.asr_corrector import correct_asr_result
+from voice_assistant.executors.chat import ChatExecutor
+from voice_assistant.executors.computer import ComputerExecutor
 
 # 导入新架构模块
-from voice_assistant.model.intent import IntentType
-from voice_assistant.executors.computer import ComputerExecutor
-from voice_assistant.executors.chat import ChatExecutor
 from voice_assistant.services.router import CommandRouter, simple_classify_intent
 
 # 配置日志
@@ -109,8 +108,8 @@ def speak_and_play(text: str):
         return
     logger.info(f"  [Speaking] {text[:50]}...")
 
-    import tempfile
     import os
+    import tempfile
 
     with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as tmp:
         tmp_path = tmp.name
@@ -125,7 +124,7 @@ def speak_and_play(text: str):
     finally:
         try:
             os.unlink(tmp_path)
-        except:
+        except Exception:
             pass
 
 
@@ -191,14 +190,14 @@ def main():
             if success:
                 logger.info(f"[OK] LLM 模式切换为: {new_mode}\n")
             else:
-                logger.warning(f"[Failed] LLM 模式切换失败\n")
+                logger.warning("[Failed] LLM 模式切换失败\n")
             continue
         elif cmd == 'm':
             success, new_mode = toggle_multimodal_audio()
             if success:
                 logger.info(f"[OK] 多模态音频模式已: {new_mode}\n")
             else:
-                logger.warning(f"[Failed] 多模态音频模式切换失败\n")
+                logger.warning("[Failed] 多模态音频模式切换失败\n")
             continue
 
         logger.info("\n[Recording] Speak now...")
@@ -212,6 +211,7 @@ def main():
 
         # Write audio to temp WAV file (LiteRT needs a file path for multimodal input)
         import tempfile
+
         import soundfile as sf
 
         with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
@@ -226,7 +226,7 @@ def main():
                 full_response = []
                 for chunk in ai_client.ask_ai_stream_with_audio("", tmp_wav_path):
                     full_response.append(chunk) if chunk else None
-                    logger.info(f"\r  [AI] {chunk}", end='', flush=True)
+                    print(f"\r  [AI] {chunk}", end='', flush=True)
                 logger.info("")  # newline after streaming
                 user_text = full_response[-1] if full_response else ""
 

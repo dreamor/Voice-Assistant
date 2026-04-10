@@ -6,9 +6,16 @@ AI Client 模块
 import json
 import logging
 import re
+
 import requests
+
 from voice_assistant.config import config
-from voice_assistant.security.validation import validate_text_input, llm_limiter, RateLimitError, InputValidationError
+from voice_assistant.security.validation import (
+    InputValidationError,
+    RateLimitError,
+    llm_limiter,
+    validate_text_input,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +46,7 @@ def get_local_llm_client(enable_audio: bool | None = None):
 
     if _local_llm_client is None:
         try:
-            from voice_assistant.core.local_llm import LocalLLMClient, LITERT_LM_AVAILABLE
+            from voice_assistant.core.local_llm import LITERT_LM_AVAILABLE, LocalLLMClient
 
             if not LITERT_LM_AVAILABLE:
                 logger.warning("LiteRT-LM 未安装，本地模型不可用")
@@ -87,7 +94,7 @@ def ask_ai_stream(text, conversation_history=None):
     """
     # 根据 config.llm.use_local 决定使用本地还是在线模型
     use_local = config.llm.use_local
-    
+
     if use_local:
         yield from ask_local_ai_stream(text, conversation_history)
     else:
@@ -121,8 +128,7 @@ def ask_local_ai_stream(text, conversation_history=None):
     print("  [AI] Thinking (Local)...")
 
     try:
-        for chunk in client.ask_stream(cleaned_text):
-            yield chunk
+        yield from client.ask_stream(cleaned_text)  # noqa: UP028
 
     except Exception as e:
         logger.error(f"本地 LLM 错误: {e}")
@@ -144,7 +150,8 @@ def ask_ai_stream_with_audio(text, wav_file_path, conversation_history=None):
         生成器，产生AI回复
     """
     import re
-    from voice_assistant.security.validation import validate_text_input, InputValidationError
+
+    from voice_assistant.security.validation import InputValidationError, validate_text_input
 
     # 输入验证（文本部分）
     try:
@@ -163,8 +170,7 @@ def ask_ai_stream_with_audio(text, wav_file_path, conversation_history=None):
     print("  [AI] Listening to audio...")
 
     try:
-        for chunk in client.ask_multimodal_stream(cleaned_text, wav_file_path):
-            yield chunk
+        yield from client.ask_multimodal_stream(cleaned_text, wav_file_path)  # noqa: UP028
 
     except Exception as e:
         logger.error(f"本地 LLM 多模态错误: {e}")
@@ -245,7 +251,7 @@ def ask_online_ai_stream(text, conversation_history=None):
                 continue
 
             line = line.decode('utf-8', errors='replace')
-            
+
             # 处理 SSE 格式: data: {...}
             if line.startswith('data:'):
                 data_str = line[5:].strip()
