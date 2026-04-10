@@ -102,6 +102,7 @@ llm:
 | `local.model_path` | 本地模型路径 | model_weights/gemma-4-E2B-it.litertlm |
 | `local.model_name` | 本地模型名称 | gemma-4-E2B-it |
 | `local.system_prompt` | 系统提示词 | 友好的中文语音助手 |
+| `local.use_multimodal_audio` | 多模态音频 | false |
 
 **推荐模型（在线）：**
 
@@ -149,7 +150,7 @@ audio:
 vad:
   threshold: 0.02
   silence_timeout: 1.5
-  min_speech: 0.3
+  min_speech: 0.15  # 降低阈值，允许短语音（如"北京"）
   wait_timeout: 10
   max_recording: 30
 ```
@@ -158,7 +159,7 @@ vad:
 |------|------|--------|------|
 | `threshold` | 声音检测阈值 | 0.02 | RMS 能量 |
 | `silence_timeout` | 静默超时 | 1.5 | 秒 |
-| `min_speech` | 最小语音时长 | 0.3 | 秒 |
+| `min_speech` | 最小语音时长 | 0.15 | 秒 |
 | `wait_timeout` | 等待超时 | 10 | 秒 |
 | `max_recording` | 最大录音时长 | 30 | 秒 |
 
@@ -205,6 +206,32 @@ logging:
   level: "INFO"
   format: "%(asctime)s - %(levelname)s - %(message)s"
 ```
+
+### 意图识别配置
+
+```yaml
+intent:
+  model: "qwen-turbo"  # 轻量模型，适合分类任务
+  timeout: 5           # 超时时间（秒）
+```
+
+| 参数 | 说明 | 默认值 |
+|------|------|--------|
+| `model` | 意图识别使用的 LLM 模型 | qwen-turbo |
+| `timeout` | LLM 调用超时时间（秒） | 5 |
+
+**意图分类机制**：
+
+采用 **LLM 优先 + 关键词兜底** 策略：
+
+1. **优先调用云端 LLM**（qwen-turbo）进行语义理解，返回 JSON 格式的意图类型和置信度
+2. **LLM 失败或置信度 < 0.3** 时，自动降级到关键词匹配
+3. 三种意图类型：
+   - `computer_control`：电脑操作指令
+   - `query_answer`：事实性问题查询
+   - `ordinary_chat`：普通闲聊对话
+
+详见 [MODULES.md](MODULES.md) 中的路由服务说明。
 
 ---
 
@@ -280,6 +307,7 @@ llm:
     model_path: "model_weights/gemma-4-E2B-it.litertlm"
     model_name: "gemma-4-E2B-it"
     system_prompt: "你是一个友好的中文语音助手，回复要简洁口语化，适合语音播放。"
+    use_multimodal_audio: false  # 直接将音频送给本地模型，跳过 ASR
 
 audio:
   sample_rate: 16000
@@ -288,7 +316,7 @@ audio:
 vad:
   threshold: 0.02
   silence_timeout: 1.5
-  min_speech: 0.3
+  min_speech: 0.15
   wait_timeout: 10
   max_recording: 30
 
@@ -302,6 +330,10 @@ history:
 logging:
   level: "INFO"
   format: "%(asctime)s - %(levelname)s - %(message)s"
+
+intent:
+  model: "qwen-turbo"
+  timeout: 5
 ```
 
 ---

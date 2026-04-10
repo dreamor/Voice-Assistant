@@ -403,8 +403,13 @@ class BaseExecutor(ABC):
 
 ```python
 class ChatExecutor(BaseExecutor):
-    def execute(self, text: str, conversation_history: list = None) -> str
-        """纯对话模式"""
+    def execute(self, user_text: str,
+                conversation_history: list = None,
+                direct_response: str = None) -> dict
+        """对话执行
+        direct_response: 预生成回复（如多模态路径中 Gemma 的回复）
+                         提供后跳过 LLM 调用，直接使用该回复
+        """
 ```
 
 ### ComputerExecutor (计算机控制执行器)
@@ -428,16 +433,42 @@ class InterpreterExecutor(BaseExecutor):
 ## voice_assistant.services.router (路由服务)
 
 ### 功能
-- 分析用户指令意图
-- 路由到合适的执行器
+- **LLM 意图分类**：调用云端 LLM（qwen-turbo）进行语义理解
+- **关键词兜底**：LLM 不可用时回退到关键词匹配
+- **指令路由**：根据意图类型路由到对应执行器
+
+### LLM 意图分类
+
+```python
+def llm_classify_intent(user_text: str) -> Intent | None
+    """使用云端 LLM 进行意图分类，失败时返回 None"""
+
+def _keyword_classify_intent(user_text: str) -> Intent
+    """基于关键词的意图分类（兜底方案）"""
+
+def simple_classify_intent(user_text: str) -> Intent
+    """LLM 优先 + 关键词兜底的意图分类"""
+```
+
+**工作流程**：
+1. 调用 `llm_classify_intent()` 发送请求给云端 LLM
+2. LLM 返回 `{"intent_type": "...", "confidence": 0.XX}`
+3. 若 LLM 调用失败或置信度 < 0.3，回退到 `_keyword_classify_intent()`
 
 ### 类: CommandRouter
 
 ```python
 class CommandRouter:
-    def route(self, text: str, conversation_history: list = None) -> str
-        """路由指令到合适的执行器"""
+    def __init__(self, executors: list[BaseExecutor])
+        """初始化执行器列表"""
+
+    def route(self, intent: Intent, context: dict = None) -> dict
+        """根据意图类型路由到对应执行器"""
 ```
+
+**上下文支持**：
+- `context['history']`：对话历史
+- `context['direct_response']`：预生成回复（多模态路径中由 Gemma 4 直接生成）
 
 ---
 

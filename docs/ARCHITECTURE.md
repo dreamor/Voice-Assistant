@@ -47,10 +47,13 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                     意图识别 + 路由                              │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │
-│  │ 简单分类器   │  │ CommandRouter│  │  Intent      │         │
-│  │(关键词匹配)  │→ │ (路由器)     │← │ (数据类)     │         │
-│  └──────────────┘  └──────────────┘  └──────────────┘         │
-└─────────────────────────────────────────────────────────────────┘
+│  │ LLM 分类器   │→ │ CommandRouter│← │  Intent      │         │
+│  │(云端LLM优先) │  │ (路由器)     │  │ (数据类)     │         │
+│  └──────┬───────┘  └──────────────┘  └──────────────┘         │
+│         │ fallback                                             │
+│  ┌──────┴───────┐                                              │
+│  │ 关键词匹配   │ (LLM 不可用/低置信度时兜底)                   │
+│  └──────────────┘                                              │
                               │
        ┌──────────────────────┴──────────────────────┐
        │                                             │
@@ -101,10 +104,12 @@ AppConfig
 ├── llm: LLMConfig
 │   ├── use_local: bool
 │   └── local: LocalLLMConfig
+│       └── use_multimodal_audio: bool
 ├── audio: AudioConfig
 ├── vad: VADConfig
 ├── interpreter: InterpreterConfig
 ├── history: HistoryConfig
+├── intent: IntentConfig    # LLM 意图识别配置
 └── logging: LoggingConfig
 ```
 
@@ -268,17 +273,23 @@ with LocalLLMClient("model.litertlm") as client:
 3. 保存音频为 WAV 格式
    │
    ▼
-4. 云端 ASR 识别音频为文本
+4a. 多模态路径（本地模型 + 多模态开启）:
+    音频直接送 Gemma 4 → 得到回复文本 → 跳至步骤 6
+4b. 传统路径（默认）:
+    云端 ASR 识别音频为文本
+    │
+    ▼
+   5. ASR 纠错（可选）
    │
    ▼
-5. ASR 纠错（可选）
+6. 意图分类器判断类型
    │
-   ▼
-6. 简单意图分类器判断类型
-   │
-   ├── 包含操作关键词 → COMPUTER_CONTROL
-   ├── 包含问号 → QUERY_ANSWER
-   └── 其他 → ORDINARY_CHAT
+   ├── LLM 分类（云端 qwen-turbo，语义理解）
+   │   └── 低于 0.3 置信度 → 回退到关键词匹配
+   ├── 关键词匹配（兜底）
+   │   ├── 包含操作关键词 → COMPUTER_CONTROL
+   │   ├── 包含问号 → QUERY_ANSWER
+   │   └── 其他 → ORDINARY_CHAT
    │
    ▼
 7. CommandRouter 路由到对应执行器
@@ -290,9 +301,9 @@ with LocalLLMClient("model.litertlm") as client:
    │   └── 返回结果
    │
    └── ChatExecutor → LLM 对话
-       ├── 选择本地/在线模式
+       ├── 多模态路径: 使用 direct_response 跳过二次 LLM
+       ├── 传统路径: 调用云端/本地 LLM
        ├── 构建对话历史
-       ├── 调用 LLM
        └── 返回回复
    │
    ▼
@@ -338,6 +349,11 @@ asr:
   model: "paraformer-realtime-v2"
   base_url: "https://dashscope.aliyuncs.com/api/v1"
   language_hints: ["zh", "en"]
+  disfluency_removal_enabled: true
+  max_sentence_silence: 1200
+  hotwords:
+    enabled: true
+    config_file: "config/hotwords.json"
 
 llm:
   model: "kimi-k2.5"

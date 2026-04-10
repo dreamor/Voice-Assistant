@@ -369,21 +369,24 @@ open htmlcov/index.html
 
 ```
 tests/
-├── conftest.py              # pytest 配置和 fixtures
-├── test_system.py           # 系统集成测试
+├── conftest.py                    # pytest 配置和 fixtures
+├── test_system.py                 # 系统集成测试
 ├── test_audio/
-│   ├── test_vad.py          # VAD 单元测试
-│   ├── test_player.py       # 音频播放测试
-│   └── test_cloud_asr_extended.py  # ASR 扩展测试
+│   ├── test_vad.py                # VAD 单元测试
+│   ├── test_player.py             # 音频播放测试
+│   └── test_cloud_asr_extended.py # ASR 扩展测试
 ├── test_core/
-│   ├── test_dependencies.py # 依赖注入测试
-│   └── test_ai_client.py    # AI 客户端测试
+│   ├── test_dependencies.py       # 依赖注入测试
+│   └── test_ai_client.py          # AI 客户端测试
 ├── test_executors/
-│   └── test_base.py         # 执行器基类测试
+│   └── test_base.py               # 执行器基类测试
 ├── test_security/
-│   └── test_validation.py   # 安全验证测试
-└── test_services/
-    └── test_router.py       # 路由服务测试
+│   └── test_validation.py         # 安全验证测试
+├── test_services/
+│   └── test_router.py             # 路由服务测试
+├── test_local_llm.py              # 本地 LLM 单元测试
+├── test_local_model_integration.py# 本地模型集成测试（4个bug修复）
+└── test_intent_classification.py  # 意图分类测试（LLM + 关键词）
 ```
 
 ### 测试覆盖
@@ -398,6 +401,13 @@ tests/
 | `TestDependencies` | 依赖注入容器 |
 | `TestBaseExecutor` | 执行器基类 |
 | `TestSecurityValidation` | 输入验证和速率限制 |
+| `TestKeywordClassify` | 关键词意图分类（电脑操作/问答/闲聊） |
+| `TestLLMClassify` | LLM 意图分类（HTTP/超时/解析异常） |
+| `TestSimpleClassifyIntent` | LLM + 关键词 fallback 行为 |
+| `TestMultimodalRouting` | 多模态音频路径路由 |
+| `TestChatExecutorDirectResponse` | ChatExecutor 跳过 LLM 调用 |
+| `TestVADShortVoice` | VAD 短语音处理（0.15s 阈值） |
+| `TestInterpreterLLMModeSync` | Open Interpreter 动态 LLM 模式切换 |
 
 ### 运行全部测试
 
