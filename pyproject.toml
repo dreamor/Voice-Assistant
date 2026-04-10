@@ -34,7 +34,7 @@ dev = [
     "pip-audit>=2.7.0",
 ]
 local-llm = [
-    "litert-lm-api-nightly>=0.10.0",
+    "litert-lm-api-nightly",
 ]
 
 [project.scripts]
