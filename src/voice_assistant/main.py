@@ -5,6 +5,7 @@
 """
 import io
 import logging
+import os
 
 from voice_assistant.config import config
 from voice_assistant.audio.vad import record_audio
@@ -42,6 +43,18 @@ asr_client = CloudASR(api_key=config.asr.api_key, model=config.asr.model)
 
 # 本地模型状态
 _use_local_llm = config.llm.use_local
+_use_multimodal_audio = config.llm.local.use_multimodal_audio
+
+
+def toggle_multimodal_audio():
+    """切换多模态音频模式"""
+    global _use_multimodal_audio
+    _use_multimodal_audio = not _use_multimodal_audio
+    if _use_multimodal_audio and not _use_local_llm:
+        logger.warning("多模态音频模式仅在本地模型模式下生效")
+        _use_multimodal_audio = False
+        return False, "关闭"
+    return True, "开启" if _use_multimodal_audio else "关闭"
 
 
 def toggle_llm_mode():
@@ -54,7 +67,7 @@ def toggle_llm_mode():
     # 我们通过全局变量控制
     if _use_local_llm:
         # 尝试初始化本地客户端
-        client = ai_client.get_local_llm_client()
+        client = ai_client.get_local_llm_client(enable_audio=_use_multimodal_audio)
         if client is None:
             logger.warning("本地模型不可用，保持在线模式")
             _use_local_llm = False
@@ -126,12 +139,16 @@ def main():
     llm_mode = "本地" if _use_local_llm else "在线"
     llm_name = config.llm.local.model_name if _use_local_llm else config.llm.model
     logger.info(f"  LLM: {llm_name} ({llm_mode})")
+    if _use_local_llm:
+        multimodal_status = "ON" if _use_multimodal_audio else "OFF"
+        logger.info(f"  Multimodal Audio: {multimodal_status}")
     logger.info("=" * 50)
     logger.info("  [ENTER] Start recording")
     logger.info("  [C]     Clear history")
     logger.info("  [H]     Show history")
     logger.info("  [I]     Toggle Auto/AI")
     logger.info("  [L]     Toggle Local/Online LLM")
+    logger.info("  [M]     Toggle Multimodal Audio")
     logger.info("  [Q]     Quit")
     logger.info("=" * 50)
     logger.info("\nReady!\n")
@@ -176,6 +193,13 @@ def main():
             else:
                 logger.warning(f"[Failed] LLM 模式切换失败\n")
             continue
+        elif cmd == 'm':
+            success, new_mode = toggle_multimodal_audio()
+            if success:
+                logger.info(f"[OK] 多模态音频模式已: {new_mode}\n")
+            else:
+                logger.warning(f"[Failed] 多模态音频模式切换失败\n")
+            continue
 
         logger.info("\n[Recording] Speak now...")
         audio = record_audio(max_seconds=config.vad.max_recording)
@@ -186,40 +210,73 @@ def main():
 
         logger.info(f"  [OK] Recorded {len(audio)/config.audio.sample_rate:.1f}s")
 
-        logger.info("\n[Step 1] Recognizing...")
-        with io.BytesIO() as buf:
-            import soundfile as sf
-            sf.write(buf, audio, config.audio.sample_rate, format='WAV')
-            audio_bytes = buf.getvalue()
+        # Write audio to temp WAV file (LiteRT needs a file path for multimodal input)
+        import tempfile
+        import soundfile as sf
 
-        user_text = recognize(audio_bytes)
-        logger.info(f"  You: {user_text}")
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
+            tmp_wav_path = tmp.name
 
-        if not user_text.strip():
-            logger.warning("[Warning] No speech detected\n")
-            continue
+        try:
+            sf.write(tmp_wav_path, audio, config.audio.sample_rate, format='WAV')
 
-        logger.info("\n[Step 2] Processing...")
-        if auto_mode:
-            # 自动模式：意图识别 + 路由
-            intent = simple_classify_intent(user_text)
-            logger.info(f"  [Intent] {intent.intent_type.value} (confidence: {intent.confidence})")
-            context = {'history': chat_executor.get_history()}
-            result = router.route(intent, context)
-            reply = result.get('response', '抱歉，我没有理解')
-            # 更新历史
-            if 'history_updated' in result:
-                chat_executor._conversation_history = result['history_updated']
-        else:
-            # 强制 AI 对话模式
-            result = chat_executor.execute(user_text)
-            reply = result.get('response', '抱歉，发生错误')
+            # 多模态模式：音频直接送 Gemma 4
+            if _use_local_llm and _use_multimodal_audio:
+                logger.info("\n[Step 1] Multimodal audio → Gemma 4...")
+                full_response = []
+                for chunk in ai_client.ask_ai_stream_with_audio("", tmp_wav_path):
+                    full_response.append(chunk) if chunk else None
+                    logger.info(f"\r  [AI] {chunk}", end='', flush=True)
+                logger.info("")  # newline after streaming
+                user_text = full_response[-1] if full_response else ""
 
-        logger.info(f"  Reply: {reply[:200]}...")
+                if not user_text.strip():
+                    logger.warning("[Warning] 未从模型得到有效回复\n")
+                    continue
+                logger.info(f"  [Gemma] {user_text[:100]}...")
+            else:
+                # 传统流程：ASR → 文本 → LLM
+                logger.info("\n[Step 1] Recognizing...")
+                with io.BytesIO() as buf:
+                    sf.write(buf, audio, config.audio.sample_rate, format='WAV')
+                    audio_bytes = buf.getvalue()
 
-        logger.info("\n[Step 3] Speaking...")
-        speak_and_play(reply)
-        logger.info("\n" + "-" * 50 + "\n")
+                user_text = recognize(audio_bytes)
+                logger.info(f"  You: {user_text}")
+
+                if not user_text.strip():
+                    logger.warning("[Warning] No speech detected\n")
+                    continue
+
+                logger.info("\n[Step 2] Processing...")
+
+            logger.info("\n[Processing] Routing...")
+            if auto_mode:
+                # 自动模式：意图识别 + 路由
+                intent = simple_classify_intent(user_text)
+                logger.info(f"  [Intent] {intent.intent_type.value} (confidence: {intent.confidence})")
+                context = {'history': chat_executor.get_history()}
+                result = router.route(intent, context)
+                reply = result.get('response', '抱歉，我没有理解')
+                # 更新历史
+                if 'history_updated' in result:
+                    chat_executor._conversation_history = result['history_updated']
+            else:
+                # 强制 AI 对话模式
+                result = chat_executor.execute(user_text)
+                reply = result.get('response', '抱歉，发生错误')
+
+            logger.info(f"  Reply: {reply[:200]}...")
+
+            logger.info("\n[Step 3] Speaking...")
+            speak_and_play(reply)
+            logger.info("\n" + "-" * 50 + "\n")
+
+        finally:
+            try:
+                os.unlink(tmp_wav_path)
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":

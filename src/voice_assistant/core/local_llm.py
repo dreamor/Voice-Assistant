@@ -26,12 +26,16 @@ class LocalLLMError(Exception):
 class LocalLLMEngine:
     """本地 LLM 引擎，使用 LiteRT-LM"""
 
-    def __init__(self, model_path: str, system_prompt: Optional[str] = None):
+    def __init__(
+        self, model_path: str, system_prompt: Optional[str] = None,
+        enable_audio: bool = False,
+    ):
         """初始化本地 LLM 引擎
 
         Args:
             model_path: LiteRT-LM 模型文件路径 (.litertlm)
             system_prompt: 系统提示词
+            enable_audio: 是否启用音频多模态支持
 
         Raises:
             LocalLLMError: 初始化失败
@@ -41,6 +45,7 @@ class LocalLLMEngine:
 
         self.model_path = model_path
         self.system_prompt = system_prompt or "你是一个友好的中文语音助手，回复要简洁口语化，适合语音播放。"
+        self.enable_audio = enable_audio
         self._engine = None
         self._conversation = None
 
@@ -57,8 +62,13 @@ class LocalLLMEngine:
             litert_lm.set_min_log_severity(litert_lm.LogSeverity.ERROR)
 
             # 初始化引擎
-            self._engine = litert_lm.Engine(self.model_path)
-            logger.info(f"本地 LLM 引擎初始化成功: {self.model_path}")
+            audio_backend = litert_lm.Backend.CPU if self.enable_audio else None
+            self._engine = litert_lm.Engine(
+                self.model_path,
+                audio_backend=audio_backend,
+            )
+            logger.info(f"本地 LLM 引擎初始化成功: {self.model_path}"
+                        + (" (音频多模态已启用)" if self.enable_audio else ""))
 
         except Exception as e:
             raise LocalLLMError(f"引擎初始化失败: {e}")
@@ -115,6 +125,66 @@ class LocalLLMEngine:
             logger.error(f"本地 LLM 流式推理错误: {e}")
             raise LocalLLMError(f"推理失败: {e}")
 
+    def send_multimodal_audio_message(self, text: str, wav_file_path: str) -> str:
+        """发送含音频的多模态消息并获取完整回复
+
+        Args:
+            text: 用户输入文本提示
+            wav_file_path: WAV 音频文件路径
+
+        Returns:
+            模型回复
+        """
+        if self._conversation is None:
+            self.create_conversation()
+
+        message = {
+            "role": "user",
+            "content": [
+                {"type": "audio", "path": wav_file_path},
+                {"type": "text", "text": text},
+            ],
+        }
+
+        try:
+            response = self._conversation.send_message(message)
+            return response["content"][0]["text"]
+        except Exception as e:
+            logger.error(f"本地 LLM 多模态推理错误: {e}")
+            raise LocalLLMError(f"多模态推理失败: {e}")
+
+    def send_multimodal_audio_message_stream(
+        self, text: str, wav_file_path: str
+    ) -> Generator[str, None, None]:
+        """发送含音频的多模态消息并流式获取回复
+
+        Args:
+            text: 用户输入文本提示
+            wav_file_path: WAV 音频文件路径
+
+        Yields:
+            回复文本片段
+        """
+        if self._conversation is None:
+            self.create_conversation()
+
+        message = {
+            "role": "user",
+            "content": [
+                {"type": "audio", "path": wav_file_path},
+                {"type": "text", "text": text},
+            ],
+        }
+
+        try:
+            for chunk in self._conversation.send_message_async(message):
+                for item in chunk.get("content", []):
+                    if item.get("type") == "text":
+                        yield item["text"]
+        except Exception as e:
+            logger.error(f"本地 LLM 多模态流式推理错误: {e}")
+            raise LocalLLMError(f"多模态推理失败: {e}")
+
     def close(self):
         """关闭引擎，释放资源"""
         if self._conversation:
@@ -144,22 +214,30 @@ class LocalLLMEngine:
 class LocalLLMClient:
     """本地 LLM 客户端，提供与在线 LLM 兼容的接口"""
 
-    def __init__(self, model_path: str, system_prompt: Optional[str] = None):
+    def __init__(
+        self, model_path: str, system_prompt: Optional[str] = None,
+        enable_audio: bool = False,
+    ):
         """初始化客户端
 
         Args:
             model_path: 模型路径
             system_prompt: 系统提示词
+            enable_audio: 是否启用音频多模态支持
         """
         self.model_path = model_path
         self.system_prompt = system_prompt
+        self.enable_audio = enable_audio
         self._engine: Optional[LocalLLMEngine] = None
         self._conversation_history: list = []
 
     def _ensure_engine(self):
         """确保引擎已初始化"""
         if self._engine is None:
-            self._engine = LocalLLMEngine(self.model_path, self.system_prompt)
+            self._engine = LocalLLMEngine(
+                self.model_path, self.system_prompt,
+                enable_audio=self.enable_audio,
+            )
             self._engine.create_conversation()
 
     def ask_stream(self, text: str, conversation_history: Optional[list] = None) -> Generator[str, None, None]:
@@ -177,6 +255,33 @@ class LocalLLMClient:
 
             full_response = []
             for chunk in self._engine.send_message_stream(text):
+                full_response.append(chunk)
+                yield ''.join(full_response)
+
+        except LocalLLMError as e:
+            yield f"抱歉，本地模型推理失败：{e}"
+        except Exception as e:
+            yield f"抱歉，发生错误：{e}"
+
+    def ask_multimodal_stream(
+        self, text: str, wav_file_path: str,
+    ) -> Generator[str, None, None]:
+        """流式获取多模态（音频+文本）回复
+
+        Args:
+            text: 用户输入文本提示
+            wav_file_path: WAV 音频文件路径
+
+        Yields:
+            回复文本片段
+        """
+        try:
+            self._ensure_engine()
+
+            full_response = []
+            for chunk in self._engine.send_multimodal_audio_message_stream(
+                text, wav_file_path
+            ):
                 full_response.append(chunk)
                 yield ''.join(full_response)
 
