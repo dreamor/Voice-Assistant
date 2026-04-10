@@ -2,7 +2,7 @@
 对话执行器 - 处理普通聊天和问答
 """
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from voice_assistant.executors.base import BaseExecutor
 from voice_assistant.model.intent import IntentType
@@ -13,15 +13,9 @@ logger = logging.getLogger(__name__)
 class ChatExecutor(BaseExecutor):
     """对话执行器"""
 
-    def __init__(self, max_response_length: int = 200):
-        """
-        初始化对话执行器
-
-        Args:
-            max_response_length: 响应最大长度（避免 TTS 太长��
-        """
+    def __init__(self, max_response_length: int = 200, use_local: bool = False):
         self.max_response_length = max_response_length
-        self._conversation_history: list = []
+        self._use_local = use_local
 
     def can_handle(self, intent_type: str) -> bool:
         return intent_type in [
@@ -30,7 +24,7 @@ class ChatExecutor(BaseExecutor):
         ]
 
     def execute(self, user_text: str,
-                conversation_history: Optional[list] = None,
+                conversation_history: list | None = None,
                 **kwargs) -> dict[str, Any]:
         """
         执行对话
@@ -53,7 +47,7 @@ class ChatExecutor(BaseExecutor):
 
             # 流式获取响应
             response = ""
-            for partial in ask_ai_stream(user_text, history):
+            for partial in ask_ai_stream(user_text, history, use_local=self._use_local):
                 response = partial
 
             # 限制长度

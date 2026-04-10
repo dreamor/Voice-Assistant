@@ -84,22 +84,22 @@ def check_startup_dependencies() -> bool:
     print("✅ 依赖检查通过\n")
     return True
 
+# 本地模型状态（先定义，再初始化执行器）
+_use_local_llm = config.llm.use_local
+_use_multimodal_audio = config.llm.local.use_multimodal_audio
+
 # 初始化执行器
 computer_executor = ComputerExecutor(
     auto_run=config.interpreter.auto_run,
     verbose=config.interpreter.verbose
 )
-chat_executor = ChatExecutor(max_response_length=200)
+chat_executor = ChatExecutor(max_response_length=200, use_local=_use_local_llm)
 
 # 初始化路由器
 router = CommandRouter(executors=[computer_executor, chat_executor])
 
 # 初始化 ASR
 asr_client = CloudASR(api_key=config.asr.api_key, model=config.asr.model)
-
-# 本地模型状态
-_use_local_llm = config.llm.use_local
-_use_multimodal_audio = config.llm.local.use_multimodal_audio
 
 
 def toggle_multimodal_audio():
@@ -118,15 +118,16 @@ def toggle_llm_mode():
     global _use_local_llm
     _use_local_llm = not _use_local_llm
 
-    # 更新 ai_client 的行为
-    # 注意：config 是 frozen dataclass，不能直接修改
-    # 我们通过全局变量控制
+    # 同步更新执行器
+    chat_executor._use_local = _use_local_llm
+
     if _use_local_llm:
         # 尝试初始化本地客户端
         client = ai_client.get_local_llm_client(enable_audio=_use_multimodal_audio)
         if client is None:
             logger.warning("本地模型不可用，保持在线模式")
             _use_local_llm = False
+            chat_executor._use_local = False
             return False, "在线"
         return True, "本地"
     else:

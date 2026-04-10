@@ -78,12 +78,13 @@ def close_local_llm_client():
         _local_llm_enable_audio = False
 
 
-def ask_ai_stream(text, conversation_history=None):
+def ask_ai_stream(text, conversation_history=None, use_local: bool | None = None):
     """使用流式API获取AI回复（自动选择本地或在线）
 
     Args:
         text: 用户输入文本
         conversation_history: 对话历史
+        use_local: 是否使用本地模型。None=读取配置。
 
     Returns:
         生成器，产生AI回复
@@ -92,8 +93,8 @@ def ask_ai_stream(text, conversation_history=None):
         InputValidationError: 输入验证失败
         RateLimitError: 超过速率限制
     """
-    # 根据 config.llm.use_local 决定使用本地还是在线模型
-    use_local = config.llm.use_local
+    if use_local is None:
+        use_local = config.llm.use_local
 
     if use_local:
         yield from ask_local_ai_stream(text, conversation_history)
