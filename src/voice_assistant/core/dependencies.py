@@ -141,14 +141,14 @@ CORE_DEPENDENCIES = [
     ),
 ]
 
-LOCAL_LLM_DEPENDENCIES = [
+LOCAL_ASR_DEPENDENCIES = [
     Dependency(
-        name="LiteRT-LM",
-        package_name="litert_lm",
-        min_version="0.10.0",
+        name="FunASR",
+        package_name="funasr",
+        min_version="1.0.0",
         required=False,  # 可选依赖
-        config_flag="llm.use_local",  # 仅当 llm.use_local=true 时需要
-        install_hint="pip install litert-lm-api-nightly"
+        config_flag="asr.use_local",  # 仅当 asr.use_local=true 时需要
+        install_hint="pip install funasr modelscope torch torchaudio librosa"
     ),
 ]
 
@@ -205,7 +205,7 @@ def get_installed_version(package_name: str, version_attr: str = "__version__") 
             "yaml": "pyyaml",
             "dotenv": "python-dotenv",
             "edge_tts": "edge-tts",
-            "litert_lm": "litert-lm-api-nightly",
+            "funasr": "funasr",
             "interpreter": "open-interpreter",
         }
         pkg_name = package_name_map.get(package_name, package_name.replace("_", "-"))
@@ -299,8 +299,8 @@ class DependencyManager:
             if verbose:
                 self._log_result(result)
 
-        # 检查本地 LLM 依赖（条件性）
-        for dep in LOCAL_LLM_DEPENDENCIES:
+        # 检查本地 ASR 依赖（条件性）
+        for dep in LOCAL_ASR_DEPENDENCIES:
             should_check = True
             if dep.config_flag and config:
                 config_value = get_config_value(config, dep.config_flag)
@@ -432,7 +432,7 @@ def validate_environment(config=None) -> bool:
 def get_dependency_report() -> str:
     """获取依赖报告（用于调试）"""
     lines = ["依赖报告:", "-" * 40]
-    all_deps = CORE_DEPENDENCIES + LOCAL_LLM_DEPENDENCIES + INTERPRETER_DEPENDENCIES
+    all_deps = CORE_DEPENDENCIES + LOCAL_ASR_DEPENDENCIES + INTERPRETER_DEPENDENCIES
 
     for dep in all_deps:
         version = get_installed_version(dep.package_name, dep.version_attr)

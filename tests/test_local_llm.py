@@ -1,138 +1,93 @@
-"""Tests for local LLM module and multimodal audio functionality."""
+"""Tests for FunASR local ASR module."""
 import os
+import struct
 import tempfile
 import wave
-import struct
+
 import pytest
 from unittest.mock import patch
 
 
-class TestLocalLLMConfig:
-    """Test LocalLLMConfig from config module"""
+class TestFunASRConfig:
+    """Test FunASR config dataclasses"""
 
-    def test_use_multimodal_audio_default(self):
-        """Test that use_multimodal_audio defaults to False"""
-        from voice_assistant.config import LocalLLMConfig
-        config = LocalLLMConfig(
-            model_path="models/test.litertlm",
-            model_name="test-model",
-            system_prompt="Test prompt"
+    def test_local_asr_config_defaults(self):
+        """Test LocalASRConfig default values"""
+        from voice_assistant.config import LocalASRConfig
+        cfg = LocalASRConfig(
+            enabled=False,
+            model_path=None,
+            device="cpu",
+            vad_threshold=0.5,
         )
-        assert config.use_multimodal_audio is False
+        assert cfg.enabled is False
+        assert cfg.model_path is None
+        assert cfg.device == "cpu"
+        assert cfg.vad_threshold == 0.5
 
-    def test_use_multimodal_audio_enabled(self):
-        """Test that use_multimodal_audio can be enabled"""
-        from voice_assistant.config import LocalLLMConfig
-        config = LocalLLMConfig(
-            model_path="models/test.litertlm",
-            model_name="test-model",
-            system_prompt="Test prompt",
-            use_multimodal_audio=True
+    def test_asr_config_has_use_local(self):
+        """Test ASRConfig has use_local field"""
+        from voice_assistant.config import ASRConfig, HotwordsConfig, LocalASRConfig
+        local_cfg = LocalASRConfig(enabled=False, model_path=None, device="cpu", vad_threshold=0.5)
+        hotwords = HotwordsConfig(enabled=False, config_file="config/hotwords.json", vocabulary_id=None)
+        cfg = ASRConfig(
+            model="paraformer-realtime-v2",
+            base_url="https://dashscope.aliyuncs.com/api/v1",
+            api_key="test",
+            language_hints=["zh", "en"],
+            disfluency_removal_enabled=True,
+            max_sentence_silence=1200,
+            hotwords=hotwords,
+            use_local=True,
+            local=local_cfg,
         )
-        assert config.use_multimodal_audio is True
+        assert cfg.use_local is True
 
 
-class TestLocalLLMEngineMultimodal:
-    """Test LocalLLMEngine multimodal audio support"""
+class TestFunASREngine:
+    """Test FunASREngine class"""
 
-    def test_engine_init_with_audio_disabled(self):
-        """Test engine initialization without audio"""
-        with patch('voice_assistant.core.local_llm.LITERT_LM_AVAILABLE', False):
-            from voice_assistant.core.local_llm import LocalLLMEngine, LocalLLMError
+    def test_engine_raises_when_funasr_not_installed(self):
+        """Test engine raises FunASRError when FunASR not available"""
+        with patch('voice_assistant.audio.funasr_asr.FUNASR_AVAILABLE', False):
+            from voice_assistant.audio.funasr_asr import FunASREngine, FunASRError
 
-            # Should raise error when litert_lm not available
-            with pytest.raises(LocalLLMError, match="LiteRT-LM 未安装"):
-                LocalLLMEngine("nonexistent.litertlm", enable_audio=False)
+            with pytest.raises(FunASRError, match="FunASR 未安装"):
+                FunASREngine()
 
-    def test_engine_init_with_audio_enabled(self):
-        """Test engine initialization with audio flag"""
-        with patch('voice_assistant.core.local_llm.LITERT_LM_AVAILABLE', False):
-            from voice_assistant.core.local_llm import LocalLLMEngine, LocalLLMError
+    def test_engine_init_with_defaults(self):
+        """Test engine can be patched to init"""
+        with patch('voice_assistant.audio.funasr_asr.FUNASR_AVAILABLE', False):
+            from voice_assistant.audio.funasr_asr import FunASREngine, FunASRError
 
-            # Should raise error when litert_lm not available
-            with pytest.raises(LocalLLMError, match="LiteRT-LM 未安装"):
-                LocalLLMEngine("nonexistent.litertlm", enable_audio=True)
+            with pytest.raises(FunASRError):
+                FunASREngine(device="cpu")
 
 
-class TestLocalLLMClientMultimodal:
-    """Test LocalLLMClient multimodal audio support"""
+class TestFunASRClient:
+    """Test FunASRClient class"""
 
-    def test_client_init_audio_disabled(self):
-        """Test client initialization without audio"""
-        with patch('voice_assistant.core.local_llm.LITERT_LM_AVAILABLE', False):
-            from voice_assistant.core.local_llm import LocalLLMClient
+    def test_client_init(self):
+        """Test client initialization"""
+        with patch('voice_assistant.audio.funasr_asr.FUNASR_AVAILABLE', False):
+            from voice_assistant.audio.funasr_asr import FunASRClient
 
-            client = LocalLLMClient(
-                model_path="models/test.litertlm",
-                enable_audio=False
-            )
-            assert client.enable_audio is False
+            client = FunASRClient()
             assert client._engine is None
+            assert client.device == "cpu"
 
-    def test_client_init_audio_enabled(self):
-        """Test client initialization with audio flag"""
-        with patch('voice_assistant.core.local_llm.LITERT_LM_AVAILABLE', False):
-            from voice_assistant.core.local_llm import LocalLLMClient
+    def test_client_ensure_engine_raises_when_not_available(self):
+        """Test _ensure_engine raises when FunASR not available"""
+        with patch('voice_assistant.audio.funasr_asr.FUNASR_AVAILABLE', False):
+            from voice_assistant.audio.funasr_asr import FunASRClient, FunASRError
 
-            client = LocalLLMClient(
-                model_path="models/test.litertlm",
-                enable_audio=True
-            )
-            assert client.enable_audio is True
-            assert client._engine is None
-
-    def test_ask_multimodal_stream_without_engine(self):
-        """Test multimodal stream without engine raises error"""
-        with patch('voice_assistant.core.local_llm.LITERT_LM_AVAILABLE', False):
-            from voice_assistant.core.local_llm import LocalLLMClient
-
-            client = LocalLLMClient(
-                model_path="models/test.litertlm",
-                enable_audio=True
-            )
-
-            # Create a dummy WAV file
-            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
-                tmp_path = tmp.name
-
-            try:
-                # Should yield error message when engine fails to initialize
-                results = list(client.ask_multimodal_stream("test", tmp_path))
-                assert len(results) > 0
-                assert "抱歉" in results[0] or "错误" in results[0]
-            finally:
-                os.unlink(tmp_path)
-
-
-class TestAIClientMultimodal:
-    """Test AI client multimodal audio support"""
-
-    def test_ask_ai_stream_with_audio_signature(self):
-        """Test ask_ai_stream_with_audio function exists"""
-        from voice_assistant.core.ai_client import ask_ai_stream_with_audio
-        import inspect
-
-        sig = inspect.signature(ask_ai_stream_with_audio)
-        params = list(sig.parameters.keys())
-
-        assert 'text' in params
-        assert 'wav_file_path' in params
-        assert 'conversation_history' in params
-
-    def test_ask_ai_stream_with_audio_local_unavailable(self):
-        """Test multimodal audio when local LLM is unavailable"""
-        with patch('voice_assistant.core.ai_client.get_local_llm_client') as mock_get:
-            mock_get.return_value = None
-
-            from voice_assistant.core.ai_client import ask_ai_stream_with_audio
-
-            results = list(ask_ai_stream_with_audio("test", "/tmp/test.wav"))
-            assert len(results) > 0
-            assert "不可用" in results[0] or "LiteRT" in results[0]
+            client = FunASRClient()
+            with pytest.raises(FunASRError):
+                client._ensure_engine()
 
 
 class TestWAVFileHandling:
-    """Test WAV file handling for multimodal audio"""
+    """Test WAV file handling for ASR"""
 
     @pytest.fixture
     def sample_wav(self):
@@ -154,7 +109,10 @@ class TestWAVFileHandling:
 
         yield tmp_path
 
-        os.unlink(tmp_path)
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
 
     def test_wav_file_creation(self, sample_wav):
         """Test that WAV file is created correctly"""
@@ -173,15 +131,25 @@ class TestWAVFileHandling:
 
 
 class TestConfigLoading:
-    """Test config loading with multimodal audio settings"""
+    """Test config loading with FunASR settings"""
 
-    def test_config_loads_multimodal_setting(self):
-        """Test that config loads use_multimodal_audio from yaml"""
+    def test_config_loads_asr_use_local(self):
+        """Test that config loads asr.use_local from yaml"""
         from voice_assistant.config import load_config
 
         config = load_config()
 
         # Should have the attribute
-        assert hasattr(config.llm.local, 'use_multimodal_audio')
-        # Should be a boolean
-        assert isinstance(config.llm.local.use_multimodal_audio, bool)
+        assert hasattr(config.asr, 'use_local')
+        assert isinstance(config.asr.use_local, bool)
+
+    def test_config_loads_asr_local(self):
+        """Test that config loads asr.local section"""
+        from voice_assistant.config import load_config
+
+        config = load_config()
+
+        assert hasattr(config.asr, 'local')
+        assert hasattr(config.asr.local, 'enabled')
+        assert hasattr(config.asr.local, 'device')
+        assert hasattr(config.asr.local, 'vad_threshold')
