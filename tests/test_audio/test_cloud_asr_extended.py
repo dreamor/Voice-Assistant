@@ -47,20 +47,16 @@ class TestHotwordsManager:
         vocabulary = manager.load_hotwords_from_file("nonexistent.json")
         assert vocabulary == []
 
-    @patch('dashscope.audio.asr.AsrPhraseManager')
+    @patch('dashscope.audio.asr.VocabularyService')
     @patch('voice_assistant.audio.cloud_asr.dashscope')
-    def test_create_vocabulary_success(self, mock_dashscope, mock_phrase_manager_class):
+    def test_create_vocabulary_success(self, mock_dashscope, mock_vocab_service_class):
         """测试成功创建热词列表"""
         from voice_assistant.audio.cloud_asr import HotwordsManager
-        from http import HTTPStatus
 
-        # 模拟 AsrPhraseManager 实例和返回结果
-        mock_manager = MagicMock()
-        mock_result = MagicMock()
-        mock_result.status_code = HTTPStatus.OK
-        mock_result.output = {'vocabulary_id': 'vocab_123'}
-        mock_manager.create_vocabulary.return_value = mock_result
-        mock_phrase_manager_class.return_value = mock_manager
+        # 模拟 VocabularyService 实例和返回结果
+        mock_service = MagicMock()
+        mock_service.create_vocabulary.return_value = "vocab_123"
+        mock_vocab_service_class.return_value = mock_service
 
         manager = HotwordsManager("test_key", "https://test.url")
         vocabulary = [{"text": "Python", "weight": 4, "lang": "en"}]
@@ -70,21 +66,16 @@ class TestHotwordsManager:
         assert result == "vocab_123"
         assert manager.vocabulary_id == "vocab_123"
 
-    @patch('dashscope.audio.asr.AsrPhraseManager')
+    @patch('dashscope.audio.asr.VocabularyService')
     @patch('voice_assistant.audio.cloud_asr.dashscope')
-    def test_create_vocabulary_failure(self, mock_dashscope, mock_phrase_manager_class):
+    def test_create_vocabulary_failure(self, mock_dashscope, mock_vocab_service_class):
         """测试创建热词列表失败"""
         from voice_assistant.audio.cloud_asr import HotwordsManager
-        from http import HTTPStatus
 
-        # 模拟返回失败状态
-        mock_manager = MagicMock()
-        mock_result = MagicMock()
-        mock_result.status_code = HTTPStatus.BAD_REQUEST
-        mock_result.code = "InvalidParameter"
-        mock_result.message = "Invalid vocabulary format"
-        mock_manager.create_vocabulary.return_value = mock_result
-        mock_phrase_manager_class.return_value = mock_manager
+        # 模拟返回 None 表示失败
+        mock_service = MagicMock()
+        mock_service.create_vocabulary.return_value = None
+        mock_vocab_service_class.return_value = mock_service
 
         manager = HotwordsManager("test_key", "https://test.url")
         vocabulary = [{"text": "Python", "weight": 4, "lang": "en"}]
@@ -93,13 +84,13 @@ class TestHotwordsManager:
 
         assert result is None
 
-    @patch('dashscope.audio.asr.AsrPhraseManager')
+    @patch('dashscope.audio.asr.VocabularyService')
     @patch('voice_assistant.audio.cloud_asr.dashscope')
-    def test_create_vocabulary_import_error(self, mock_dashscope, mock_phrase_manager_class):
+    def test_create_vocabulary_import_error(self, mock_dashscope, mock_vocab_service_class):
         """测试导入错误处理"""
         from voice_assistant.audio.cloud_asr import HotwordsManager
 
-        mock_phrase_manager_class.side_effect = ImportError("No module")
+        mock_vocab_service_class.side_effect = ImportError("No module")
 
         manager = HotwordsManager("test_key", "https://test.url")
         vocabulary = [{"text": "Python", "weight": 4, "lang": "en"}]
@@ -108,13 +99,13 @@ class TestHotwordsManager:
 
         assert result is None
 
-    @patch('dashscope.audio.asr.AsrPhraseManager')
+    @patch('dashscope.audio.asr.VocabularyService')
     @patch('voice_assistant.audio.cloud_asr.dashscope')
-    def test_create_vocabulary_exception(self, mock_dashscope, mock_phrase_manager_class):
+    def test_create_vocabulary_exception(self, mock_dashscope, mock_vocab_service_class):
         """测试异常处理"""
         from voice_assistant.audio.cloud_asr import HotwordsManager
 
-        mock_phrase_manager_class.side_effect = Exception("Connection error")
+        mock_vocab_service_class.side_effect = Exception("Connection error")
 
         manager = HotwordsManager("test_key", "https://test.url")
         vocabulary = [{"text": "Python", "weight": 4, "lang": "en"}]

@@ -268,6 +268,31 @@ LLM_API_KEY=your-llm-api-key
 | `voice_assistant.executors.chat` | 对话执行器（LLM 对话） |
 | `voice_assistant.services.router` | 命令路由器，根据意图自动路由 |
 | `voice_assistant.core.local_llm` | 本地 LLM 客户端（LiteRT-LM） |
+| `voice_assistant.core.model_manager` | 模型管理器，支持模型自动切换和故障转移 |
+
+### 模型自动切换
+
+当主模型不可用时（如限流、余额不足、服务异常），系统会自动切换到备用模型：
+
+```python
+from voice_assistant.core import model_manager, get_model_queue_info
+
+# 查看当前模型队列
+info = get_model_queue_info()
+print(f"当前模型: {info['current_model']}")
+print(f"备用模型: {info['models'][1:]}")
+
+# 获取所有可用模型
+models = model_manager.list_available_models()
+for m in models:
+    print(f"- {m['id']}")
+```
+
+特性：
+- 自动获取阿里云百炼平台所有可用模型
+- 按优先级构建备用模型队列（qwen-plus > qwen-turbo > qwen-max）
+- 智能错误判断，输入问题不切换模型
+- 运行时自动切换，用户无感知
 
 ### 意图类型
 
