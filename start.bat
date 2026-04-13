@@ -25,27 +25,36 @@ REM 激活虚拟环境获取 Python 版本
 for /f "delims=" %%i in ('.venv\Scripts\python.exe --version 2^>nul') do set PYTHON_VERSION=%%i
 echo [INFO] Python version: !PYTHON_VERSION!
 
-REM 检查本地模型
-set USE_LOCAL_LLM=false
-if exist "model_weights\gemma-4-E2B-it.litertlm" (
-    set USE_LOCAL_LLM=true
-    echo [INFO] Local model ready
+REM 检查 FunASR 本地 ASR 配置
+set USE_LOCAL_ASR=false
+if exist "%USERPROFILE%\.cache\modelscope\hub\models\iic\speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch" (
+    set USE_LOCAL_ASR=true
+    echo [INFO] Local ASR model ready
 ) else (
     findstr /C:"use_local: true" config.yaml >nul 2>&1
     if !errorlevel! equ 0 (
-        set USE_LOCAL_LLM=true
-        echo [INFO] Local model enabled in config
+        set USE_LOCAL_ASR=true
+        echo [INFO] Local ASR enabled in config
     ) else (
-        echo [INFO] Local model not installed, using online mode
+        echo [INFO] Local ASR not configured, using cloud ASR
     )
 )
 
 REM 安装依赖
 echo [INFO] Installing dependencies...
-if "!USE_LOCAL_LLM!"=="true" (
-    uv pip install -e ".[dev,local-llm]"
+if "!USE_LOCAL_ASR!"=="true" (
+    uv pip install -e ".[dev,local-asr]"
 ) else (
     uv pip install -e ".[dev]"
+)
+
+REM 检查 ffmpeg 是否安装（FunASR 依赖）
+where ffmpeg >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [WARN] ffmpeg not found (required for local ASR)
+    echo [INFO] Install ffmpeg: winget install ffmpeg
+) else (
+    echo [INFO] ffmpeg ready
 )
 
 REM 复制 .env 示例文件（如不存在）
