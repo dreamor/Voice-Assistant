@@ -25,6 +25,15 @@ class HotwordsConfig:
 
 
 @dataclass(frozen=True)
+class LocalASRConfig:
+    """本地 FunASR 配置"""
+    enabled: bool
+    model_path: str | None
+    device: str
+    vad_threshold: float
+
+
+@dataclass(frozen=True)
 class ASRConfig:
     """ASR 配置"""
     model: str
@@ -34,15 +43,8 @@ class ASRConfig:
     disfluency_removal_enabled: bool
     max_sentence_silence: int
     hotwords: HotwordsConfig
-
-
-@dataclass(frozen=True)
-class LocalLLMConfig:
-    """本地 LLM 配置"""
-    model_path: str
-    model_name: str
-    system_prompt: str
-    use_multimodal_audio: bool = False
+    use_local: bool
+    local: LocalASRConfig
 
 
 @dataclass(frozen=True)
@@ -53,8 +55,6 @@ class LLMConfig:
     api_key: str
     max_tokens: int
     temperature: float
-    use_local: bool
-    local: LocalLLMConfig
 
 
 @dataclass(frozen=True)
@@ -118,13 +118,11 @@ class AppConfig:
 
 def _find_project_root() -> Path:
     """查找项目根目录"""
-    # 从当前文件所在目录向上查找，直到找到 config.yaml
     current = Path(__file__).resolve().parent
     while current.parent != current:
         if (current / "config.yaml").exists():
             return current
         current = current.parent
-    # 如果找不到，返回 src 的父目录
     return Path(__file__).resolve().parent.parent.parent
 
 
@@ -151,6 +149,13 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
                 config_file=cfg['asr'].get('hotwords', {}).get('config_file', 'config/hotwords.json'),
                 vocabulary_id=cfg['asr'].get('hotwords', {}).get('vocabulary_id'),
             ),
+            use_local=cfg['asr'].get('use_local', False),
+            local=LocalASRConfig(
+                enabled=cfg['asr'].get('local', {}).get('enabled', False),
+                model_path=cfg['asr'].get('local', {}).get('model_path'),
+                device=cfg['asr'].get('local', {}).get('device', 'cpu'),
+                vad_threshold=cfg['asr'].get('local', {}).get('vad_threshold', 0.5),
+            ),
         ),
         llm=LLMConfig(
             model=cfg['llm']['model'],
@@ -158,13 +163,6 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
             api_key=os.getenv('LLM_API_KEY'),
             max_tokens=cfg['llm']['max_tokens'],
             temperature=cfg['llm']['temperature'],
-            use_local=cfg['llm'].get('use_local', False),
-            local=LocalLLMConfig(
-                model_path=cfg['llm'].get('local', {}).get('model_path', 'models/gemma-4-E2B-it.litertlm'),
-                model_name=cfg['llm'].get('local', {}).get('model_name', 'gemma-4-E2B-it'),
-                system_prompt=cfg['llm'].get('local', {}).get('system_prompt', '你是一个友好的中文语音助手。'),
-                use_multimodal_audio=cfg['llm'].get('local', {}).get('use_multimodal_audio', False),
-            ),
         ),
         audio=AudioConfig(
             sample_rate=cfg['audio']['sample_rate'],

@@ -1,7 +1,6 @@
 """
 Open Interpreter 执行器
 使用真正的 Open Interpreter 库实现电脑控制
-支持在线和本地模型
 """
 import logging
 import os
@@ -45,60 +44,21 @@ class InterpreterExecutor:
                 # 配置 LLM
                 llm_cfg = config.llm
 
-                if llm_cfg.use_local:
-                    # 本地模型配置
-                    # Open Interpreter 需要通过本地服务器或特殊配置使用本地模型
-                    # 这里我们使用自定义的本地 LLM 包装器
-                    self._configure_local_llm(interpreter, llm_cfg)
-                else:
-                    # 在线 API 配置
-                    # litellm 需要 openai/ 前缀表示 OpenAI 兼容 API
-                    interpreter.llm.model = f"openai/{llm_cfg.model}"
-                    interpreter.llm.api_key = llm_cfg.api_key
-                    interpreter.llm.api_base = llm_cfg.base_url
+                # 在线 API 配置
+                # litellm 需要 openai/ 前缀表示 OpenAI 兼容 API
+                interpreter.llm.model = f"openai/{llm_cfg.model}"
+                interpreter.llm.api_key = llm_cfg.api_key
+                interpreter.llm.api_base = llm_cfg.base_url
 
-                    # 设置 context_window 和 max_tokens 避免警告
-                    interpreter.llm.context_window = 32000
-                    interpreter.llm.max_tokens = 4096
+                # 设置 context_window 和 max_tokens 避免警告
+                interpreter.llm.context_window = 32000
+                interpreter.llm.max_tokens = 4096
 
             except Exception as e:
                 logger.error(f"Open Interpreter 初始化失败: {e}")
                 raise
 
         return self._interpreter
-
-    def _configure_local_llm(self, interpreter, llm_cfg):
-        """配置本地 LLM
-
-        Open Interpreter 通过 litellm 支持 OpenAI 兼容 API。
-        对于本地模型，我们需要启动一个本地服务器或使用自定义 LLM 类。
-
-        当前实现：使用本地 OpenAI 兼容服务器（如果可用）
-        未来：直接集成 LiteRT-LM
-        """
-        logger.info(f"配置本地模型: {llm_cfg.local.model_name}")
-
-        # 检查是否有本地 OpenAI 兼容服务器
-        # 例如：使用 ollama、vllm 或 lm-studio
-        local_server_url = "http://localhost:11434/v1"  # Ollama 默认地址
-
-        try:
-            import requests
-            response = requests.get(f"{local_server_url.replace('/v1', '')}/api/tags", timeout=2)
-            if response.status_code == 200:
-                logger.info("检测到本地 Ollama 服务器")
-                interpreter.llm.model = f"openai/{llm_cfg.local.model_name}"
-                interpreter.llm.api_base = local_server_url
-                interpreter.llm.api_key = "dummy"  # Ollama 不需要 API key
-                return
-        except Exception:
-            logger.info("未检测到本地 Ollama 服务器")
-
-        # 如果没有本地服务器，回退到在线模式
-        logger.warning("本地模型服务器不可用，回退到在线模式")
-        interpreter.llm.model = f"openai/{llm_cfg.model}"
-        interpreter.llm.api_key = llm_cfg.api_key
-        interpreter.llm.api_base = llm_cfg.base_url
 
     def execute(self, user_command: str) -> dict:
         """
@@ -152,25 +112,16 @@ class InterpreterExecutor:
     def _extract_response(self, messages: list) -> str:
         """
         从 Open Interpreter 消息中提取用户友好的响应
-
-        Open Interpreter 返回的消息格式：
-        [
-            {"role": "assistant", "type": "code", "format": "python", "content": "..."},
-            {"role": "computer", "type": "console", "format": "output", "content": "..."},
-            {"role": "assistant", "type": "message", "content": "任务完成"}
-        ]
         """
         if not messages:
             return "任务完成"
 
-        # 检查是否有执行错误
         for msg in messages:
             if msg.get("role") == "computer" and msg.get("type") == "console":
                 content = msg.get("content", "")
                 if content and "error" in content.lower():
                     return "执行失败"
 
-        # 检查代码是否成功执行（通过 computer 角色的 output）
         code_executed = False
         for msg in messages:
             if msg.get("role") == "computer" and msg.get("type") == "output":
@@ -185,7 +136,6 @@ class InterpreterExecutor:
         if code_executed:
             return "任务完成"
 
-        # 提取最后的 assistant message
         for msg in reversed(messages):
             if msg.get("role") == "assistant" and msg.get("type") == "message":
                 content = msg.get("content", "").strip()

@@ -14,7 +14,7 @@ from voice_assistant.core.dependencies import (
     compare_versions,
     get_installed_version,
     CORE_DEPENDENCIES,
-    LOCAL_LLM_DEPENDENCIES,
+    LOCAL_ASR_DEPENDENCIES,
     INTERPRETER_DEPENDENCIES,
 )
 
@@ -199,21 +199,21 @@ class TestDependencyManager:
         assert "NumPy" in core_names
         assert "Pygame" in core_names
 
-    def test_check_all_with_config_skip_local_llm(self):
-        """测试配置禁用本地 LLM 时跳过检查"""
+    def test_check_all_with_config_skip_local_asr(self):
+        """测试配置禁用本地 ASR 时跳过检查"""
         manager = DependencyManager()
 
         # 模拟配置对象
         mock_config = MagicMock()
-        mock_config.llm = MagicMock()
-        mock_config.llm.use_local = False
+        mock_config.asr = MagicMock()
+        mock_config.asr.use_local = False
 
         results = manager.check_all(config=mock_config, verbose=False)
 
         # 应该有 NOT_REQUIRED 状态
-        litert_results = [r for r in results if r.dependency.name == "LiteRT-LM"]
-        assert len(litert_results) == 1
-        assert litert_results[0].status == DependencyStatus.NOT_REQUIRED
+        funasr_results = [r for r in results if r.dependency.name == "FunASR"]
+        assert len(funasr_results) == 1
+        assert funasr_results[0].status == DependencyStatus.NOT_REQUIRED
 
     def test_has_blocking_errors_no_errors(self):
         """测试无阻止性错误"""
@@ -295,9 +295,9 @@ class TestDependencyGroups:
         assert "Pygame" in names
         assert "DashScope" in names
 
-    def test_local_llm_dependencies_optional(self):
-        """测试本地 LLM 依赖为可选"""
-        for dep in LOCAL_LLM_DEPENDENCIES:
+    def test_local_asr_dependencies_optional(self):
+        """测试本地 ASR 依赖为可选"""
+        for dep in LOCAL_ASR_DEPENDENCIES:
             assert dep.required is False
             assert dep.config_flag is not None
 

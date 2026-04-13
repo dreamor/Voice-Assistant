@@ -13,9 +13,8 @@ logger = logging.getLogger(__name__)
 class ChatExecutor(BaseExecutor):
     """对话执行器"""
 
-    def __init__(self, max_response_length: int = 200, use_local: bool = False):
+    def __init__(self, max_response_length: int = 200):
         self.max_response_length = max_response_length
-        self._use_local = use_local
         self._conversation_history: list = []
 
     def can_handle(self, intent_type: str) -> bool:
@@ -47,14 +46,12 @@ class ChatExecutor(BaseExecutor):
             history = conversation_history or self._conversation_history
 
             if direct_response is not None:
-                # Multimodal path: use pre-generated response directly
                 response = direct_response
             else:
-                # Normal path: call LLM
                 from voice_assistant.core.ai_client import ask_ai_stream
 
                 response = ""
-                for partial in ask_ai_stream(user_text, history, use_local=self._use_local):
+                for partial in ask_ai_stream(user_text, history):
                     response = partial
 
             # 限制长度
