@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Assistant</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app">
+        <!-- 左侧边栏 -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                        <circle cx="16" cy="16" r="14" stroke="currentColor" stroke-width="2"/>
+                        <circle cx="16" cy="16" r="6" fill="currentColor"/>
+                    </svg>
+                    <span>Voice AI</span>
+                </div>
+                <button class="btn-icon" id="new-chat-btn" title="新对话">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="history-list" id="history-list">
+                <!-- 历史对话列表 -->
+            </div>
+
+            <div class="sidebar-footer">
+                <button class="btn-icon" id="settings-btn" title="设置">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                </button>
+            </div>
+        </aside>
+
+        <!-- 主内容区 -->
+        <main class="main">
+            <!-- 顶部模型选择器 -->
+            <header class="header">
+                <div class="model-selector">
+                    <select id="model-select">
+                        <option value="">加载中...</option>
+                    </select>
+                </div>
+            </header>
+
+            <!-- 消息区域 -->
+            <div class="messages-container" id="messages-container">
+                <div class="welcome-screen" id="welcome-screen">
+                    <h1>Hi, what can I help you with today?</h1>
+                    <div class="quick-actions">
+                        <button class="quick-action" data-text="讲个笑话">
+                            <span>🎭</span> 讲个笑话
+                        </button>
+                        <button class="quick-action" data-text="今天天气怎么样">
+                            <span>🌤️</span> 查天气
+                        </button>
+                        <button class="quick-action" data-text="帮我写一段Python代码">
+                            <span>💻</span> 写代码
+                        </button>
+                        <button class="quick-action" data-text="翻译这段文字">
+                            <span>🌐</span> 翻译
+                        </button>
+                    </div>
+                </div>
+                <div class="messages" id="messages"></div>
+            </div>
+
+            <!-- 输入区域 -->
+            <div class="input-area">
+                <div class="input-container">
+                    <textarea
+                        id="text-input"
+                        placeholder="输入消息，或点击麦克风录音..."
+                        rows="1"
+                    ></textarea>
+                    <div class="input-actions">
+                        <button class="btn-record" id="record-btn" title="录音">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                                <line x1="12" y1="19" x2="12" y2="23"></line>
+                                <line x1="8" y1="23" x2="16" y2="23"></line>
+                            </svg>
+                        </button>
+                        <button class="btn-send" id="send-btn" title="发送">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="22" y1="2" x2="11" y2="13"></line>
+                                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="recording-indicator" id="recording-indicator">
+                    <div class="recording-wave">
+                        <span></span><span></span><span></span><span></span><span></span>
+                    </div>
+                    <span class="recording-text">正在录音...</span>
+                    <button class="btn-stop-record" id="stop-record-btn">停止</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 设置面板 -->
+    <div class="modal-overlay" id="settings-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>设置</h2>
+                <button class="btn-close" id="close-settings">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="setting-group">
+                    <h3>LLM 配置</h3>
+                    <div class="setting-item">
+                        <label>模型</label>
+                        <input type="text" id="setting-model" placeholder="qwen-plus">
+                    </div>
+                    <div class="setting-item">
+                        <label>Temperature</label>
+                        <input type="range" id="setting-temperature" min="0" max="2" step="0.1" value="0.7">
+                        <span class="setting-value" id="temp-value">0.7</span>
+                    </div>
+                    <div class="setting-item">
+                        <label>Max Tokens</label>
+                        <input type="number" id="setting-max-tokens" value="2000" min="100" max="8000">
+                    </div>
+                </div>
+
+                <div class="setting-group">
+                    <h3>音频配置</h3>
+                    <div class="setting-item">
+                        <label>TTS 语音</label>
+                        <select id="setting-tts-voice">
+                            <option value="zh-CN-XiaoxiaoNeural">晓晓（女声）</option>
+                            <option value="zh-CN-YunyangNeural">云扬（男声）</option>
+                            <option value="zh-CN-XiaoyiNeural">晓伊（女声）</option>
+                        </select>
+                    </div>
+                    <div class="setting-item">
+                        <label>使用本地 ASR</label>
+                        <input type="checkbox" id="setting-use-local-asr" checked>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="reset-settings">重置</button>
+                <button class="btn-primary" id="save-settings">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 音频播放器（隐藏） -->
+    <audio id="audio-player"></audio>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

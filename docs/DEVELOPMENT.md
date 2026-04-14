@@ -74,17 +74,38 @@ python -c "from ai_client import ask_ai_stream; print('AI OK')"
 
 ## 运行
 
-### 启动语音助手
+### 启动 Web UI（推荐）
 
 ```bash
-# 使用启动脚本（推荐）
+# 使用模块入口
+python -m voice_assistant --web
+
+# 或直接运行
+python web_ui.py
+```
+
+启动后打开浏览器访问：**http://127.0.0.1:8000**
+
+### Web UI 功能
+
+- 🎙️ **录音输入** - 点击麦克风按钮录音，自动语音识别
+- ⌨️ **文字输入** - 支持键盘输入文字
+- 🔄 **流式响应** - AI 回复实时显示
+- 🔊 **语音播放** - 自动播放 AI 语音回复
+- ⚙️ **设置面板** - 调整模型、温度、Token 等参数
+- 📜 **对话历史** - 查看和管理历史对话
+
+### 启动命令行模式
+
+```bash
+# 使用启动脚本
 ./start.sh
 
 # 或直接运行
-python voice_assistant_ai.py
+python run.py
 ```
 
-### 交互控制
+### 交互控制（命令行模式）
 
 ```
 [ENTER=Record / C=Clear / H=History / I=Toggle / L=LLM / Q=Quit] (模式:Interpreter, LLM:在线):
@@ -118,13 +139,17 @@ python voice_assistant_ai.py
 | 命令 | 说明 |
 |------|------|
 | `./start.sh` | 自动检测并安装依赖，启动应用（推荐） |
-| `python run.py` | 直接运行主程序 |
+| `python run.py` | 直接运行主程序（CLI 模式） |
+| `python -m voice_assistant --web` | 启动 Web UI 模式 |
+| `python web_ui.py` | 直接启动 Web UI 服务 |
 | `voice-assistant` | 安装后的 CLI 命令 |
+| `voice-assistant --web` | 安装后以 Web UI 模式启动 |
 | `voice-assistant-check` | 环境检查脚本 |
 | `uv pip install -e .` | 安装项目为可编辑包 |
 | `uv pip install -e ".[dev]"` | 安装开发依赖 |
+| `uv pip install -e ".[local-asr]"` | 安装本地 ASR 支持（FunASR） |
 | `uv pip install -e ".[local-llm]"` | 安装本地模型支持 |
-| `uv pip install -e ".[dev,local-llm]"` | 安装全部依赖 |
+| `uv pip install -e ".[dev,local-asr]"` | 安装全部依赖 |
 | `uv run pytest` | 运行全部测试 |
 | `uv run pytest tests/ -v` | 运行指定测试目录 |
 | `uv run pytest tests/test_audio/ -v` | 只测试音频模块 |
@@ -184,11 +209,13 @@ voice-assistant/
 │   │   ├── vad.py             # 语音活动检测
 │   │   ├── tts.py             # 语音合成
 │   │   ├── cloud_asr.py       # 阿里云 ASR
+│   │   ├── funasr_asr.py      # 本地 FunASR
 │   │   └── player.py          # 音频播放
 │   ├── core/                  # 核心模块
 │   │   ├── __init__.py
 │   │   ├── ai_client.py       # AI对话客户端
 │   │   ├── local_llm.py       # 本地 LLM
+│   │   ├── model_manager.py   # 模型管理器
 │   │   ├── dependencies.py    # 依赖注入
 │   │   └── asr_corrector.py   # ASR 纠错
 │   ├── executors/             # 执行器模块
@@ -203,6 +230,10 @@ voice-assistant/
 │   │   └── router.py          # 指令路由
 │   └── security/              # 安全模块
 │       └── validation.py
+├── web_static/                # Web UI 前端文件
+│   ├── index.html             # 主页面
+│   ├── style.css              # 样式文件
+│   └── app.js                 # 前端逻辑
 ├── tests/                     # 测试目录
 │   ├── conftest.py
 │   ├── test_system.py
@@ -215,6 +246,7 @@ voice-assistant/
 │   └── check_env.py
 ├── start.sh                   # 启动脚本
 ├── run.py                     # 运行入口
+├── web_ui.py                  # Web UI 服务
 ├── pyproject.toml             # 项目配置
 ├── config.yaml                # 应用配置
 ├── .env.example               # 环境变量示例

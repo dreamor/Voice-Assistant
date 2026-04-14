@@ -53,13 +53,27 @@ pytest test_system.py -v
 
 ### 步骤 5: 启动
 
+**方式 1: Web UI（推荐）**
+
+```bash
+# 启动 Web UI
+python -m voice_assistant --web
+
+# 或
+python web_ui.py
+```
+
+然后在浏览器中打开：**http://127.0.0.1:8000**
+
+**方式 2: 命令行模式**
+
 ```bash
 # 使用启动脚本
 ./start.sh
 
 # 或手动启动
 source .venv/bin/activate
-python voice_assistant_ai.py
+python run.py
 ```
 
 ## API 密钥获取
@@ -145,6 +159,17 @@ llm:
 ```
 
 ## 交互控制
+
+### Web UI 操作
+
+| 操作 | 说明 |
+|------|------|
+| 点击麦克风按钮 | 开始/停止录音 |
+| 文本输入框 | 输入文字消息 |
+| 设置面板 | 调整模型、温度、Token 等参数 |
+| 清除历史按钮 | 清除对话历史 |
+
+### 命令行模式按键
 
 | 按键 | 功能 |
 |------|------|

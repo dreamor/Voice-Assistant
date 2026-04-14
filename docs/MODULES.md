@@ -4,43 +4,50 @@
 
 ```
 voice-assistant/
-├── src/voice_assistant/  # 源代码包
+├── src/voice_assistant/      # 源代码包
 │   ├── __init__.py
-│   ├── __main__.py       # CLI 入口
-│   ├── main.py           # 主程序
-│   ├── config/           # 配置模块
+│   ├── __main__.py           # CLI 入口
+│   ├── main.py               # 主程序
+│   ├── config/               # 配置模块
 │   │   └── __init__.py
-│   ├── audio/            # 音频模块
+│   ├── audio/                # 音频模块
 │   │   ├── __init__.py
-│   │   ├── vad.py        # 语音活动检测
-│   │   ├── tts.py        # 语音合成
-│   │   ├── cloud_asr.py  # 阿里云 ASR
-│   │   └── player.py     # 音频播放
-│   ├── core/             # 核心模块
+│   │   ├── vad.py            # 语音活动检测
+│   │   ├── tts.py            # 语音合成
+│   │   ├── cloud_asr.py      # 阿里云 ASR
+│   │   ├── funasr_asr.py     # 本地 FunASR
+│   │   └── player.py         # 音频播放
+│   ├── core/                 # 核心模块
 │   │   ├── __init__.py
-│   │   ├── ai_client.py  # AI对话客户端
-│   │   ├── local_llm.py  # 本地 LLM
-│   │   ├── dependencies.py  # 依赖注入
-│   │   └── asr_corrector.py # ASR 纠错
-│   ├── executors/        # 执行器模块
+│   │   ├── ai_client.py      # AI对话客户端
+│   │   ├── local_llm.py      # 本地 LLM
+│   │   ├── model_manager.py  # 模型管理器
+│   │   ├── dependencies.py   # 依赖注入
+│   │   └── asr_corrector.py  # ASR 纠错
+│   ├── executors/            # 执行器模块
 │   │   ├── __init__.py
-│   │   ├── base.py       # 基类
-│   │   ├── chat.py       # 对话执行器
-│   │   ├── computer.py   # 计算机控制
-│   │   └── interpreter.py # Open Interpreter
-│   ├── models/           # 数据模型
+│   │   ├── base.py           # 基类
+│   │   ├── chat.py           # 对话执行器
+│   │   ├── computer.py       # 计算机控制
+│   │   └── interpreter.py    # Open Interpreter
+│   ├── models/               # 数据模型
 │   │   └── intent.py
-│   ├── services/         # 服务模块
-│   │   └── router.py     # 指令路由
-│   └── security/         # 安全模块
+│   ├── services/             # 服务模块
+│   │   └── router.py         # 指令路由
+│   └── security/             # 安全模块
 │       └── validation.py
-├── tests/                # 测试目录
-├── scripts/              # 脚本
-├── config.yaml           # 配置文件
-├── .env                  # 环境变量（API密钥）
-├── run.py                # 入口脚本
-├── start.sh              # 启动脚本
-└── pyproject.toml        # 项目配置
+├── web_static/               # Web UI 前端文件
+│   ├── index.html            # 主页面
+│   ├── style.css             # 样式文件
+│   └── app.js                # 前端逻辑
+├── tests/                    # 测试目录
+├── scripts/                  # 脚本
+├── config.yaml               # 配置文件
+├── .env                      # 环境变量（API密钥）
+├── run.py                    # 入口脚本
+├── web_ui.py                 # Web UI 服务
+├── start.sh                  # 启动脚本
+└── pyproject.toml            # 项目配置
 ```
 
 ## 模块概览
@@ -48,11 +55,14 @@ voice-assistant/
 | 模块路径 | 功能 | 依赖服务 |
 |----------|------|----------|
 | `voice_assistant.main` | 主程序，流程控制，模式切换 | 全部模块 |
+| `web_ui` | Web UI 服务（FastAPI + WebSocket） | FastAPI, SQLite |
 | `voice_assistant.audio.cloud_asr` | 阿里云语音识别 | DashScope API |
+| `voice_assistant.audio.funasr_asr` | 本地 FunASR 语音识别 | FunASR |
 | `voice_assistant.core.local_llm` | 本地 LLM 推理 | LiteRT-LM |
 | `voice_assistant.audio.vad` | 语音活动检测 | sounddevice |
 | `voice_assistant.audio.tts` | 语音合成 | Edge-TTS |
 | `voice_assistant.core.ai_client` | AI对话客户端（在线/本地） | LLM API / LiteRT-LM |
+| `voice_assistant.core.model_manager` | 模型管理，自动切换 | - |
 | `voice_assistant.audio.player` | 音频播放 | pygame |
 | `voice_assistant.security.validation` | 安全工具（输入验证、限流） | - |
 | `voice_assistant.core.asr_corrector` | ASR 结果纠错 | LLM |
@@ -60,6 +70,84 @@ voice-assistant/
 | `voice_assistant.executors.computer` | 计算机控制执行器 | pyautogui |
 | `voice_assistant.executors.chat` | 对话执行器 | LLM |
 | `voice_assistant.services.router` | 指令路由服务 | - |
+
+---
+
+## web_ui (Web UI 服务)
+
+### 功能
+- 提供浏览器访问的图形界面
+- FastAPI 后端服务
+- WebSocket 实时通信
+- SQLite 对话历史存储
+- 静态文件服务
+
+### 启动方式
+
+```bash
+# 方式 1: 使用模块入口
+python -m voice_assistant --web
+
+# 方式 2: 直接运行
+python web_ui.py
+```
+
+### 访问地址
+
+启动后打开浏览器访问：**http://127.0.0.1:8000**
+
+### API 端点
+
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/` | GET | 主页面（index.html） |
+| `/ws/chat` | WebSocket | 实时聊天连接 |
+| `/api/config` | GET/POST | 获取/更新配置 |
+| `/api/models` | GET | 获取可用模型列表 |
+| `/api/history` | GET | 获取对话历史 |
+| `/api/history/clear` | POST | 清除对话历史 |
+
+### WebSocket 消息格式
+
+**客户端发送:**
+```json
+// 文本消息
+{"type": "text", "content": "讲个笑话"}
+
+// 音频消息（Base64 编码）
+{"type": "audio", "audio": "base64...", "format": "webm"}
+
+// 设置更新
+{"type": "settings", "settings": {"model": "qwen-plus"}}
+```
+
+**服务器返回:**
+```json
+// 状态更新
+{"type": "status", "status": "thinking", "message": "AI 思考中..."}
+
+// 流式响应
+{"type": "stream", "content": "给你讲个", "full_content": "给你讲个"}
+
+// 完整响应（含音频）
+{"type": "response", "content": "给你讲个笑话...", "audio": "base64..."}
+
+// 错误
+{"type": "error", "message": "语音识别失败"}
+```
+
+### 前端文件
+
+| 文件 | 说明 |
+|------|------|
+| `web_static/index.html` | 页面结构，左侧边栏 + 聊天区域 |
+| `web_static/style.css` | Gemini CLI 风格样式 |
+| `web_static/app.js` | 交互逻辑，WebSocket 客户端 |
+
+### 数据库
+
+SQLite 数据库存储在 `data/conversations.db`，包含表：
+- `conversations` - 对话历史记录
 
 ---
 

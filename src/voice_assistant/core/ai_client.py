@@ -212,9 +212,9 @@ def ask_online_ai_stream(text, conversation_history=None):
 
                     line = line.decode('utf-8', errors='replace')
 
-                    if line.startswith(''):
+                    if line.startswith('data:'):
                         data_str = line[5:].strip()
-                    elif line.startswith(' '):
+                    elif line.startswith('data: '):
                         data_str = line[6:].strip()
                     else:
                         continue
