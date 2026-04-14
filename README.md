@@ -127,8 +127,17 @@ pytest tests/ -v
 ### 5. 启动
 
 ```bash
-# 使用启动脚本
+# 使用启动脚本（命令行模式，默认）
 ./start.sh
+
+# 启动 Web UI
+./start.sh --web
+
+# 同时启动命令行和 Web UI
+./start.sh --both
+
+# 查看帮助
+./start.sh --help
 
 # 或手动启动
 source .venv/bin/activate
@@ -137,16 +146,22 @@ python run.py
 
 ## 使用说明
 
+### 启动方式
+
+| 命令 | 说明 |
+|------|------|
+| `./start.sh` | 命令行模式（默认） |
+| `./start.sh --web` | Web UI 模式 |
+| `./start.sh --both` | 同时启动两种模式 |
+| `./start.bat` | Windows 命令行模式 |
+| `./start.bat --web` | Windows Web UI 模式 |
+
 ### Web UI（推荐）
 
 启动 Web 界面，在浏览器中使用语音助手：
 
 ```bash
-# 启动 Web UI
-python -m voice_assistant --web
-
-# 或
-python web_ui.py
+./start.sh --web
 ```
 
 启动后，在浏览器中访问：**http://127.0.0.1:8000**
