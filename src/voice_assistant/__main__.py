@@ -14,9 +14,9 @@ def main():
     elif len(sys.argv) > 1 and sys.argv[1] == "--web":
         # Web UI 模式
         import uvicorn
-        from voice_assistant.web_ui import app
-        print("🌐 启动 Voice Assistant Web UI...")
-        print("📱 请在浏览器中访问: http://127.0.0.1:8000")
+        from web_ui import app
+        print("[Web] Starting Voice Assistant Web UI...")
+        print("[Web] Visit: http://127.0.0.1:8000")
         uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info")
     else:
         # 正常启动
