@@ -1,10 +1,209 @@
 # API 参考
 
-本文件记录各模块的公共接口。
+本文件记录各模块的公共接口和 Web UI API。
 
 > **注意**: 项目使用 `src/voice_assistant/` 作为源代码包。以下示例假设项目已正确安装或您正在从项目根目录运行。
 
 ---
+
+## Web UI API
+
+Web UI 提供 REST API 和 WebSocket 接口。
+
+### REST API
+
+#### GET /api/config
+
+获取当前配置。
+
+**响应:**
+```json
+{
+  "asr": {
+    "model": "paraformer-realtime-v2",
+    "language_hints": ["zh", "en"]
+  },
+  "llm": {
+    "model": "kimi-k2.5",
+    "temperature": 0.7,
+    "max_tokens": 2000
+  },
+  "audio": {
+    "sample_rate": 16000,
+    "edge_tts_voice": "zh-CN-XiaoxiaoNeural"
+  }
+}
+```
+
+---
+
+#### POST /api/config
+
+更新配置。
+
+**请求体:**
+```json
+{
+  "llm": {
+    "model": "qwen-plus",
+    "temperature": 0.8
+  }
+}
+```
+
+**响应:**
+```json
+{
+  "success": true,
+  "message": "配置已更新"
+}
+```
+
+---
+
+#### GET /api/models
+
+获取可用模型列表。
+
+**响应:**
+```json
+{
+  "models": [
+    {"id": "kimi-k2.5", "name": "kimi-k2.5"},
+    {"id": "qwen-plus", "name": "qwen-plus"},
+    {"id": "qwen-turbo", "name": "qwen-turbo"}
+  ],
+  "current_model": "kimi-k2.5"
+}
+```
+
+---
+
+#### GET /api/history
+
+获取对话历史。
+
+**响应:**
+```json
+{
+  "conversations": [
+    {
+      "id": 1,
+      "session_id": "default",
+      "role": "user",
+      "content": "讲个笑话",
+      "created_at": "2026-04-14 16:30:00"
+    },
+    {
+      "id": 2,
+      "session_id": "default",
+      "role": "assistant",
+      "content": "给你讲个短的哈：为什么企鹅的肚子是白的...",
+      "created_at": "2026-04-14 16:30:05"
+    }
+  ]
+}
+```
+
+---
+
+#### POST /api/history/clear
+
+清除对话历史。
+
+**响应:**
+```json
+{
+  "success": true,
+  "message": "对话历史已清除"
+}
+```
+
+---
+
+### WebSocket API
+
+#### /ws/chat
+
+实时聊天 WebSocket 连接。
+
+**连接:**
+```javascript
+const ws = new WebSocket('ws://127.0.0.1:8000/ws/chat');
+```
+
+**客户端 → 服务器消息:**
+
+1. **文本消息:**
+```json
+{
+  "type": "text",
+  "content": "讲个笑话"
+}
+```
+
+2. **音频消息:**
+```json
+{
+  "type": "audio",
+  "audio": "base64_encoded_audio_data...",
+  "format": "webm"
+}
+```
+
+3. **设置更新:**
+```json
+{
+  "type": "settings",
+  "settings": {
+    "model": "qwen-plus",
+    "temperature": 0.8,
+    "max_tokens": 2000,
+    "tts_voice": "zh-CN-YunxiNeural"
+  }
+}
+```
+
+**服务器 → 客户端消息:**
+
+1. **状态更新:**
+```json
+{
+  "type": "status",
+  "status": "thinking",
+  "message": "AI 思考中..."
+}
+```
+
+2. **流式文本响应:**
+```json
+{
+  "type": "stream",
+  "content": "给你讲个短的哈：",
+  "full_content": "给你讲个短的哈："
+}
+```
+
+3. **完整响应:**
+```json
+{
+  "type": "response",
+  "content": "给你讲个短的哈：为什么企鹅的肚子是白的...",
+  "audio": "base64_encoded_mp3_audio..."
+}
+```
+
+4. **错误消息:**
+```json
+{
+  "type": "error",
+  "message": "语音识别失败"
+}
+```
+
+---
+
+## Python 模块 API
 
 ## voice_assistant.audio.cloud_asr 模块
 
