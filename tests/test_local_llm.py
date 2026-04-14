@@ -63,6 +63,8 @@ class TestFunASREngine:
             with pytest.raises(FunASRError):
                 FunASREngine(device="cpu")
 
+                engine = FunASREngine(device="cpu")
+                assert engine.device == "cpu"
 
 class TestFunASRClient:
     """Test FunASRClient class"""

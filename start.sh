@@ -32,25 +32,34 @@ fi
 VENV_PYTHON=$(.venv/bin/python --version 2>&1 | cut -d' ' -f2 | cut -d'.' -f1,2)
 echo -e "${GREEN}✓ Python 版本: $VENV_PYTHON${NC}"
 
-# 检查本地模型
-USE_LOCAL_LLM=false
-if [ -f "models/gemma-4-E2B-it.litertlm" ]; then
-    USE_LOCAL_LLM=true
-    echo -e "${GREEN}✓ 本地模型已就绪${NC}"
+# 检查 FunASR 本地 ASR 配置
+USE_LOCAL_ASR=false
+if [ -d "$HOME/.cache/modelscope/hub/models/iic/speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch" ]; then
+    USE_LOCAL_ASR=true
+    echo -e "${GREEN}✓ 本地 ASR 模型已就绪${NC}"
 elif grep -q "use_local:\s*true" config.yaml 2>/dev/null; then
-    USE_LOCAL_LLM=true
-    echo -e "${GREEN}✓ 本地模型配置已启用${NC}"
+    USE_LOCAL_ASR=true
+    echo -e "${GREEN}✓ 本地 ASR 配置已启用${NC}"
 else
-    echo -e "${YELLOW}提示: 本地模型未安装，将使用在线模式${NC}"
-    echo -e "下载模型: 参考 docs/CONFIG.md"
+    echo -e "${YELLOW}提示: 本地 ASR 未配置，将使用云端 ASR${NC}"
+    echo -e "设置 config.yaml 中 asr.use_local: true 启用本地 ASR"
 fi
 
 # 安装依赖
 echo -e "${YELLOW}检查依赖...${NC}"
-if [ "$USE_LOCAL_LLM" = true ]; then
-    uv pip install -e ".[dev,local-llm]"
+if [ "$USE_LOCAL_ASR" = true ]; then
+    uv pip install -e ".[dev,local-asr]"
 else
     uv pip install -e ".[dev]"
+fi
+
+# 检查 ffmpeg 是否安装（FunASR 依赖）
+if command -v ffmpeg &> /dev/null; then
+    echo -e "${GREEN}✓ ffmpeg 已就绪${NC}"
+else
+    echo -e "${YELLOW}⚠ ffmpeg 未安装（本地 ASR 依赖）${NC}"
+    echo -e "  macOS: brew install ffmpeg"
+    echo -e "  Linux: sudo apt install ffmpeg"
 fi
 
 echo "================================"

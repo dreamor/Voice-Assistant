@@ -118,13 +118,11 @@ class AppConfig:
 
 def _find_project_root() -> Path:
     """查找项目根目录"""
-    # 从当前文件所在目录向上查找，直到找到 config.yaml
     current = Path(__file__).resolve().parent
     while current.parent != current:
         if (current / "config.yaml").exists():
             return current
         current = current.parent
-    # 如果找不到，返回 src 的父目录
     return Path(__file__).resolve().parent.parent.parent
 
 

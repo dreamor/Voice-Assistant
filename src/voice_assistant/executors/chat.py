@@ -46,10 +46,8 @@ class ChatExecutor(BaseExecutor):
             history = conversation_history or self._conversation_history
 
             if direct_response is not None:
-                # Multimodal path: use pre-generated response directly
                 response = direct_response
             else:
-                # Normal path: call LLM
                 from voice_assistant.core.ai_client import ask_ai_stream
 
                 response = ""

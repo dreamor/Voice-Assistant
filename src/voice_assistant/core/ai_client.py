@@ -56,7 +56,6 @@ def ask_online_ai_stream(text, conversation_history=None):
     if conversation_history is None:
         conversation_history = []
 
-    # 输入验证
     try:
         cleaned_text = validate_text_input(text)
         cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()
@@ -64,7 +63,6 @@ def ask_online_ai_stream(text, conversation_history=None):
         yield f"抱歉，输入验证失败：{e}"
         return
 
-    # 速率限制检查
     try:
         llm_limiter.check()
     except RateLimitError as e:
@@ -114,7 +112,6 @@ def ask_online_ai_stream(text, conversation_history=None):
 
             line = line.decode('utf-8', errors='replace')
 
-            # 处理 SSE 格式: data: {...}
             if line.startswith('data:'):
                 data_str = line[5:].strip()
             elif line.startswith(' '):

@@ -36,10 +36,8 @@ def check_startup_dependencies() -> bool:
     Returns:
         True 如果可以启动，False 如果有必需依赖缺失
     """
-    # 检查核心依赖和条件依赖
     manager = check_dependencies(config, verbose=False)
 
-    # 打印检查结果
     print("\n" + "=" * 50)
     print("  依赖检查")
     print("=" * 50)
@@ -61,7 +59,6 @@ def check_startup_dependencies() -> bool:
 
     print("=" * 50)
 
-    # 检查是否有阻止启动的错误
     if manager.has_blocking_errors():
         print("\n\u274c 存在必需依赖缺失，无法启动\n")
         missing = manager.get_missing_dependencies()
@@ -72,7 +69,6 @@ def check_startup_dependencies() -> bool:
             print()
         return False
 
-    # 显示版本警告
     warnings = manager.get_version_warnings()
     if warnings:
         print("\n\u26a0 版本警告:")

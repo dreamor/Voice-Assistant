@@ -4,9 +4,9 @@
 
 ## 功能特性
 
-- **语音识别 (ASR)**: 阿里云 DashScope Paraformer 实时识别，支持中英文混合识别优化
-- **LLM 对话**: 支持在线 API 和本地模型切换
-- **本地模型支持**: 使用 LiteRT-LM 运行 Gemma-4-E2B-it，完全离线运行
+- **语音识别 (ASR)**: 阿里云 DashScope Paraformer / 本地 FunASR 实时识别，支持中英文混合识别优化
+- **LLM 对话**: 在线 API 对话生成
+- **本地模型支持**: 使用 FunASR 运行 Paraformer-zh 本地语音识别，完全离线运行
 - **语音合成 (TTS)**: Microsoft Edge-TTS，自然流畅
 - **VAD 语音检测**: 自动检测说话开始/结束，无需手动操作
 - **智能意图识别**: 自动判断用户意图，路由到对应执行器
@@ -31,10 +31,11 @@ voice-assistant/
 │   │   ├── vad.py           # 语音检测
 │   │   ├── tts.py           # 语音合成
 │   │   ├── player.py        # 音频播放
-│   │   └── cloud_asr.py     # 语音识别
+│   │   ├── cloud_asr.py     # 云端语音识别
+│   │   └── funasr_asr.py    # 本地 FunASR 语音识别
 │   ├── core/                # 核心模块
 │   │   ├── ai_client.py     # AI 对话
-│   │   ├── local_llm.py     # 本地 LLM
+│   │   ├── dependencies.py  # 依赖管理
 │   │   └── asr_corrector.py # ASR 纠错
 │   ├── executors/           # 执行器模块
 │   │   ├── base.py          # 执行器基类
@@ -66,7 +67,21 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 pip install uv
 ```
 
-### 2. 安装依赖
+### 2. 安装系统依赖
+
+macOS 用户需要安装 ffmpeg（FunASR 音频加载依赖）：
+
+```bash
+brew install ffmpeg
+```
+
+Linux 用户：
+
+```bash
+sudo apt install ffmpeg
+```
+
+### 3. 安装 Python 依赖
 
 ```bash
 # 使用启动脚本（推荐）
@@ -75,12 +90,12 @@ pip install uv
 # 或手动安装
 uv venv --python 3.12
 source .venv/bin/activate
-uv pip install -e ".[dev,local-llm]"
+uv pip install -e ".[dev,local-asr]"
 ```
 
 > **注意**: 需要 Python 3.10 或更高版本
 
-### 3. 配置
+### 4. 配置
 
 ```bash
 cp .env.example .env
@@ -123,7 +138,7 @@ python run.py
 | `C` | 清除对话历史 |
 | `H` | 显示对话历史 |
 | `I` | 切换 自动模式/AI 对话模式 |
-| `L` | 切换 本地/在线 LLM 模式 |
+| `A` | 切换 本地 FunASR / 云端 ASR 模式 |
 | `Q` | 退出程序 |
 
 ### LLM 模式切换
@@ -137,19 +152,24 @@ python run.py
 
 ### 本地模型设置
 
-1. 下载模型文件（约 2.4GB）：
+使用 FunASR 本地语音识别（Paraformer-zh）：
+
+1. 安装 FunASR 依赖：
 ```bash
-# 从 HuggingFace 下载
-# 放置到 model_weights/gemma-4-E2B-it.litertlm
+pip install -e ".[local-asr]"
 ```
 
-2. 配置 `config.yaml`：
+2. 首次启动时自动下载模型文件（约 2GB，存放在 `~/.cache/modelscope/hub/`）
+
+3. 配置 `config.yaml`：
 ```yaml
-llm:
-  use_local: false  # true 强制使用本地模型
+asr:
+  use_local: true  # true 使用本地 FunASR，false 使用云端 ASR
   local:
-    model_path: "model_weights/gemma-4-E2B-it.litertlm"
-    model_name: "gemma-4-E2B-it"
+    enabled: true
+    model_path: null  # null=自动下载，或指定本地路径
+    device: "cpu"     # "cpu" 或 "cuda"
+    vad_threshold: 0.5
 ```
 
 ### 工作流程

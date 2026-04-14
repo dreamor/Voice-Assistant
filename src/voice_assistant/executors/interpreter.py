@@ -112,25 +112,16 @@ class InterpreterExecutor:
     def _extract_response(self, messages: list) -> str:
         """
         从 Open Interpreter 消息中提取用户友好的响应
-
-        Open Interpreter 返回的消息格式：
-        [
-            {"role": "assistant", "type": "code", "format": "python", "content": "..."},
-            {"role": "computer", "type": "console", "format": "output", "content": "..."},
-            {"role": "assistant", "type": "message", "content": "任务完成"}
-        ]
         """
         if not messages:
             return "任务完成"
 
-        # 检查是否有执行错误
         for msg in messages:
             if msg.get("role") == "computer" and msg.get("type") == "console":
                 content = msg.get("content", "")
                 if content and "error" in content.lower():
                     return "执行失败"
 
-        # 检查代码是否成功执行（通过 computer 角色的 output）
         code_executed = False
         for msg in messages:
             if msg.get("role") == "computer" and msg.get("type") == "output":
@@ -145,7 +136,6 @@ class InterpreterExecutor:
         if code_executed:
             return "任务完成"
 
-        # 提取最后的 assistant message
         for msg in reversed(messages):
             if msg.get("role") == "assistant" and msg.get("type") == "message":
                 content = msg.get("content", "").strip()
