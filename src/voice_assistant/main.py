@@ -227,6 +227,7 @@ def main():
         cmd = input(f"[ENTER=Record / C=Clear / H=History / I=Toggle / A=ASR / Q=Quit] (\u6a21\u5f0f:{mode}, ASR:{asr_mode_str}): ").strip().lower()
 
         if cmd == 'q':
+            # 清理资源
             if _use_local_asr:
                 asr_client_funasr.close()
             logger.info("Bye!")
@@ -283,14 +284,17 @@ def main():
         logger.info("\n[Step 2] Processing...")
         logger.info("\n[Processing] Routing...")
         if auto_mode:
+            # 自动模式：意图识别 + 路由
             intent = simple_classify_intent(user_text)
             logger.info(f"  [Intent] {intent.intent_type.value} (confidence: {intent.confidence})")
             context = {'history': chat_executor.get_history()}
             result = router.route(intent, context)
             reply = result.get('response', '\u62b1\u6b49\uff0c\u6ca1\u6709\u7406\u89e3')
+            # 更新历史
             if 'history_updated' in result:
                 chat_executor._conversation_history = result['history_updated']
         else:
+            # 强制 AI 对话模式
             result = chat_executor.execute(user_text)
             reply = result.get('response', '\u62b1\u6b49\uff0c\u53d1\u751f\u9519\u8bef')
 

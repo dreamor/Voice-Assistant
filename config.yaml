@@ -15,7 +15,7 @@ asr:
   disfluency_removal_enabled: true  # 过滤语气词（嗯、啊等）
   max_sentence_silence: 1200  # 句间停顿容忍时间（毫秒）
   # 本地 ASR 切换（FunASR 本地模型）
-  use_local: true  # true 使用本地 FunASR，false 使用云端 ASR
+  use_local: false  # true 使用本地 FunASR，false 使用云端 ASR
   local:
     enabled: false
     model_path: null  # null=自动下载，或指定本地模型路径
