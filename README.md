@@ -4,6 +4,7 @@
 
 ## 功能特性
 
+- **🌐 Web UI**: 简洁现代的浏览器界面，支持录音、流式对话、设置管理
 - **语音识别 (ASR)**: 阿里云 DashScope Paraformer / 本地 FunASR 实时识别，支持中英文混合识别优化
 - **LLM 对话**: 在线 API 对话生成
 - **本地模型支持**: 使用 FunASR 运行 Paraformer-zh 本地语音识别，完全离线运行
@@ -12,6 +13,7 @@
 - **智能意图识别**: 自动判断用户意图，路由到对应执行器
 - **Open Interpreter 集成**: 真正的 Open Interpreter 库，强大的电脑控制能力
 - **对话上下文**: 支持多轮对话，保持上下文
+- **模型自动切换**: 主模型故障时自动切换到备用模型
 
 ## 项目结构
 
@@ -23,6 +25,11 @@ voice-assistant/
 ├── pyproject.toml           # 项目配置（uv）
 ├── run.py                   # 入口脚本
 ├── start.sh                 # 启动脚本
+├── web_ui.py                # Web UI 服务
+├── web_static/              # Web UI 前端文件
+│   ├── index.html           # 主页面
+│   ├── style.css            # 样式
+│   └── app.js               # 前端逻辑
 ├── src/voice_assistant/     # 源代码包
 │   ├── __init__.py
 │   ├── main.py              # 主程序
@@ -130,7 +137,35 @@ python run.py
 
 ## 使用说明
 
-### 命令
+### Web UI（推荐）
+
+启动 Web 界面，在浏览器中使用语音助手：
+
+```bash
+# 启动 Web UI
+python -m voice_assistant --web
+
+# 或
+python web_ui.py
+```
+
+启动后，在浏览器中访问：**http://127.0.0.1:8000**
+
+**Web UI 功能：**
+- 🎙️ **录音输入** - 点击麦克风按钮录音，自动语音识别
+- 💬 **文字输入** - 支持键盘输入文字
+- 🔄 **流式响应** - AI 回复实时显示
+- 🔊 **语音播放** - 自动播放 AI 语音回复
+- ⚙️ **设置面板** - 调整模型、温度、Token 等参数
+- 📜 **对话历史** - 查看和管理历史对话
+
+### 命令行模式
+
+如果不想使用 Web UI，可以使用命令行模式：
+
+```bash
+python -m voice_assistant
+```
 
 | 按键 | 功能 |
 |------|------|
