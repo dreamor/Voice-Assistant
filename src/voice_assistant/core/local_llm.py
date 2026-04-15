@@ -6,7 +6,7 @@ import logging
 import os
 from collections.abc import Generator
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ class LocalLLMEngine:
     """本地 LLM 引擎，使用 LiteRT-LM"""
 
     def __init__(
-        self, model_path: str, system_prompt: str | None = None,
+        self, model_path: str, system_prompt: Optional[str] = None,
         enable_audio: bool = False,
     ):
         """初始化本地 LLM 引擎
@@ -223,7 +223,7 @@ class LocalLLMClient:
     """本地 LLM 客户端，提供与在线 LLM 兼容的接口"""
 
     def __init__(
-        self, model_path: str, system_prompt: str | None = None,
+        self, model_path: str, system_prompt: Optional[str] = None,
         enable_audio: bool = False,
     ):
         """初始化客户端
@@ -236,7 +236,7 @@ class LocalLLMClient:
         self.model_path = model_path
         self.system_prompt = system_prompt
         self.enable_audio = enable_audio
-        self._engine: LocalLLMEngine | None = None
+        self._engine: Optional[LocalLLMEngine] = None
         self._conversation_history: list = []
 
     def _ensure_engine(self):
@@ -248,7 +248,7 @@ class LocalLLMClient:
             )
             self._engine.create_conversation()
 
-    def ask_stream(self, text: str, conversation_history: list | None = None) -> Generator[str, None, None]:
+    def ask_stream(self, text: str, conversation_history: Optional[list] = None) -> Generator[str, None, None]:
         """流式获取回复（兼容在线 LLM 接口）
 
         Args:

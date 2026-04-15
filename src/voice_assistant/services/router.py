@@ -5,6 +5,7 @@
 """
 import json
 import logging
+from typing import Optional
 
 import requests
 
@@ -28,7 +29,7 @@ _INTENT_SYSTEM_PROMPT = """你是一个意图分类器。根据用户输入判�
 {{"intent_type": "computer_control", "confidence": 0.9}}"""
 
 
-def llm_classify_intent(user_text: str) -> Intent | None:
+def llm_classify_intent(user_text: str) -> Optional[Intent]:
     """使用云端 LLM 进行意图分类
 
     Args:
@@ -138,6 +139,19 @@ def simple_classify_intent(user_text: str) -> Intent:
     Returns:
         Intent 对象
     """
+    # 输入验证
+    if not user_text or not isinstance(user_text, str):
+        return Intent(
+            intent_type=IntentType.ORDINARY_CHAT,
+            original_text="",
+            confidence=0.0
+        )
+
+    # 长度限制
+    if len(user_text) > 1000:
+        user_text = user_text[:1000]
+        logger.warning("用户输入超过限制，已截断")
+
     result = llm_classify_intent(user_text)
     if result is not None and result.confidence >= 0.3:
         return result
@@ -158,7 +172,7 @@ class CommandRouter:
         """
         self.executors = executors
 
-    def route(self, intent: Intent, context: dict | None = None) -> dict:
+    def route(self, intent: Intent, context: Optional[dict] = None) -> dict:
         """
         根据意图路由到对应的执行器
 
@@ -178,7 +192,7 @@ class CommandRouter:
         logger.warning(f"未匹配的意图类型：{intent.intent_type}")
         return {"success": True, "response": "抱歉，我没有理解您的意思。"}
 
-    def _build_kwargs(self, intent: Intent, context: dict | None) -> dict:
+    def _build_kwargs(self, intent: Intent, context: Optional[dict]) -> dict:
         """根据意图类型构建执行参数"""
         kwargs = {'user_text': intent.original_text}
 

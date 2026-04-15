@@ -21,9 +21,9 @@ asr:
     model_path: null  # null=自动下载，或指定本地模型路径
     device: "cpu"     # "cpu" 或 "cuda"
     vad_threshold: 0.5
-  # 热词配置
+  # 热词配置（需要阿里云付费配额，免费配额已超出）
   hotwords:
-    enabled: true
+    enabled: false
     config_file: "config/hotwords.json"
     vocabulary_id: null  # 运行时自动创建/更新
 

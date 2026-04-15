@@ -4,6 +4,7 @@ Open Interpreter 执行器
 """
 import logging
 import os
+from typing import Optional
 
 # 禁用 litellm 远程 cost map 获取（避免 SSL 警告）
 os.environ["LITELLM_DROP_PARAMS"] = "true"
@@ -40,6 +41,9 @@ class InterpreterExecutor:
                 # 配置 interpreter
                 interpreter.auto_run = self.auto_run
                 interpreter.verbose = self.verbose
+
+                # 限制循环次数，防止无限重试（最多3次代码执行）
+                interpreter.max_loops = 3
 
                 # 配置 LLM
                 llm_cfg = config.llm
@@ -151,7 +155,7 @@ class InterpreterExecutor:
 
 
 # 全局实例（可选）
-_executor: InterpreterExecutor | None = None
+_executor: Optional[InterpreterExecutor] = None
 
 
 def get_executor(auto_run: bool = True, verbose: bool = False) -> InterpreterExecutor:

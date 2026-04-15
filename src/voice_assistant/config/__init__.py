@@ -6,6 +6,7 @@ import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 import yaml
 from dotenv import load_dotenv
@@ -21,14 +22,14 @@ class HotwordsConfig:
     """热词配置"""
     enabled: bool
     config_file: str
-    vocabulary_id: str | None
+    vocabulary_id: Optional[str]
 
 
 @dataclass(frozen=True)
 class LocalASRConfig:
     """本地 FunASR 配置"""
     enabled: bool
-    model_path: str | None
+    model_path: Optional[str]
     device: str
     vad_threshold: float
 
@@ -47,7 +48,7 @@ class ASRConfig:
     local: LocalASRConfig
 
 
-@dataclass(frozen=True)
+@dataclass
 class LLMConfig:
     """LLM 配置"""
     model: str
@@ -57,7 +58,7 @@ class LLMConfig:
     temperature: float
 
 
-@dataclass(frozen=True)
+@dataclass
 class AudioConfig:
     """音频配置"""
     sample_rate: int
@@ -101,7 +102,7 @@ class LoggingConfig:
     format: str
 
 
-@dataclass(frozen=True)
+@dataclass
 class AppConfig:
     """应用配置"""
     name: str

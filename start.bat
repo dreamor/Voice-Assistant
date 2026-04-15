@@ -30,6 +30,7 @@ exit /b 0
 echo ================================================
 echo   Voice Assistant - Web UI
 echo ================================================
+call :kill_port_8000
 call :setup
 .venv\Scripts\python.exe -m voice_assistant --web
 exit /b
@@ -38,6 +39,7 @@ exit /b
 echo ================================================
 echo   Voice Assistant - Both
 echo ================================================
+call :kill_port_8000
 call :setup
 start "" .venv\Scripts\python.exe -m voice_assistant --web
 .venv\Scripts\python.exe -m voice_assistant
@@ -51,27 +53,50 @@ call :setup
 .venv\Scripts\python.exe -m voice_assistant
 exit /b
 
+:kill_port_8000
+echo [INFO] Checking port 8000...
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr :8000 ^| findstr LISTENING') do (
+    echo [INFO] Killing process on port 8000 (PID: %%a)
+    taskkill /F /PID %%a >nul 2>&1
+)
+exit /b
+
 :setup
 echo.
 where uv 2>nul
 if errorlevel 1 (
     echo [INFO] Installing uv...
     powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+    if errorlevel 1 (
+        echo [ERROR] Failed to install uv. Please install manually from https://astral.sh/uv
+        exit /b 1
+    )
 )
 
 if not exist ".venv" (
     echo [INFO] Creating venv...
-    uv venv --python 3.12
+    call uv venv .venv --python 3.12
+    if errorlevel 1 (
+        echo [ERROR] Failed to create venv
+        exit /b 1
+    )
 )
 
 where ffmpeg 2>nul
 if errorlevel 1 (
-    echo [INFO] Installing ffmpeg...
-    winget install ffmpeg -e --accept-source-urls --accept-package-agreements >nul 2>&1
+    echo [INFO] Trying to install ffmpeg...
+    winget install ffmpeg --exact --id FFmpeg.FFmpeg --accept-source-urls --accept-package-agreements >nul 2>&1
+    if errorlevel 1 (
+        echo [WARNING] Failed to install ffmpeg via winget.
+        echo [WARNING] Please install ffmpeg manually from https://ffmpeg.org/download.html
+    )
 )
 
 echo [INFO] Installing deps...
-uv pip install -e ".[dev,local-asr]" 2>nul
+call .venv\Scripts\python.exe -m pip install -e ".[dev,local-asr]" 2>nul
+if errorlevel 1 (
+    echo [WARNING] Some dependencies may have failed to install.
+)
 
 if not exist ".env" (
     if exist ".env.example" copy .env.example .env >nul

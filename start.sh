@@ -30,7 +30,16 @@ esac
 echo "================================"
 echo "  Voice Assistant"
 echo "================================"
-echo.
+echo ""
+
+# Kill existing process on port 8000
+kill_port_8000() {
+    if lsof -i :8000 &>/dev/null; then
+        echo "[INFO] Port 8000 in use, killing existing process..."
+        lsof -ti :8000 | xargs kill -9 2>/dev/null || true
+        sleep 1
+    fi
+}
 
 # Check uv
 if ! command -v uv &> /dev/null; then
@@ -64,15 +73,17 @@ if [ ! -f ".env" ] && [ -f ".env.example" ]; then
 fi
 
 echo "[INFO] Ready"
-echo.
+echo ""
 
 # Launch
 case "$MODE" in
     web)
+        kill_port_8000
         echo "Starting Web UI..."
         .venv/bin/python -m voice_assistant --web
         ;;
     both)
+        kill_port_8000
         echo "Starting both modes..."
         .venv/bin/python -m voice_assistant --web &
         .venv/bin/python -m voice_assistant

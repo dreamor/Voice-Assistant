@@ -22,13 +22,17 @@ import logging
 import os
 import sqlite3
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+from collections import defaultdict
+from datetime import datetime, timedelta
+import time
 
 import numpy as np
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
@@ -105,6 +109,12 @@ async def root():
     return FileResponse("web_static/index.html")
 
 
+@app.get("/favicon.ico")
+async def favicon():
+    """favicon"""
+    return FileResponse("web_static/favicon.ico")
+
+
 @app.get("/api/config")
 async def get_config():
     """获取当前配置"""
@@ -129,6 +139,11 @@ async def get_config():
 @app.post("/api/config")
 async def update_config(new_config: dict):
     """更新配置（运行时生效，不保存到文件）"""
+    # 输入验证
+    valid, error_msg = validate_config(new_config)
+    if not valid:
+        raise HTTPException(status_code=400, detail=error_msg)
+
     try:
         if "llm" in new_config:
             llm_cfg = new_config["llm"]
@@ -290,9 +305,85 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+class RateLimiter:
+    """简单的速率限制器"""
+
+    def __init__(self, max_requests: int = 30, window_seconds: int = 60):
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+        self.requests: dict[str, list[float]] = defaultdict(list)
+
+    def check(self, client_id: str) -> bool:
+        """检查是否超过限制"""
+        now = time.time()
+        # 清理过期记录
+        self.requests[client_id] = [
+            t for t in self.requests[client_id]
+            if now - t < self.window_seconds
+        ]
+
+        if len(self.requests[client_id]) >= self.max_requests:
+            return False
+
+        self.requests[client_id].append(now)
+        return True
+
+
+# 速率限制器实例
+rate_limiter = RateLimiter(max_requests=30, window_seconds=60)
+
+
+# 配置验证 schema
+VALID_LLM_MODELS = [
+    "kimi-k2.5", "qwen-turbo", "qwen-plus", "qwen-max",
+    "qwen-long", "llama3.1-8b-instruct", "qwen2.5-7b-instruct"
+]
+
+VALID_TTS_VOICES = [
+    "zh-CN-XiaoxiaoNeural", "zh-CN-YunxiNeural", "zh-CN-YunyangNeural",
+    "zh-CN-XiaoyiNeural", "zh-CN-YunjieNeural"
+]
+
+def validate_config(new_config: dict) -> tuple[bool, str]:
+    """验证配置输入"""
+    if "llm" in new_config:
+        llm = new_config["llm"]
+        if "model" in llm and llm["model"] not in VALID_LLM_MODELS:
+            return False, f"无效的模型: {llm['model']}"
+        if "temperature" in llm:
+            temp = llm["temperature"]
+            if not isinstance(temp, (int, float)) or temp < 0 or temp > 2:
+                return False, "temperature 必须在 0-2 之间"
+        if "max_tokens" in llm:
+            tokens = llm["max_tokens"]
+            if not isinstance(tokens, int) or tokens < 1 or tokens > 10000:
+                return False, "max_tokens 必须在 1-10000 之间"
+
+    if "audio" in new_config:
+        audio = new_config["audio"]
+        if "edge_tts_voice" in audio and audio["edge_tts_voice"] not in VALID_TTS_VOICES:
+            return False, f"无效的 TTS 音色: {audio['edge_tts_voice']}"
+
+    if "asr" in new_config:
+        asr = new_config["asr"]
+        if "use_local" in asr and not isinstance(asr["use_local"], bool):
+            return False, "use_local 必须是布尔值"
+
+    return True, ""
+
+
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
     """WebSocket 端点 - 处理实时通信"""
+    # 速率限制检查
+    if not rate_limiter.check(client_id):
+        await websocket.send_json({
+            "type": "error",
+            "message": "请求过于频繁，请稍后再试"
+        })
+        await websocket.close()
+        return
+
     await manager.connect(websocket, client_id)
 
     conversation_id = None
@@ -329,10 +420,36 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 audio_base64 = data.get("data", "")
                 audio_bytes = base64.b64decode(audio_base64)
 
-                # 保存临时音频文件
-                temp_path = f"/tmp/va_audio_{client_id}.wav"
-                with open(temp_path, "wb") as f:
+                # 获取音频格式
+                audio_format = data.get("format", "audio/wav")
+                logger.info(f"[WebUI] 收到音频数据: {len(audio_bytes)} bytes, 格式: {audio_format}")
+
+                # 根据格式保存临时文件
+                if "webm" in audio_format or "ogg" in audio_format:
+                    temp_input = f"/tmp/va_audio_{client_id}.webm"
+                    temp_wav = f"/tmp/va_audio_{client_id}_converted.wav"
+                else:
+                    temp_input = f"/tmp/va_audio_{client_id}.wav"
+                    temp_wav = temp_input
+
+                with open(temp_input, "wb") as f:
                     f.write(audio_bytes)
+
+                # 如果不是 wav 格式，转换为 wav
+                final_audio_path = temp_input
+                if temp_input != temp_wav:
+                    try:
+                        import subprocess
+                        subprocess.run([
+                            'ffmpeg', '-i', temp_input, '-ar', '16000', '-ac', '1',
+                            '-y', temp_wav
+                        ], check=True, capture_output=True)
+                        final_audio_path = temp_wav
+                        logger.info(f"[WebUI] 音频转换完成: {temp_wav}")
+                    except Exception as e:
+                        logger.error(f"[WebUI] 音频转换失败: {e}")
+                        # 转换失败时尝试直接使用原文件
+                        final_audio_path = temp_input
 
                 # 语音识别
                 await manager.send_message(client_id, {"type": "asr_processing"})
@@ -343,10 +460,9 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                         if asr_client is None:
                             asr_client = FunASRClient()
                         # 在线程池中运行同步的识别函数
-                        import concurrent.futures
                         loop = asyncio.get_event_loop()
                         with concurrent.futures.ThreadPoolExecutor() as pool:
-                            text = await loop.run_in_executor(pool, asr_client.recognize, temp_path)
+                            text = await loop.run_in_executor(pool, asr_client.recognize, final_audio_path)
                     else:
                         # 使用云端 ASR
                         if cloud_asr is None:
@@ -355,25 +471,19 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                                 model=config.asr.model
                             )
                         # 读取音频文件为字节
-                        with open(temp_path, 'rb') as f:
+                        with open(final_audio_path, 'rb') as f:
                             audio_bytes = f.read()
                         # 在线程池中运行同步的识别函数
-                        import concurrent.futures
                         loop = asyncio.get_event_loop()
                         with concurrent.futures.ThreadPoolExecutor() as pool:
                             text = await loop.run_in_executor(pool, cloud_asr.recognize_from_bytes, audio_bytes)
 
                     if text:
+                        # 发送识别结果，让用户确认或修改后再发送
                         await manager.send_message(client_id, {
-                            "type": "user_message",
+                            "type": "asr_result",
                             "content": text
                         })
-
-                        # 保存用户消息
-                        save_message(conversation_id, "user", text)
-
-                        # 调用 LLM
-                        await process_llm_response(client_id, conversation_id, text)
                     else:
                         await manager.send_message(client_id, {
                             "type": "error",
@@ -388,8 +498,10 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                     })
 
                 # 清理临时文件
-                if os.path.exists(temp_path):
-                    os.remove(temp_path)
+                if os.path.exists(temp_input):
+                    os.remove(temp_input)
+                if temp_input != temp_wav and os.path.exists(temp_wav):
+                    os.remove(temp_wav)
 
             elif msg_type == "text_message":
                 # 处理文本消息
@@ -404,6 +516,40 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
             elif msg_type == "ping":
                 await manager.send_message(client_id, {"type": "pong"})
 
+            elif msg_type == "replay_tts":
+                # 处理 TTS 重播请求
+                text = data.get("content", "")
+                if text:
+                    await manager.send_message(client_id, {"type": "tts_generating"})
+                    try:
+                        audio_path = f"/tmp/va_tts_replay_{uuid.uuid4()}.mp3"
+                        loop = asyncio.get_event_loop()
+                        with concurrent.futures.ThreadPoolExecutor() as pool:
+                            success = await loop.run_in_executor(pool, synthesize, text, audio_path)
+
+                        if success and os.path.exists(audio_path):
+                            with open(audio_path, "rb") as f:
+                                audio_data = base64.b64encode(f.read()).decode("utf-8")
+                            await manager.send_message(client_id, {
+                                "type": "tts_audio",
+                                "data": audio_data,
+                                "format": "mp3"
+                            })
+                        else:
+                            await manager.send_message(client_id, {
+                                "type": "error",
+                                "message": "语音合成失败"
+                            })
+
+                        if os.path.exists(audio_path):
+                            os.remove(audio_path)
+                    except Exception as e:
+                        logger.error(f"[WebUI] TTS 重播错误: {e}")
+                        await manager.send_message(client_id, {
+                            "type": "error",
+                            "message": f"语音合成失败: {str(e)}"
+                        })
+
     except WebSocketDisconnect:
         manager.disconnect(client_id)
     except Exception as e:
@@ -412,8 +558,12 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
 
 
 async def process_llm_response(client_id: str, conversation_id: str, user_text: str):
-    """处理 LLM 响应"""
+    """处理 LLM 响应，包含意图识别和路由"""
     from voice_assistant.core.ai_client import ask_ai_stream
+    from voice_assistant.services.router import CommandRouter, simple_classify_intent
+    from voice_assistant.executors.computer import ComputerExecutor
+    from voice_assistant.executors.chat import ChatExecutor
+    from voice_assistant.config import config
 
     await manager.send_message(client_id, {"type": "llm_thinking"})
 
@@ -434,19 +584,59 @@ async def process_llm_response(client_id: str, conversation_id: str, user_text: 
             for r in reversed(history_rows)
         ]
 
-        # 流式获取响应
-        full_response = ""
-        import concurrent.futures
-        loop = asyncio.get_event_loop()
+        # 意图识别 + 路由
+        intent = simple_classify_intent(user_text)
+        logger.info(f"[WebUI] Intent: {intent.intent_type.value} (confidence: {intent.confidence})")
 
-        def run_llm():
-            result = ""
-            for chunk in ask_ai_stream(user_text, conversation_history):
-                result = chunk
-            return result
+        # 初始化执行器
+        computer_executor = ComputerExecutor(
+            auto_run=config.interpreter.auto_run,
+            verbose=config.interpreter.verbose
+        )
+        chat_executor = ChatExecutor(max_response_length=200)
+        router = CommandRouter(executors=[computer_executor, chat_executor])
 
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            full_response = await loop.run_in_executor(pool, run_llm)
+        # 根据意图路由
+        context = {'history': conversation_history}
+
+        # 如果是 computer 意图，显示执行中状态
+        if intent.intent_type.value == 'computer':
+            await manager.send_message(client_id, {
+                "type": "executing",
+                "message": "正在执行操作..."
+            })
+
+        # 执行路由，带超时保护（60秒超时）
+        try:
+            result = await asyncio.wait_for(
+                asyncio.to_thread(router.route, intent, context),
+                timeout=60.0
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"[WebUI] 命令执行超时（60秒）")
+            await manager.send_message(client_id, {
+                "type": "execution_complete",
+                "message": "操作执行超时"
+            })
+            await manager.send_message(client_id, {
+                "type": "error",
+                "message": "执行超时，请重试或尝试更简单的操作"
+            })
+            return
+
+        full_response = result.get('response', '抱歉，我没有理解你的请求')
+
+        # 如果有执行结果，也一并返回
+        execution_output = result.get('execution_output', '')
+        if execution_output:
+            full_response = f"{full_response}\n\n执行结果:\n{execution_output}"
+
+        # 发送执行完成状态
+        if intent.intent_type.value == 'computer':
+            await manager.send_message(client_id, {
+                "type": "execution_complete",
+                "message": "操作执行完成"
+            })
 
         # 发送完整响应
         await manager.send_message(client_id, {
@@ -467,7 +657,11 @@ async def process_llm_response(client_id: str, conversation_id: str, user_text: 
         await generate_and_send_tts(client_id, conversation_id, full_response)
 
     except Exception as e:
-        logger.error(f"[WebUI] LLM 错误: {e}")
+        logger.error(f"[WebUI] 处理错误: {e}")
+        await manager.send_message(client_id, {
+            "type": "error",
+            "message": f"处理请求失败: {str(e)}"
+        })
         await manager.send_message(client_id, {
             "type": "error",
             "message": f"AI 响应失败: {str(e)}"

@@ -67,7 +67,7 @@ asr:
 | `language_hints` | 语言提示 | ["zh", "en"] |
 | `disfluency_removal_enabled` | 过滤语气词 | true |
 | `max_sentence_silence` | 句间停顿容忍(ms) | 1200 |
-| `hotwords.enabled` | 启用热词 | true |
+| `hotwords.enabled` | 启用热词 | false (阿里云免费配额已用完) |
 | `hotwords.config_file` | 热词配置文件 | config/hotwords.json |
 
 **可用模型：**

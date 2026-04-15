@@ -2,6 +2,14 @@
  * Voice Assistant Web UI - 前端逻辑
  */
 
+// 生产环境禁用调试日志
+const logger = {
+    debug: () => {},
+    info: () => {},
+    warn: () => {},
+    error: (...args) => logger.error('[WebUI]', ...args)
+};
+
 // 全局状态
 const state = {
     ws: null,
@@ -45,7 +53,7 @@ const elements = {
 
 // 初始化
 async function init() {
-    console.log('[WebUI] 初始化...');
+    logger.info('[WebUI] 初始化...');
 
     // 加载配置
     await loadConfig();
@@ -77,7 +85,7 @@ function connectWebSocket() {
     state.ws = new WebSocket(wsUrl);
 
     state.ws.onopen = () => {
-        console.log('[WebUI] WebSocket 连接成功');
+        logger.info('[WebUI] WebSocket 连接成功');
     };
 
     state.ws.onmessage = (event) => {
@@ -86,18 +94,18 @@ function connectWebSocket() {
     };
 
     state.ws.onclose = () => {
-        console.log('[WebUI] WebSocket 断开，5秒后重连...');
+        logger.info('[WebUI] WebSocket 断开，5秒后重连...');
         setTimeout(connectWebSocket, 5000);
     };
 
     state.ws.onerror = (error) => {
-        console.error('[WebUI] WebSocket 错误:', error);
+        logger.error('[WebUI] WebSocket 错误:', error);
     };
 }
 
 // 处理 WebSocket 消息
 function handleWebSocketMessage(data) {
-    console.log('[WebUI] 收到消息:', data.type);
+    logger.info('[WebUI] 收到消息:', data.type);
 
     switch (data.type) {
         case 'conversation_started':
@@ -117,8 +125,25 @@ function handleWebSocketMessage(data) {
             showThinking('正在识别语音...');
             break;
 
+        case 'asr_result':
+            // 语音识别完成，将结果填入输入框，让用户确认
+            hideThinking();
+            elements.textInput.value = data.content;
+            elements.textInput.focus();
+            // 可选：自动发送（如果不需要用户确认，可以取消注释下面这行）
+            // setTimeout(() => sendMessage(), 500);
+            break;
+
         case 'llm_thinking':
             showThinking('AI 正在思考...');
+            break;
+
+        case 'executing':
+            showThinking(data.message || '正在执行操作...');
+            break;
+
+        case 'execution_complete':
+            hideThinking();
             break;
 
         case 'llm_stream':
@@ -164,7 +189,7 @@ async function loadConfig() {
         elements.settingTtsVoice.value = state.config.audio.edge_tts_voice || 'zh-CN-XiaoxiaoNeural';
         elements.settingUseLocalAsr.checked = state.config.asr.use_local !== false;
     } catch (error) {
-        console.error('[WebUI] 加载配置失败:', error);
+        logger.error('[WebUI] 加载配置失败:', error);
     }
 }
 
@@ -175,13 +200,20 @@ async function loadModels() {
         const data = await response.json();
         state.models = data.models || [];
 
-        // 更新模型选择器
-        elements.modelSelect.innerHTML = state.models.map(model =>
-            `<option value="${model}" ${model === state.config.llm.model ? 'selected' : ''}>${model}</option>`
-        ).join('');
+        // 更新设置面板中的模型 datalist
+        updateModelDatalist();
     } catch (error) {
-        console.error('[WebUI] 加载模型列表失败:', error);
-        elements.modelSelect.innerHTML = `<option value="${state.config.llm.model}">${state.config.llm.model}</option>`;
+        logger.error('[WebUI] 加载模型列表失败:', error);
+    }
+}
+
+// 更新模型 datalist
+function updateModelDatalist() {
+    const datalist = document.getElementById('model-list');
+    if (datalist) {
+        datalist.innerHTML = state.models.map(model =>
+            `<option value="${model}">${model}</option>`
+        ).join('');
     }
 }
 
@@ -224,7 +256,7 @@ async function loadHistory() {
             });
         });
     } catch (error) {
-        console.error('[WebUI] 加载历史记录失败:', error);
+        logger.error('[WebUI] 加载历史记录失败:', error);
     }
 }
 
@@ -261,7 +293,7 @@ async function loadConversation(id) {
 
         scrollToBottom();
     } catch (error) {
-        console.error('[WebUI] 加载对话失败:', error);
+        logger.error('[WebUI] 加载对话失败:', error);
     }
 }
 
@@ -284,7 +316,7 @@ async function loadConversationMessages(id) {
             scrollToBottom();
         }
     } catch (error) {
-        console.error('[WebUI] 加载消息失败:', error);
+        logger.error('[WebUI] 加载消息失败:', error);
     }
 }
 
@@ -305,7 +337,7 @@ async function deleteConversation(id) {
             loadHistory();
         }
     } catch (error) {
-        console.error('[WebUI] 删除对话失败:', error);
+        logger.error('[WebUI] 删除对话失败:', error);
     }
 }
 
@@ -494,7 +526,7 @@ function playAudio(base64Data) {
     const audioSrc = `data:audio/mp3;base64,${base64Data}`;
     elements.audioPlayer.src = audioSrc;
     elements.audioPlayer.play().catch(error => {
-        console.error('[WebUI] 播放音频失败:', error);
+        logger.error('[WebUI] 播放音频失败:', error);
     });
 }
 
@@ -522,30 +554,63 @@ function sendMessage() {
     elements.textInput.value = '';
     elements.textInput.style.height = 'auto';
 
-    // 如果没有对话，创建新对话
+    // 如果没有对话，创建新对话并等待响应
     if (!state.conversationId) {
         state.ws.send(JSON.stringify({
             type: 'start_conversation',
             title: text.slice(0, 20)
         }));
+        // 等待 conversation_started 事件后再发送消息
+        // 使用 setTimeout 延迟发送，确保 WebSocket 消息顺序
+        setTimeout(() => {
+            sendTextMessage(text);
+        }, 100);
+    } else {
+        sendTextMessage(text);
     }
-
-    // 发送消息
-    state.ws.send(JSON.stringify({
-        type: 'text_message',
-        content: text
-    }));
 
     // 显示用户消息
     addUserMessage(text);
+}
+
+// 发送文本消息（内部函数）
+function sendTextMessage(text) {
+    if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+        state.ws.send(JSON.stringify({
+            type: 'text_message',
+            content: text
+        }));
+    }
 }
 
 // 开始录音
 async function startRecording() {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        state.mediaRecorder = new MediaRecorder(stream);
+
+        // 检查支持的 MIME 类型，优先使用 wav 格式
+        let mimeType = 'audio/wav';
+        if (!MediaRecorder.isTypeSupported('audio/wav')) {
+            // 尝试其他常见格式
+            const types = [
+                'audio/webm;codecs=opus',
+                'audio/webm',
+                'audio/ogg;codecs=opus',
+                'audio/ogg'
+            ];
+            for (const t of types) {
+                if (MediaRecorder.isTypeSupported(t)) {
+                    mimeType = t;
+                    break;
+                }
+            }
+        }
+
+        logger.info('[WebUI] 使用音频格式:', mimeType);
+
+        state.mediaRecorder = new MediaRecorder(stream, { mimeType });
         state.audioChunks = [];
+        state.mimeType = mimeType;
 
         state.mediaRecorder.ondataavailable = (event) => {
             if (event.data.size > 0) {
@@ -554,8 +619,10 @@ async function startRecording() {
         };
 
         state.mediaRecorder.onstop = async () => {
-            const audioBlob = new Blob(state.audioChunks, { type: 'audio/wav' });
+            const audioBlob = new Blob(state.audioChunks, { type: state.mimeType || 'audio/webm' });
             const base64Audio = await blobToBase64(audioBlob);
+
+            logger.info('[WebUI] 录音完成, 大小:', audioBlob.size, 'bytes, 格式:', state.mimeType);
 
             // 如果没有对话，创建新对话
             if (!state.conversationId) {
@@ -565,17 +632,19 @@ async function startRecording() {
                 }));
             }
 
-            // 发送音频数据
+            // 发送音频数据（包含实际格式信息）
             state.ws.send(JSON.stringify({
                 type: 'audio_data',
-                data: base64Audio
+                data: base64Audio,
+                format: state.mimeType || 'audio/webm'
             }));
 
             // 停止所有音轨
             stream.getTracks().forEach(track => track.stop());
         };
 
-        state.mediaRecorder.start();
+        // 每 100ms 收集一次数据，确保录音不会丢失
+        state.mediaRecorder.start(100);
         state.isRecording = true;
 
         // 更新 UI
@@ -583,7 +652,7 @@ async function startRecording() {
         elements.recordingIndicator.classList.add('active');
 
     } catch (error) {
-        console.error('[WebUI] 录音失败:', error);
+        logger.error('[WebUI] 录音失败:', error);
         showError('无法访问麦克风，请检查权限设置');
     }
 }
@@ -699,7 +768,7 @@ function bindEvents() {
                 showError('保存设置失败: ' + (data.error || '未知错误'));
             }
         } catch (error) {
-            console.error('[WebUI] 保存设置失败:', error);
+            logger.error('[WebUI] 保存设置失败:', error);
             showError('保存设置失败');
         }
     });
@@ -718,20 +787,31 @@ function bindEvents() {
         });
     });
 
-    // 模型选择
-    elements.modelSelect.addEventListener('change', async () => {
-        const model = elements.modelSelect.value;
-        try {
-            await fetch('/api/config', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ llm: { model } })
-            });
-            state.config.llm.model = model;
-        } catch (error) {
-            console.error('[WebUI] 切换模型失败:', error);
-        }
-    });
+    // 设置面板中的模型选择（带搜索的 datalist）
+    if (elements.settingModel) {
+        // 阻止在设置面板中按回车键触发发送消息
+        elements.settingModel.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        });
+
+        elements.settingModel.addEventListener('change', async () => {
+            const model = elements.settingModel.value;
+            if (!model) return;
+            try {
+                await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ llm: { model } })
+                });
+                state.config.llm.model = model;
+            } catch (error) {
+                logger.error('[WebUI] 切换模型失败:', error);
+            }
+        });
+    }
 }
 
 // 自动调整输入框高度

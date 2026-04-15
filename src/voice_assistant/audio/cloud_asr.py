@@ -59,7 +59,11 @@ class HotwordsManager:
             logger.error(f"热词模块导入失败，请检查 dashscope 版本: {e}")
             return None
         except Exception as e:
-            logger.error(f"热词列表创建异常: {type(e).__name__}: {e}")
+            error_str = str(e)
+            if "429" in error_str or "Throttling" in error_str or "quota" in error_str.lower():
+                logger.warning(f"热词服务配额已用完（免费限额），将使用默认识别。如需热词功能，请升级阿里云付费套餐。")
+            else:
+                logger.error(f"热词列表创建异常: {type(e).__name__}: {e}")
             return None
 
     def load_hotwords_from_file(self, config_file: str) -> list:

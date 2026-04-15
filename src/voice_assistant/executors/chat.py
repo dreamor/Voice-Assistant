@@ -2,7 +2,7 @@
 对话执行器 - 处理普通聊天和问答
 """
 import logging
-from typing import Any
+from typing import Any, Optional
 
 from voice_assistant.executors.base import BaseExecutor
 from voice_assistant.model.intent import IntentType
@@ -24,8 +24,8 @@ class ChatExecutor(BaseExecutor):
         ]
 
     def execute(self, user_text: str,
-                conversation_history: list | None = None,
-                direct_response: str | None = None,
+                conversation_history: Optional[list] = None,
+                direct_response: Optional[str] = None,
                 **kwargs) -> dict[str, Any]:
         """
         执行对话

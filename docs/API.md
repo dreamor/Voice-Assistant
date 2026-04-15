@@ -123,38 +123,63 @@ Web UI 提供 REST API 和 WebSocket 接口。
 
 ### WebSocket API
 
-#### /ws/chat
+#### /ws/{client_id}
 
 实时聊天 WebSocket 连接。
 
 **连接:**
 ```javascript
-const ws = new WebSocket('ws://127.0.0.1:8000/ws/chat');
+const clientId = 'client_' + Math.random().toString(36).substr(2, 9);
+const ws = new WebSocket(`ws://127.0.0.1:8000/ws/${clientId}`);
 ```
 
 **客户端 → 服务器消息:**
 
-1. **文本消息:**
+1. **开始对话:**
 ```json
 {
-  "type": "text",
+  "type": "start_conversation",
+  "title": "新对话"
+}
+```
+
+2. **加载对话:**
+```json
+{
+  "type": "load_conversation",
+  "conversation_id": "uuid-string"
+}
+```
+
+3. **文本消息:**
+```json
+{
+  "type": "text_message",
   "content": "讲个笑话"
 }
 ```
 
-2. **音频消息:**
+4. **音频数据:**
 ```json
 {
-  "type": "audio",
-  "audio": "base64_encoded_audio_data...",
-  "format": "webm"
+  "type": "audio_data",
+  "data": "base64_encoded_audio_data...",
+  "format": "audio/webm"
 }
 ```
 
-3. **设置更新:**
+5. **TTS 重播:**
 ```json
 {
-  "type": "settings",
+  "type": "replay_tts",
+  "content": "要重播的文本"
+}
+```
+
+6. **设置更新:**
+```json
+{
+  "type": "update_settings",
   "settings": {
     "model": "qwen-plus",
     "temperature": 0.8,
@@ -166,38 +191,97 @@ const ws = new WebSocket('ws://127.0.0.1:8000/ws/chat');
 
 **服务器 → 客户端消息:**
 
-1. **状态更新:**
+1. **对话开始:**
 ```json
 {
-  "type": "status",
-  "status": "thinking",
-  "message": "AI 思考中..."
+  "type": "conversation_started",
+  "conversation_id": "uuid-string"
 }
 ```
 
-2. **流式文本响应:**
+2. **语音识别中:**
 ```json
 {
-  "type": "stream",
-  "content": "给你讲个短的哈：",
-  "full_content": "给你讲个短的哈："
+  "type": "asr_processing"
 }
 ```
 
-3. **完整响应:**
+3. **语音识别结果:**
 ```json
 {
-  "type": "response",
-  "content": "给你讲个短的哈：为什么企鹅的肚子是白的...",
-  "audio": "base64_encoded_mp3_audio..."
+  "type": "asr_result",
+  "content": "识别到的文本"
 }
 ```
 
-4. **错误消息:**
+4. **用户消息:**
+```json
+{
+  "type": "user_message",
+  "content": "用户输入的文本"
+}
+```
+
+5. **AI 思考中:**
+```json
+{
+  "type": "llm_thinking",
+  "message": "AI 正在思考..."
+}
+```
+
+6. **执行中（计算机控制）:**
+```json
+{
+  "type": "executing",
+  "message": "正在执行操作..."
+}
+```
+
+7. **执行完成:**
+```json
+{
+  "type": "execution_complete",
+  "message": "操作执行完成"
+}
+```
+
+8. **流式文本响应:**
+```json
+{
+  "type": "llm_stream",
+  "content": "流式输出的文本片段"
+}
+```
+
+9. **响应完成:**
+```json
+{
+  "type": "llm_complete",
+  "content": "完整的响应文本"
+}
+```
+
+10. **TTS 生成中:**
+```json
+{
+  "type": "tts_generating"
+}
+```
+
+11. **TTS 音频:**
+```json
+{
+  "type": "tts_audio",
+  "data": "base64_encoded_mp3_audio..."
+}
+```
+
+12. **错误消息:**
 ```json
 {
   "type": "error",
-  "message": "语音识别失败"
+  "message": "错误描述"
 }
 ```
 
