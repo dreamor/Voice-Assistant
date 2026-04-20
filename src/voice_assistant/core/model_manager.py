@@ -34,7 +34,14 @@ NON_SWITCHABLE_ERROR_MESSAGES = [
 ]
 
 # 备用模型优先选用的关键词（按优先级排序）
-FALLBACK_MODEL_PREFERENCES = ["qwen-plus", "qwen-turbo", "qwen-max", "qwen-long", "qwen"]
+# 注意：这些关键词用于从可用模型列表中筛选，实际模型名称格式为 qwen-plus-latest 等
+FALLBACK_MODEL_PREFERENCES = [
+    "qwen-plus",     # 通义千问增强版，性价比高
+    "qwen-turbo",    # 通义千问极速版，速度快
+    "qwen-max",      # 通义千问旗舰版，能力强但贵
+    "qwen2.5",       # 通义千问 2.5 系列
+    "qwen-long",     # 长上下文版本
+]
 
 
 @dataclass

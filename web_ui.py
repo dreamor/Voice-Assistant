@@ -461,7 +461,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                             asr_client = FunASRClient()
                         # 在线程池中运行同步的识别函数
                         loop = asyncio.get_event_loop()
-                        with concurrent.futures.ThreadPoolExecutor() as pool:
+                        with ThreadPoolExecutor() as pool:
                             text = await loop.run_in_executor(pool, asr_client.recognize, final_audio_path)
                     else:
                         # 使用云端 ASR
@@ -475,7 +475,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                             audio_bytes = f.read()
                         # 在线程池中运行同步的识别函数
                         loop = asyncio.get_event_loop()
-                        with concurrent.futures.ThreadPoolExecutor() as pool:
+                        with ThreadPoolExecutor() as pool:
                             text = await loop.run_in_executor(pool, cloud_asr.recognize_from_bytes, audio_bytes)
 
                     if text:
@@ -524,7 +524,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                     try:
                         audio_path = f"/tmp/va_tts_replay_{uuid.uuid4()}.mp3"
                         loop = asyncio.get_event_loop()
-                        with concurrent.futures.ThreadPoolExecutor() as pool:
+                        with ThreadPoolExecutor() as pool:
                             success = await loop.run_in_executor(pool, synthesize, text, audio_path)
 
                         if success and os.path.exists(audio_path):
@@ -677,9 +677,8 @@ async def generate_and_send_tts(client_id: str, conversation_id: str, text: str)
         audio_path = f"/tmp/va_tts_{uuid.uuid4()}.mp3"
 
         # 使用线程池运行同步的 TTS 函数
-        import concurrent.futures
         loop = asyncio.get_event_loop()
-        with concurrent.futures.ThreadPoolExecutor() as pool:
+        with ThreadPoolExecutor() as pool:
             success = await loop.run_in_executor(pool, synthesize, text, audio_path)
 
         if not success or not os.path.exists(audio_path):

@@ -256,6 +256,11 @@ def ask_online_ai_stream(text, conversation_history=None):
                     model_manager.reset_to_primary()
                     return
                 else:
+                    # 空响应，尝试切换备用模型
+                    logger.warning(f"[AI] 模型 {current_model.name} 返回空响应，尝试备用模型")
+                    if model_manager.get_queue().has_fallback():
+                        model_manager.switch_to_next_model()
+                        continue
                     yield "抱歉，没有得到有效回复。"
                     return
 
