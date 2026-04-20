@@ -129,21 +129,17 @@ python run.py
 | 模式 | 模型 | 说明 |
 |------|------|------|
 | 在线 | kimi-k2.5 | 需要网络，API 调用 |
-| 本地 | gemma-4-E2B-it | 离线运行，需下载模型 |
 
 ## 本地模型设置
 
 ### 下载模型
 
-从 HuggingFace 下载 Gemma-4-E2B-it LiteRT-LM 模型（约 2.4GB）：
 
 ```bash
 # 使用 huggingface-cli
-huggingface-cli download litert-community/gemma-4-E2B-it-litert-lm \
   --local-dir ./model_weights
 ```
 
-或手动下载后放置到 `model_weights/gemma-4-E2B-it.litertlm`
 
 ### 启用本地模型
 
@@ -155,7 +151,6 @@ uv pip install -e ".[local-llm]"
 2. 运行时按 `L` 键切换，或修改 `config.yaml`：
 ```yaml
 llm:
-  use_local: true
 ```
 
 ## 交互控制
@@ -200,7 +195,6 @@ llm:
 ### Q: 本地模型加载失败？
 
 - 确认 Python 版本 >= 3.10
-- 确认模型文件存在于 `model_weights/gemma-4-E2B-it.litertlm`
 - 确认已安装 `litert-lm-api-nightly`
 
 ### Q: 电脑操作不执行？

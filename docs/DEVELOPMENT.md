@@ -127,7 +127,6 @@ python run.py
 | 模式 | 模型 | 特点 |
 |------|------|------|
 | 在线 | kimi-k2.5 | 需网络，响应快，能力强 |
-| 本地 | gemma-4-E2B-it | 离线运行，隐私保护 |
 
 ---
 
@@ -214,7 +213,6 @@ voice-assistant/
 │   ├── core/                  # 核心模块
 │   │   ├── __init__.py
 │   │   ├── ai_client.py       # AI对话客户端
-│   │   ├── local_llm.py       # 本地 LLM
 │   │   ├── model_manager.py   # 模型管理器
 │   │   ├── dependencies.py    # 依赖注入
 │   │   └── asr_corrector.py   # ASR 纠错
@@ -345,9 +343,7 @@ for response in ask_ai_stream("你好"):
     print(response, end='')
 
 # 本地模式
-from ai_client import get_local_llm_client
 
-client = get_local_llm_client()
 if client:
     for chunk in client.ask_stream("你好"):
         print(chunk, end='')
@@ -416,8 +412,6 @@ tests/
 │   └── test_validation.py         # 安全验证测试
 ├── test_services/
 │   └── test_router.py             # 路由服务测试
-├── test_local_llm.py              # 本地 LLM 单元测试
-├── test_local_model_integration.py# 本地模型集成测试（4个bug修复）
 └── test_intent_classification.py  # 意图分类测试（LLM + 关键词）
 ```
 
@@ -451,18 +445,15 @@ tests/
 
 ```bash
 # 使用 huggingface-cli
-huggingface-cli download litert-community/gemma-4-E2B-it-litert-lm \
   --local-dir ./model_weights
 
 # 或手动下载
-# https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm
 ```
 
 ### 模型文件位置
 
 ```
 model_weights/
-└── gemma-4-E2B-it.litertlm  # ~2.4GB
 ```
 
 ### 配置本地模型
@@ -471,19 +462,14 @@ model_weights/
 
 ```yaml
 llm:
-  use_local: false  # 设为 true 强制使用本地模式
   local:
-    model_path: "model_weights/gemma-4-E2B-it.litertlm"
-    model_name: "gemma-4-E2B-it"
     system_prompt: "你是一个友好的中文语音助手..."
 ```
 
 ### 测试本地模型
 
 ```python
-from local_llm import LocalLLMClient
 
-with LocalLLMClient("model_weights/gemma-4-E2B-it.litertlm") as client:
     for chunk in client.ask_stream("你好"):
         print(chunk, end='')
 ```
@@ -595,4 +581,3 @@ CMD [".venv/bin/python", "voice_assistant_ai.py"]
 4. **打断功能**: 语音打断助手说话
 5. **多轮对话**: 更复杂的对话管理
 6. **技能插件**: 可扩展的技能系统
-7. **更多本地模型**: 支持其他 LiteRT-LM 兼容模型

@@ -362,14 +362,10 @@ print(result)  # "你好"
 
 ---
 
-## voice_assistant.core.local_llm 模块
 
-### LocalLLMClient 类
 
 ```python
-from voice_assistant.core.local_llm import LocalLLMClient
 
-client = LocalLLMClient(model_path, system_prompt=None)
 ```
 
 #### 构造函数
@@ -379,7 +375,6 @@ def __init__(self, model_path: str, system_prompt: Optional[str] = None)
 ```
 
 **参数:**
-- `model_path` (str): LiteRT-LM 模型文件路径
 - `system_prompt` (str, optional): 系统提示词
 
 ---
@@ -401,7 +396,6 @@ def ask_stream(self, text: str, conversation_history=None) -> Generator[str, Non
 
 **示例:**
 ```python
-with LocalLLMClient("model.litertlm") as client:
     for chunk in client.ask_stream("你好"):
         print(chunk, end='')
 ```
@@ -455,27 +449,20 @@ for response in ask_ai_stream("我叫什么名字", history):
 
 ---
 
-### get_local_llm_client
 
 ```python
-from voice_assistant.core.ai_client import get_local_llm_client
 
-client = get_local_llm_client()
 ```
 
 获取本地 LLM 客户端单例。
 
 **返回:**
-- (LocalLLMClient | None): 本地 LLM 客户端，不可用时返回 None
 
 ---
 
-### close_local_llm_client
 
 ```python
-from voice_assistant.core.ai_client import close_local_llm_client
 
-close_local_llm_client()
 ```
 
 关闭本地 LLM 客户端。
@@ -746,7 +733,6 @@ config.asr.model              # ASR 模型
 config.asr.base_url           # ASR 服务地址
 config.asr.language_hints     # 语言提示
 config.llm.model              # AI 模型（在线）
-config.llm.use_local          # 使用本地模型
 config.llm.local.model_path   # 本地模型路径
 config.llm.max_tokens         # 最大响应长度
 config.audio.sample_rate      # 采样率

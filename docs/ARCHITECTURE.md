@@ -90,7 +90,6 @@
                                      ▼                     ▼
                               ┌──────────────┐    ┌──────────────┐
                               │  本地模型     │    │  在线 API    │
-                              │ (LiteRT-LM)  │    │  (DashScope) │
                               └──────────────┘    └──────────────┘
 ```
 
@@ -112,7 +111,6 @@ AppConfig
 ├── version: str
 ├── asr: ASRConfig
 ├── llm: LLMConfig
-│   ├── use_local: bool
 │   └── local: LocalLLMConfig
 │       └── use_multimodal_audio: bool
 ├── audio: AudioConfig
@@ -214,10 +212,8 @@ print(result["response"])
 
 ### 6. 本地 LLM 模块
 
-**文件**: `local_llm.py`
 
 **职责**:
-- 使用 LiteRT-LM 进行本地推理
 - 提供与在线 LLM 兼容的接口
 - 支持流式输出
 - 管理对话上下文
@@ -339,7 +335,6 @@ with LocalLLMClient("model.litertlm") as client:
         │
         ├── 切换到本地模式
         │   ├── 初始化 LocalLLMClient
-        │   └── 使用 LiteRT-LM 推理
         │
         └── 切换到在线模式
             ├── 关闭 LocalLLMClient
@@ -370,10 +365,7 @@ llm:
   base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
   max_tokens: 2000
   temperature: 0.7
-  use_local: false
   local:
-    model_path: "model_weights/gemma-4-E2B-it.litertlm"
-    model_name: "gemma-4-E2B-it"
 
 interpreter:
   auto_run: true
@@ -481,7 +473,6 @@ Web UI 采用 **FastAPI + WebSocket + Vanilla JS** 架构：
 | 数据库 | SQLite |
 | 语音识别 | 阿里云 DashScope (Paraformer) / FunASR |
 | LLM（在线） | 阿里云百炼 |
-| LLM（本地） | LiteRT-LM + Gemma-4-E2B-it |
 | 语音合成 | Microsoft Edge-TTS |
 | 音频录制 | sounddevice / Web MediaRecorder API |
 | 音频播放 | pygame / Web Audio API |
@@ -505,5 +496,4 @@ Web UI 采用 **FastAPI + WebSocket + Vanilla JS** 架构：
 2. **意图分类器**: 可替换为 LLM 分类或其他 ML 模型
 3. **ASR 引擎**: 可替换为 Whisper 等其他服务
 4. **TTS 引擎**: 可替换为 Azure TTS 等其他服务
-5. **本地模型**: 可替换为其他 LiteRT-LM 支持的模型
 6. **宏命令系统**: 添加 MacroExecutor 支持预设操作序列

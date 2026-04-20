@@ -85,10 +85,7 @@ llm:
   base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
   max_tokens: 2000
   temperature: 0.7
-  use_local: false
   local:
-    model_path: "model_weights/gemma-4-E2B-it.litertlm"
-    model_name: "gemma-4-E2B-it"
     system_prompt: "你是一个友好的中文语音助手，回复要简洁口语化，适合语音播放。"
 ```
 
@@ -98,9 +95,6 @@ llm:
 | `base_url` | LLM 服务地址 | https://dashscope.aliyuncs.com/compatible-mode/v1 |
 | `max_tokens` | 最大响应长度 | 2000 |
 | `temperature` | 创造性程度 | 0.7 |
-| `use_local` | 使用本地模型 | false |
-| `local.model_path` | 本地模型路径 | model_weights/gemma-4-E2B-it.litertlm |
-| `local.model_name` | 本地模型名称 | gemma-4-E2B-it |
 | `local.system_prompt` | 系统提示词 | 友好的中文语音助手 |
 | `local.use_multimodal_audio` | 多模态音频 | false |
 
@@ -116,7 +110,6 @@ llm:
 
 | 模型 | 说明 | 大小 |
 |------|------|------|
-| `gemma-4-E2B-it` | Gemma 4 2B 参数 | ~2.4GB |
 
 ### 音频配置
 
@@ -241,18 +234,15 @@ intent:
 
 ```bash
 # 使用 huggingface-cli
-huggingface-cli download litert-community/gemma-4-E2B-it-litert-lm \
   --local-dir ./model_weights
 ```
 
 或从 HuggingFace 手动下载：
-https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm
 
 ### 模型文件
 
 下载后将模型文件放置到：
 ```
-model_weights/gemma-4-E2B-it.litertlm
 ```
 
 ### 切换模式
@@ -263,7 +253,6 @@ model_weights/gemma-4-E2B-it.litertlm
 **方式 2：配置文件**
 ```yaml
 llm:
-  use_local: true  # 强制使用本地模型
 ```
 
 ---
@@ -302,10 +291,7 @@ llm:
   base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
   max_tokens: 2000
   temperature: 0.7
-  use_local: false
   local:
-    model_path: "model_weights/gemma-4-E2B-it.litertlm"
-    model_name: "gemma-4-E2B-it"
     system_prompt: "你是一个友好的中文语音助手，回复要简洁口语化，适合语音播放。"
     use_multimodal_audio: false  # 直接将音频送给本地模型，跳过 ASR
 

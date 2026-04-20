@@ -20,7 +20,6 @@ voice-assistant/
 │   ├── core/                 # 核心模块
 │   │   ├── __init__.py
 │   │   ├── ai_client.py      # AI对话客户端
-│   │   ├── local_llm.py      # 本地 LLM
 │   │   ├── model_manager.py  # 模型管理器
 │   │   ├── dependencies.py   # 依赖注入
 │   │   └── asr_corrector.py  # ASR 纠错
@@ -58,10 +57,8 @@ voice-assistant/
 | `web_ui` | Web UI 服务（FastAPI + WebSocket） | FastAPI, SQLite |
 | `voice_assistant.audio.cloud_asr` | 阿里云语音识别 | DashScope API |
 | `voice_assistant.audio.funasr_asr` | 本地 FunASR 语音识别 | FunASR |
-| `voice_assistant.core.local_llm` | 本地 LLM 推理 | LiteRT-LM |
 | `voice_assistant.audio.vad` | 语音活动检测 | sounddevice |
 | `voice_assistant.audio.tts` | 语音合成 | Edge-TTS |
-| `voice_assistant.core.ai_client` | AI对话客户端（在线/本地） | LLM API / LiteRT-LM |
 | `voice_assistant.core.model_manager` | 模型管理，自动切换 | - |
 | `voice_assistant.audio.player` | 音频播放 | pygame |
 | `voice_assistant.security.validation` | 安全工具（输入验证、限流） | - |
@@ -265,10 +262,8 @@ class HotwordsManager:
 
 ---
 
-## voice_assistant.core.local_llm (本地 LLM)
 
 ### 功能
-- 使用 LiteRT-LM 进行本地推理
 - 支持流式输出
 - 与在线 LLM 兼容的接口
 
@@ -307,8 +302,6 @@ class LocalLLMClient:
 
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
-| `llm.local.model_path` | 模型文件路径 | model_weights/gemma-4-E2B-it.litertlm |
-| `llm.local.model_name` | 模型名称 | gemma-4-E2B-it |
 | `llm.local.system_prompt` | 系统提示词 | 友好的中文语音助手 |
 
 ---
@@ -386,10 +379,8 @@ def synthesize(text, output_path=None)
 ### 主要函数
 
 ```python
-def get_local_llm_client() -> LocalLLMClient
     """获取本地 LLM 客户端（单例）"""
 
-def close_local_llm_client()
     """关闭本地 LLM 客户端"""
 
 def ask_ai_stream(text, conversation_history=None)

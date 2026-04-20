@@ -85,21 +85,27 @@ def check_api_keys():
 
     all_ok = True
 
-    # ASR API Key
-    asr_key = os.getenv("ASR_API_KEY")
-    if asr_key:
-        print(f"  ✓ ASR_API_KEY: {'*' * 8}{asr_key[-4:]}")
+    # DashScope API Key (用于 ASR 和 LLM)
+    dashscope_key = os.getenv("DASHSCOPE_API_KEY")
+    if dashscope_key:
+        print(f"  ✓ DASHSCOPE_API_KEY: {'*' * 8}{dashscope_key[-4:]}")
     else:
-        print(f"  ✗ ASR_API_KEY 未设置")
-        all_ok = False
-
-    # LLM API Key
-    llm_key = os.getenv("LLM_API_KEY")
-    if llm_key:
-        print(f"  ✓ LLM_API_KEY: {'*' * 8}{llm_key[-4:]}")
-    else:
-        print(f"  ✗ LLM_API_KEY 未设置")
-        all_ok = False
+        # 检查旧的分离式 API Key
+        asr_key = os.getenv("ASR_API_KEY")
+        llm_key = os.getenv("LLM_API_KEY")
+        if asr_key:
+            print(f"  ✓ ASR_API_KEY: {'*' * 8}{asr_key[-4:]}")
+        else:
+            print(f"  ⚠ ASR_API_KEY 未设置")
+        
+        if llm_key:
+            print(f"  ✓ LLM_API_KEY: {'*' * 8}{llm_key[-4:]}")
+        else:
+            print(f"  ⚠ LLM_API_KEY 未设置")
+        
+        if not asr_key and not llm_key:
+            print(f"  ✗ 请设置 DASHSCOPE_API_KEY 或 ASR_API_KEY/LLM_API_KEY")
+            all_ok = False
 
     return all_ok
 
@@ -141,33 +147,6 @@ def check_audio_devices():
         return False
 
 
-def check_model_files():
-    """检查本地模型文件（如果配置启用）"""
-    print("\n" + "=" * 50)
-    print("  本地模型")
-    print("=" * 50)
-
-    try:
-        from voice_assistant.config import config
-
-        if not config.llm.use_local:
-            print("  ⊙ 本地模型未启用 (llm.use_local=false)")
-            return True
-
-        model_path = Path(config.llm.local.model_path)
-        if model_path.exists():
-            print(f"  ✓ 模型文件: {model_path}")
-            return True
-        else:
-            print(f"  ✗ 模型文件缺失: {model_path}")
-            print(f"    请运行: litert-lm run --from-huggingface-repo=litert-community/gemma-4-E2B-it-litert-lm")
-            return False
-
-    except Exception as e:
-        print(f"  ⚠ 无法检查本地模型: {e}")
-        return True  # 不阻止启动
-
-
 def main():
     """主函数"""
     print("\n" + "=" * 50)
@@ -202,9 +181,6 @@ def main():
 
     # 5. 音频设备
     results.append(("音频设备", check_audio_devices()))
-
-    # 6. 本地模型
-    results.append(("本地模型", check_model_files()))
 
     # 汇总
     print("\n" + "=" * 50)

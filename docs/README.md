@@ -18,7 +18,6 @@
 | `vad.py` | 语音活动检测 |
 | `tts.py` | Edge-TTS 语音合成 |
 | `ai_client.py` | LLM 对话（在线/本地） |
-| `local_llm.py` | 本地 LLM 推理（LiteRT-LM） |
 | `audio_player.py` | 音频播放 |
 | `router.py` | 意图分类（LLM+关键词）和命令路由 |
 | `chat.py` | 对话执行器（支持 direct_response） |
@@ -28,7 +27,6 @@
 
 | 功能 | 说明 |
 |------|------|
-| 本地模型 | 使用 LiteRT-LM 运行 Gemma-4-E2B-it |
 | LLM 意图识别 | 云端 LLM 语义理解 + 关键词兜底 |
 | 多模态音频 | 音频直接送 Gemma 4 理解，跳过 ASR |
 | direct_response | Gemma 回复直达 ChatExecutor，跳过二次 LLM |
@@ -54,7 +52,6 @@
 | 模式 | 模型 | 特点 |
 |------|------|------|
 | 在线 | kimi-k2.5 | 需网络，响应快 |
-| 本地 | gemma-4-E2B-it | 离线运行，隐私保护 |
 
 ### 意图识别
 

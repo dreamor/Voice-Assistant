@@ -5,9 +5,9 @@
 ## 功能特性
 
 - **🌐 Web UI**: 简洁现代的浏览器界面，支持录音、流式对话、设置管理
-- **语音识别 (ASR)**: 阿里云 DashScope Paraformer / 本地 FunASR 实时识别，支持中英文混合识别优化
-- **LLM 对话**: 在线 API 对话生成
-- **本地模型支持**: 使用 FunASR 运行 Paraformer-zh 本地语音识别，完全离线运行
+- **语音识别 (ASR)**: 阿里云 DashScope Paraformer 实时识别，支持中英文混合识别优化
+- **本地 ASR 支持**: 使用 FunASR 运行 Paraformer-zh 本地语音识别，完全离线运行
+- **LLM 对话**: 阿里云通义千问 API 对话生成，支持自动故障转移
 - **语音合成 (TTS)**: Microsoft Edge-TTS，自然流畅
 - **VAD 语音检测**: 自动检测说话开始/结束，无需手动操作
 - **智能意图识别**: 自动判断用户意图，路由到对应执行器
@@ -42,6 +42,7 @@ voice-assistant/
 │   │   └── funasr_asr.py    # 本地 FunASR 语音识别
 │   ├── core/                # 核心模块
 │   │   ├── ai_client.py     # AI 对话
+│   │   ├── model_manager.py # 模型管理与故障转移
 │   │   ├── dependencies.py  # 依赖管理
 │   │   └── asr_corrector.py # ASR 纠错
 │   ├── executors/           # 执行器模块
@@ -57,7 +58,6 @@ voice-assistant/
 │       └── validation.py    # 输入验证
 ├── config/                  # 配置文件目录
 │   └── hotwords.json        # 热词配置
-├── model_weights/           # 本地模型文件（需下载）
 ├── tests/                   # 测试文件
 └── docs/                    # 文档
 ```
@@ -114,17 +114,16 @@ cp .env.example .env
 - `config.yaml` - 非敏感配置（模型、参数等）
 
 **必需配置：**
-- `ASR_API_KEY` - 语音识别 API 密钥
-- `LLM_API_KEY` - AI 对话 API 密钥（在线模式）
+- `DASHSCOPE_API_KEY` - 阿里云 DashScope API 密钥（用于 ASR 和 LLM）
 
-### 4. 运行测试
+### 5. 运行测试
 
 ```bash
 source .venv/bin/activate
 pytest tests/ -v
 ```
 
-### 5. 启动
+### 6. 启动
 
 ```bash
 # 使用启动脚本（命令行模式，默认）
@@ -191,16 +190,7 @@ python -m voice_assistant
 | `A` | 切换 本地 FunASR / 云端 ASR 模式 |
 | `Q` | 退出程序 |
 
-### LLM 模式切换
-
-按 `L` 键可在本地模型和在线 API 之间切换：
-
-| 模式 | 模型 | 说明 |
-|------|------|------|
-| 在线 | kimi-k2.5 | 需要网络，API 调用 |
-| 本地 | gemma-4-E2B-it | 离线运行，隐私保护 |
-
-### 本地模型设置
+### 本地 ASR 设置
 
 使用 FunASR 本地语音识别（Paraformer-zh）：
 
@@ -273,14 +263,10 @@ asr:
   disfluency_removal_enabled: true  # 过滤语气词
 
 llm:
-  model: "kimi-k2.5"
+  model: "qwen-plus-latest"
   base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
   max_tokens: 2000
   temperature: 0.7
-  use_local: false  # 本地模型开关
-  local:
-    model_path: "model_weights/gemma-4-E2B-it.litertlm"
-    model_name: "gemma-4-E2B-it"
 
 audio:
   sample_rate: 16000  # ASR 标准采样率
@@ -302,8 +288,7 @@ interpreter:
 敏感信息在 `.env` 中：
 
 ```ini
-ASR_API_KEY=your-asr-api-key
-LLM_API_KEY=your-llm-api-key
+DASHSCOPE_API_KEY=your-dashscope-api-key
 ```
 
 ## 架构说明
@@ -317,7 +302,6 @@ LLM_API_KEY=your-llm-api-key
 | `voice_assistant.executors.computer` | 电脑控制执行器（Open Interpreter） |
 | `voice_assistant.executors.chat` | 对话执行器（LLM 对话） |
 | `voice_assistant.services.router` | 命令路由器，根据意图自动路由 |
-| `voice_assistant.core.local_llm` | 本地 LLM 客户端（LiteRT-LM） |
 | `voice_assistant.core.model_manager` | 模型管理器，支持模型自动切换和故障转移 |
 
 ### 模型自动切换
@@ -340,9 +324,10 @@ for m in models:
 
 特性：
 - 自动获取阿里云百炼平台所有可用模型
-- 按优先级构建备用模型队列（qwen-plus > qwen-turbo > qwen-max）
+- 按优先级构建备用模型队列（qwen-plus > qwen-turbo > qwen-max > qwen2.5）
 - 智能错误判断，输入问题不切换模型
 - 运行时自动切换，用户无感知
+- 空响应时自动重试备用模型
 
 ### 意图类型
 
@@ -368,7 +353,6 @@ pytest tests/ -v
 - [模块说明](docs/MODULES.md) - 各模块详解
 - [配置说明](docs/CONFIG.md) - 配置参数
 - [开发指南](docs/DEVELOPMENT.md) - 开发指南
-- [API 参考](docs/API.md) - 接口文档
 
 ## License
 
