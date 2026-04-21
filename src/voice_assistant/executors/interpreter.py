@@ -4,7 +4,7 @@ Open Interpreter 执行器
 """
 import logging
 import os
-from typing import Optional
+from typing import Any, Optional
 
 # 禁用 litellm 远程 cost map 获取（避免 SSL 警告）
 os.environ["LITELLM_DROP_PARAMS"] = "true"
@@ -12,12 +12,14 @@ os.environ["LITELLM_MODEL_ALIASES"] = "{}"
 os.environ["LITELLM_MAX_PARALLEL_REQUESTS"] = "0"
 
 from voice_assistant.config import config
+from voice_assistant.executors.base import BaseExecutor
+from voice_assistant.model.intent import IntentType
 
 logger = logging.getLogger(__name__)
 
 
-class InterpreterExecutor:
-    """Open Interpreter 执行器"""
+class InterpreterExecutor(BaseExecutor):
+    """Open Interpreter 执行器（符合 BaseExecutor 接口）"""
 
     def __init__(self, auto_run: bool = True, verbose: bool = False):
         """
@@ -64,20 +66,22 @@ class InterpreterExecutor:
 
         return self._interpreter
 
-    def execute(self, user_command: str) -> dict:
-        """
-        使用 Open Interpreter 执行用户命令
+    def can_handle(self, intent_type: str) -> bool:
+        """判断是否可以处理该意图类型"""
+        return intent_type == IntentType.COMPUTER_CONTROL.value
 
-        Args:
-            user_command: 用户的自然语言命令
+    def execute(self, **kwargs: Any) -> dict[str, Any]:
+        """执行电脑控制命令
+
+        Args (via kwargs):
+            user_text: 用户命令文本
+            user_command: 备用命令文本
 
         Returns:
-            {
-                "success": bool,
-                "response": str,
-                "messages": list  # Open Interpreter 的完整消息历史
-            }
+            {"success": bool, "response": str, "messages": list}
         """
+        command = kwargs.get('user_text') or kwargs.get('user_command') or ""
+
         # 设置 UTF-8 编码
         import io
         import sys
@@ -85,10 +89,10 @@ class InterpreterExecutor:
             sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
         try:
-            interpreter = self._get_interpreter()
+            interp = self._get_interpreter()
 
             # 执行命令
-            messages = interpreter.chat(user_command)
+            messages = interp.chat(command)
 
             # 提取响应文本
             response = self._extract_response(messages)
@@ -114,9 +118,7 @@ class InterpreterExecutor:
             }
 
     def _extract_response(self, messages: list) -> str:
-        """
-        从 Open Interpreter 消息中提取用户友好的响应
-        """
+        """从 Open Interpreter 消息中提取用户友好的响应"""
         if not messages:
             return "任务完成"
 
@@ -152,15 +154,3 @@ class InterpreterExecutor:
         """重置 interpreter 状态（开始新的对话）"""
         if self._interpreter:
             self._interpreter.messages = []
-
-
-# 全局实例（可选）
-_executor: Optional[InterpreterExecutor] = None
-
-
-def get_executor(auto_run: bool = True, verbose: bool = False) -> InterpreterExecutor:
-    """获取或创建 InterpreterExecutor 单例"""
-    global _executor
-    if _executor is None:
-        _executor = InterpreterExecutor(auto_run=auto_run, verbose=verbose)
-    return _executor

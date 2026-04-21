@@ -24,8 +24,6 @@ class HotwordsManager:
     def __init__(self, api_key: str, base_url: str):
         self.api_key = api_key
         self.base_url = base_url
-        dashscope.api_key = api_key
-        dashscope.base_http_api_url = base_url
         self._vocabulary_id: Optional[str] = None
 
     def create_vocabulary(self, vocabulary: list, target_model: str = "paraformer-realtime-v2") -> str:
@@ -107,9 +105,6 @@ class CloudASR:
         self.disfluency_removal_enabled = asr_cfg.disfluency_removal_enabled
         self.max_sentence_silence = asr_cfg.max_sentence_silence
 
-        dashscope.api_key = self.api_key
-        dashscope.base_http_api_url = self.base_url
-
         # 初始化热词管理器
         self._hotwords_manager: Optional[HotwordsManager] = None
         self._vocabulary_id: Optional[str] = None
@@ -117,6 +112,15 @@ class CloudASR:
         # 如果启用了热词，初始化热词
         if asr_cfg.hotwords.enabled:
             self._init_hotwords(asr_cfg.hotwords.config_file)
+
+    def _configure_dashscope(self):
+        """配置 dashscope SDK 全局参数
+        
+        注意：dashscope SDK 使用模块级全局变量，无法避免全局变异。
+        这是 SDK 的已知限制。在多实例场景中需注意调用顺序。
+        """
+        dashscope.api_key = self.api_key
+        dashscope.base_http_api_url = self.base_url
 
     def _init_hotwords(self, config_file: str):
         """初始化热词功能"""
@@ -143,7 +147,10 @@ class CloudASR:
             sample_rate: 音频采样率，默认从配置读取
 
         Returns:
-            识别的文本，如果识别失败返回错误信息
+            识别的文本，如果识别失败抛出异常
+
+        Raises:
+            RuntimeError: 识别失败
         """
         if sample_rate is None:
             sample_rate = config.audio.sample_rate
@@ -152,6 +159,8 @@ class CloudASR:
         asr_limiter.check()
 
         try:
+            self._configure_dashscope()
+
             from dashscope.audio.asr import Recognition, RecognitionCallback
             
             # 存储识别结果
@@ -220,16 +229,16 @@ class CloudASR:
                 time.sleep(0.1)
 
             if result_container["error"]:
-                return f"云端ASR错误: {result_container['error']}"
+                raise RuntimeError(f"云端ASR错误: {result_container['error']}")
             
             if result_container["text"]:
                 return result_container["text"]
             
-            return "未识别到内容"
+            return ""
 
         except Exception as e:
             logger.error(f"ASR 识别失败: {e}")
-            return f"云端ASR错误: {e}"
+            raise RuntimeError(f"云端ASR错误: {e}") from e
 
     def recognize_from_bytes(self, audio_bytes: bytes, sample_rate: Optional[int] = None) -> str:
         """从音频字节数据识别
@@ -239,11 +248,12 @@ class CloudASR:
             sample_rate: 采样率，默认从配置读取
 
         Returns:
-            识别的文本，如果识别失败返回错误信息
+            识别的文本
 
         Raises:
             RateLimitError: 超过速率限制
             InputValidationError: 输入验证失败
+            RuntimeError: 识别失败
         """
         import soundfile as sf
 
@@ -257,6 +267,8 @@ class CloudASR:
         asr_limiter.check()
 
         try:
+            self._configure_dashscope()
+
             if audio_bytes[:4] == b'RIFF':
                 with tempfile.NamedTemporaryFile(suffix='.wav', delete=False, mode='wb') as tmp:
                     tmp.write(audio_bytes)
@@ -281,5 +293,11 @@ class CloudASR:
                 except OSError:
                     pass
 
+        except (RateLimitError, InputValidationError):
+            raise
         except Exception as e:
-            return f"云端ASR错误: {e}"
+            raise RuntimeError(f"云端ASR错误: {e}") from e
+
+    def close(self) -> None:
+        """释放资源（云端 ASR 无需特殊清理）"""
+        pass

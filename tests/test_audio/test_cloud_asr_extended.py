@@ -195,7 +195,7 @@ class TestCloudASRRecognize:
 
     @patch('voice_assistant.audio.cloud_asr.config')
     @patch('voice_assistant.audio.cloud_asr.dashscope')
-    @patch('voice_assistant.audio.cloud_asr.Recognition')
+    @patch('dashscope.audio.asr.Recognition')
     def test_recognize_from_file_error(self, mock_recognition_class, mock_dashscope, mock_config):
         """测试识别错误处理"""
         mock_config.asr.api_key = "test_key"
@@ -218,15 +218,17 @@ class TestCloudASRRecognize:
             test_file = tmp.name
 
         try:
-            # 模拟 Recognition 抛出异常
-            mock_recognition_class.side_effect = Exception("Connection failed")
+            # 模拟 Recognition.start 抛出异常（在 _configure_dashscope 之后）
+            mock_recognition_instance = MagicMock()
+            mock_recognition_instance.start.side_effect = Exception("Connection failed")
+            mock_recognition_class.return_value = mock_recognition_instance
 
             from voice_assistant.audio.cloud_asr import CloudASR
 
             asr = CloudASR()
-            result = asr.recognize_from_file(test_file)
-
-            assert "错误" in result or "Error" in result
+            # cloud_asr 现在抛出 RuntimeError 而非返回错误字符串
+            with pytest.raises(RuntimeError, match="云端ASR错误"):
+                asr.recognize_from_file(test_file)
         finally:
             os.unlink(test_file)
 

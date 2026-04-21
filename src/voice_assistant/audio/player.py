@@ -26,5 +26,5 @@ def play_audio(audio_data):
     finally:
         try:
             os.unlink(tmp_path)
-        except:
+        except OSError:
             pass

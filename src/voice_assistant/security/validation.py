@@ -3,6 +3,7 @@
 提供输入验证、速率限制等安全功能
 """
 import time
+import threading
 from functools import wraps
 from typing import Callable, Any
 
@@ -127,30 +128,33 @@ class RateLimiter:
         self.calls = calls
         self.period = period
         self._timestamps: list[float] = []
+        self._lock = threading.Lock()
 
     def check(self) -> None:
-        """检查是否允许调用
+        """检查是否允许调用（线程安全）
 
         Raises:
             RateLimitError: 超过速率限制
         """
-        now = time.time()
-        self._timestamps[:] = [t for t in self._timestamps if now - t < self.period]
+        with self._lock:
+            now = time.time()
+            self._timestamps[:] = [t for t in self._timestamps if now - t < self.period]
 
-        if len(self._timestamps) >= self.calls:
-            wait_time = self.period - (now - self._timestamps[0])
-            raise RateLimitError(
-                f"请求过于频繁，请在 {wait_time:.1f} 秒后重试"
-            )
+            if len(self._timestamps) >= self.calls:
+                wait_time = self.period - (now - self._timestamps[0])
+                raise RateLimitError(
+                    f"请求过于频繁，请在 {wait_time:.1f} 秒后重试"
+                )
 
-        self._timestamps.append(now)
+            self._timestamps.append(now)
 
     @property
     def remaining(self) -> int:
-        """返回当前时间窗口内剩余的调用次数"""
-        now = time.time()
-        self._timestamps[:] = [t for t in self._timestamps if now - t < self.period]
-        return max(0, self.calls - len(self._timestamps))
+        """返回当前时间窗口内剩余的调用次数（线程安全）"""
+        with self._lock:
+            now = time.time()
+            self._timestamps[:] = [t for t in self._timestamps if now - t < self.period]
+            return max(0, self.calls - len(self._timestamps))
 
 
 # 全局速率限制器实例

@@ -453,6 +453,6 @@ __all__ = [
     'validate_environment',
     'get_dependency_report',
     'CORE_DEPENDENCIES',
-    'LOCAL_LLM_DEPENDENCIES',
+    'LOCAL_ASR_DEPENDENCIES',
     'INTERPRETER_DEPENDENCIES',
 ]

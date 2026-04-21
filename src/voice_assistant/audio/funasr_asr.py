@@ -221,17 +221,37 @@ class FunASRClient:
         return self._engine
 
     def recognize(self, audio_path: str, hotwords: Optional[list[str]] = None) -> str:
-        """识别音频文件"""
-        engine = self._ensure_engine()
-        return engine.recognize(audio_path, hotwords=hotwords)
+        """识别音频文件
+        
+        实现 ASRProvider 协议。识别失败时返回空字符串而非抛出异常。
+        """
+        try:
+            engine = self._ensure_engine()
+            return engine.recognize(audio_path, hotwords=hotwords)
+        except FunASRError as e:
+            logger.error(f"FunASR 识别失败: {e}")
+            return ""
+        except Exception as e:
+            logger.error(f"FunASR 识别异常: {e}")
+            return ""
 
     def recognize_bytes(
         self, audio_bytes: bytes, sample_rate: int = 16000,
         hotwords: Optional[list[str]] = None,
     ) -> str:
-        """识别音频字节"""
-        engine = self._ensure_engine()
-        return engine.recognize_bytes(audio_bytes, sample_rate, hotwords=hotwords)
+        """识别音频字节
+        
+        实现 ASRProvider 协议。识别失败时返回空字符串而非抛出异常。
+        """
+        try:
+            engine = self._ensure_engine()
+            return engine.recognize_bytes(audio_bytes, sample_rate, hotwords=hotwords)
+        except FunASRError as e:
+            logger.error(f"FunASR 识别失败: {e}")
+            return ""
+        except Exception as e:
+            logger.error(f"FunASR 识别异常: {e}")
+            return ""
 
     def close(self):
         """关闭客户端"""

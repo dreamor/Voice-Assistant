@@ -24,36 +24,36 @@ def record_audio(max_seconds=None):
         max_seconds = vad_cfg.max_recording
 
     frames = []
-    recording = [False]
-    silence_start = [None]
-    has_voice = [False]
+    is_recording = False
+    silence_start = None
+    has_voice = False
     CHUNK_SIZE = 1024
 
     def callback(indata, frames_count, time_info, _status):
-        nonlocal frames, recording, silence_start, has_voice
+        nonlocal is_recording, silence_start, has_voice
 
         audio_chunk = indata[:, 0]
         rms = calculate_rms(audio_chunk)
         current_time = time.time()
 
         if rms > vad_cfg.threshold:
-            if not recording[0]:
-                recording[0] = True
+            if not is_recording:
+                is_recording = True
                 print("  [VAD] Voice detected, starting recording...")
 
-            silence_start[0] = None
-            has_voice[0] = True
+            silence_start = None
+            has_voice = True
 
-            if recording[0]:
+            if is_recording:
                 frames.append(indata.copy())
         else:
-            if recording[0]:
-                if silence_start[0] is None:
-                    silence_start[0] = current_time
+            if is_recording:
+                if silence_start is None:
+                    silence_start = current_time
 
-                silence_duration = current_time - silence_start[0]
+                silence_duration = current_time - silence_start
                 if silence_duration >= vad_cfg.silence_timeout:
-                    recording[0] = False
+                    is_recording = False
                     print(f"  [VAD] Silence timeout ({silence_duration:.1f}s)")
 
     stream = sd.InputStream(
@@ -68,14 +68,14 @@ def record_audio(max_seconds=None):
     print(f"  [VAD] Waiting for voice...")
     start_time = time.time()
 
-    while not recording[0]:
+    while not is_recording:
         if time.time() - start_time > vad_cfg.wait_timeout:
             print(f"  [VAD] Timeout waiting for voice")
             break
         time.sleep(0.1)
 
     recording_start = time.time()
-    while recording[0]:
+    while is_recording:
         if time.time() - recording_start > max_seconds:
             print(f"  [VAD] Max recording time reached")
             break
@@ -88,7 +88,7 @@ def record_audio(max_seconds=None):
         audio = np.concatenate(frames, axis=0).flatten()
         voice_duration = len(audio) / audio_cfg.sample_rate
 
-        if has_voice[0] and voice_duration >= vad_cfg.min_speech:
+        if has_voice and voice_duration >= vad_cfg.min_speech:
             print(f"  [VAD] Recorded {voice_duration:.1f}s")
             return audio
         else:

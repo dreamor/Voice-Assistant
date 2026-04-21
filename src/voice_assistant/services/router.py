@@ -99,30 +99,68 @@ def llm_classify_intent(user_text: str) -> Optional[Intent]:
 
 def _keyword_classify_intent(user_text: str) -> Intent:
     """基于关键词的意图分类（LLM 不可用时的 fallback）"""
-    # 电脑操作关键词
-    computer_keywords = [
-        "打开", "关闭", "创建", "删除", "截屏", "截图", "新建",
-        "运行", "执行", "启动", "停止", "复制", "移动", "重命名",
-        "搜索", "查找", "下载", "上传", "安装", "卸载", "控制", "操作"
+    # 强电脑操作关键词：本身即可表明电脑操作意图
+    computer_action_keywords = [
+        "截屏", "截图", "新建", "运行", "执行", "启动", "停止",
+        "复制", "移动", "重命名", "下载", "上传", "安装", "卸载",
+    ]
+    
+    # 动词关键词：既可能是电脑操作，也可能是普通动作（如"打开灯"）
+    verb_keywords = ["打开", "关闭"]
+    
+    # 歧义关键词：需要上下文判断（如"搜索天气" vs "搜索文件"）
+    ambiguous_keywords = [
+        "搜索", "查找", "删除", "创建", "控制", "操作"
+    ]
+    
+    # 电脑上下文关键词：出现时提高歧义词的电脑操作倾向
+    computer_context_keywords = [
+        "电脑", "文件", "文件夹", "程序", "应用", "软件",
+        "终端", "命令", "系统", "网页", "浏览器", "代码", "脚本",
+        "app", "桌面", "窗口", "计算器", "记事本", "编辑器",
     ]
 
-    for kw in computer_keywords:
+    # 1. 检查强电脑操作关键词
+    for kw in computer_action_keywords:
         if kw in user_text:
             return Intent(
                 intent_type=IntentType.COMPUTER_CONTROL,
                 original_text=user_text,
-                confidence=0.7
+                confidence=0.8
             )
-
-    # 问句判断
+    
+    # 2. 检查动词关键词（需要电脑上下文才判定为电脑操作）
+    has_computer_context = any(kw in user_text for kw in computer_context_keywords)
+    for kw in verb_keywords:
+        if kw in user_text:
+            if has_computer_context:
+                return Intent(
+                    intent_type=IntentType.COMPUTER_CONTROL,
+                    original_text=user_text,
+                    confidence=0.8
+                )
+            # 有动词但无电脑上下文：继续往下判断
+            break
+    
+    # 3. 检查歧义关键词（需要电脑上下文）
+    if has_computer_context:
+        for kw in ambiguous_keywords:
+            if kw in user_text:
+                return Intent(
+                    intent_type=IntentType.COMPUTER_CONTROL,
+                    original_text=user_text,
+                    confidence=0.65
+                )
+    
+    # 4. 问句判断
     if any(c in user_text for c in "？?"):
         return Intent(
             intent_type=IntentType.QUERY_ANSWER,
             original_text=user_text,
             confidence=0.6
         )
-
-    # 默认普通对话
+    
+    # 5. 默认普通对话
     return Intent(
         intent_type=IntentType.ORDINARY_CHAT,
         original_text=user_text,
@@ -153,11 +191,14 @@ def simple_classify_intent(user_text: str) -> Intent:
         logger.warning("用户输入超过限制，已截断")
 
     result = llm_classify_intent(user_text)
-    if result is not None and result.confidence >= 0.3:
+    if result is not None and result.confidence >= 0.6:
+        logger.info(f"[Intent] LLM分类: type={result.intent_type.value}, confidence={result.confidence:.2f}")
         return result
 
     # Fallback to keyword matching
-    return _keyword_classify_intent(user_text)
+    _result = _keyword_classify_intent(user_text)
+    logger.info(f"[Intent] 关键词分类: type={_result.intent_type.value}, confidence={_result.confidence:.2f}")
+    return _result
 
 
 class CommandRouter:

@@ -9,6 +9,7 @@
 - 运行时自动切换模型
 """
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -67,13 +68,17 @@ class ModelQueue:
             return self.models[self.current_index]
         return None
 
-    def next_model(self) -> Optional[ModelConfig]:
-        """切换到下一个模型"""
+    def advance(self) -> None:
+        """前进到下一个模型（不返回）"""
         if self.current_index < len(self.models) - 1:
             self.current_index += 1
-            logger.warning(f"[ModelManager] 切换到备用模型: {self.current().name}")
-            return self.current()
-        return None
+
+    def next_model(self) -> Optional[ModelConfig]:
+        """前进并返回下一个模型，如果没有更多模型返回 None"""
+        if self.current_index >= len(self.models) - 1:
+            return None
+        self.advance()
+        return self.current()
 
     def reset(self) -> None:
         """重置到第一个模型"""
@@ -90,6 +95,8 @@ class ModelManager:
     def __init__(self):
         self._queue: Optional[ModelQueue] = None
         self._cached_models: Optional[list[dict]] = None
+        self._last_fail_time: dict[str, float] = {}  # model_name -> timestamp
+        self._cooldown_seconds: float = 60.0  # 冷却时间：失败后60秒内不重试该模型
 
     def list_available_models(self, api_key: Optional[str] = None) -> list[dict]:
         """
@@ -233,10 +240,12 @@ class ModelManager:
         if isinstance(error, requests.HTTPError):
             status_code = getattr(error.response, 'status_code', None)
             if status_code:
-                # 400 可能是输入问题，需要检查错误消息
+                # 400: 通常是输入问题（已在上面检查关键词），不应切换模型
+                # 除非错误消息包含模型相关的问题
                 if status_code == 400:
-                    # 已在上面检查了错误消息
-                    return True
+                    # 400 通常是请求格式错误，换模型无法解决
+                    logger.info(f"[ModelManager] HTTP 400 错误，不切换模型（通常是请求格式问题）")
+                    return False
                 # 401/403: 认证失败 → 切换
                 # 402: 余额不足 → 切换
                 # 404: 模型不存在 → 切换
@@ -246,17 +255,21 @@ class ModelManager:
         # 网络错误、超时等 → 切换
         return True
 
-    def switch_to_next_model(self) -> Optional[ModelConfig]:
-        """
-        切换到下一个备用模型
+    def record_failure(self, model_name: str) -> None:
+        """记录模型失败时间"""
+        self._last_fail_time[model_name] = time.time()
+        logger.debug(f"[ModelManager] 记录模型失败: {model_name}")
 
-        Returns:
-            切换后的模型配置，如果没有可用模型返回 None
-        """
+    def switch_to_next_model(self) -> Optional[ModelConfig]:
+        """切换到下一个备用模型"""
         if self._queue is None:
             logger.warning("[ModelManager] 模型队列未初始化")
             return None
 
+        current = self._queue.current()
+        if current:
+            self.record_failure(current.name)
+        
         return self._queue.next_model()
 
     def get_current_model(self) -> Optional[ModelConfig]:
@@ -271,8 +284,14 @@ class ModelManager:
         return self._queue.current()
 
     def reset_to_primary(self) -> None:
-        """重置到主模型"""
+        """重置到主模型（除非主模型在冷却期内）"""
         if self._queue:
+            primary = self._queue.models[0] if self._queue.models else None
+            if primary:
+                last_fail = self._last_fail_time.get(primary.name, 0)
+                if time.time() - last_fail < self._cooldown_seconds:
+                    logger.info(f"[ModelManager] 主模型 {primary.name} 仍在冷却期内，保持当前模型")
+                    return
             self._queue.reset()
             logger.info("[ModelManager] 已重置到主模型")
 

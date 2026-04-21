@@ -1,34 +1,28 @@
 """
-电脑控制执行器 - Open Interpreter 模式
+电脑控制执行器
+委托给 InterpreterExecutor 处理电脑操作类意图
 """
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from voice_assistant.executors.base import BaseExecutor
+from voice_assistant.executors.interpreter import InterpreterExecutor
 from voice_assistant.model.intent import IntentType
 
 logger = logging.getLogger(__name__)
 
 
 class ComputerExecutor(BaseExecutor):
-    """电脑控制执行器（使用 Open Interpreter）"""
+    """电脑控制执行器（委托给 InterpreterExecutor）"""
 
     def __init__(self, auto_run: bool = True, verbose: bool = False):
-        """
-        初始化电脑控制执行器
-
-        Args:
-            auto_run: 是否自动执行生成的代码
-            verbose: 是否输出详细日志
-        """
         self.auto_run = auto_run
         self.verbose = verbose
-        self._executor = None
+        self._executor: InterpreterExecutor | None = None
 
-    def _get_executor(self):
+    def _get_executor(self) -> InterpreterExecutor:
         """懒加载执行器"""
         if self._executor is None:
-            from voice_assistant.executors.interpreter import InterpreterExecutor
             self._executor = InterpreterExecutor(
                 auto_run=self.auto_run,
                 verbose=self.verbose
@@ -38,27 +32,11 @@ class ComputerExecutor(BaseExecutor):
     def can_handle(self, intent_type: str) -> bool:
         return intent_type == IntentType.COMPUTER_CONTROL.value
 
-    def execute(self, user_text: str = None, user_command: str = None, **kwargs) -> dict[str, Any]:
-        """
-        执行电脑控制命令
-
-        Args:
-            user_text: 用户命令文本（路由传入）
-            user_command: 用户命令文本（备用）
-
-        Returns:
-            {
-                "success": bool,
-                "response": str,
-                "messages": list
-            }
-        """
-        # 兼容 user_text 和 user_command
-        command = user_text or user_command or ""
-        
+    def execute(self, **kwargs: Any) -> dict[str, Any]:
+        """执行电脑控制命令（委托给 InterpreterExecutor）"""
         try:
             executor = self._get_executor()
-            return executor.execute(command)
+            return executor.execute(**kwargs)
         except Exception as e:
             logger.error(f"ComputerExecutor 执行失败：{e}")
             return {

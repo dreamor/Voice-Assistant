@@ -25,3 +25,36 @@ class Intent:
     # 电脑控制特有（Open Interpreter）
     code_to_execute: Optional[str] = None
     language: Optional[str] = None
+
+@dataclass
+class ExecutorResult:
+    """执行器结果数据类
+    
+    统一所有执行器的返回类型，替代 dict[str, Any]。
+    """
+    success: bool
+    response: str = ""
+    data: dict[str, Any] = field(default_factory=dict)
+    history_updated: list | None = None
+    messages: list | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """转换为字典（向后兼容）"""
+        result = {"success": self.success, "response": self.response}
+        if self.history_updated is not None:
+            result["history_updated"] = self.history_updated
+        if self.messages is not None:
+            result["messages"] = self.messages
+        result.update(self.data)
+        return result
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "ExecutorResult":
+        """从字典创建（向后兼容）"""
+        return cls(
+            success=d.get("success", False),
+            response=d.get("response", ""),
+            data={k: v for k, v in d.items() if k not in ("success", "response", "history_updated", "messages")},
+            history_updated=d.get("history_updated"),
+            messages=d.get("messages"),
+        )

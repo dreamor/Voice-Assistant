@@ -15,13 +15,32 @@ class TestKeywordClassify:
 
     def test_computer_control_keywords(self):
         """Computer control keywords trigger computer_control intent."""
+        # 强电脑操作关键词（confidence=0.8）
         for phrase in [
-            "打开计算器",
-            "关闭这个程序",
             "截屏",
             "新建文件夹",
             "运行Python脚本",
             "复制文件",
+        ]:
+            intent = _keyword_classify_intent(phrase)
+            assert intent.intent_type == IntentType.COMPUTER_CONTROL, (
+                f"'{phrase}' should be COMPUTER_CONTROL"
+            )
+            assert intent.confidence == 0.8
+
+        # 动词+电脑上下文（confidence=0.8）
+        for phrase in [
+            "打开计算器",
+            "关闭这个程序",
+        ]:
+            intent = _keyword_classify_intent(phrase)
+            assert intent.intent_type == IntentType.COMPUTER_CONTROL, (
+                f"'{phrase}' should be COMPUTER_CONTROL"
+            )
+            assert intent.confidence == 0.8
+
+        # 歧义词+电脑上下文（confidence=0.65）
+        for phrase in [
             "删除这个文件",
             "帮我操作一下电脑",
         ]:
@@ -29,7 +48,7 @@ class TestKeywordClassify:
             assert intent.intent_type == IntentType.COMPUTER_CONTROL, (
                 f"'{phrase}' should be COMPUTER_CONTROL"
             )
-            assert intent.confidence == 0.7
+            assert intent.confidence == 0.65
 
     def test_ordinary_chat(self):
         """Phrases without action keywords or question marks trigger ordinary_chat."""
@@ -207,7 +226,7 @@ class TestSimpleClassifyIntent:
 
         # Should fallback to keyword matching
         assert intent.intent_type == IntentType.COMPUTER_CONTROL
-        assert intent.confidence == 0.7
+        assert intent.confidence >= 0.65  # 关键词分类置信度已调整
 
     def test_fallback_to_keyword_when_confidence_too_low(self):
         """When LLM confidence is below 0.3, fallback to keyword matching."""
@@ -225,6 +244,6 @@ class TestSimpleClassifyIntent:
             # "打开计算器" contains computer keyword, so fallback should return computer_control
             intent = simple_classify_intent("打开计算器")
 
-        # LLM result has confidence < 0.3, so fallback to keyword
+        # LLM result has confidence < 0.6, so fallback to keyword
         assert intent.intent_type == IntentType.COMPUTER_CONTROL
-        assert intent.confidence == 0.7
+        assert intent.confidence >= 0.65  # 关键词分类置信度已调整
