@@ -533,6 +533,35 @@ html, body {
     font-size: 14px;
 }
 
+/* VAD 状态指示器 */
+.recording-indicator.vad-listening .recording-wave span {
+    background: #f59e0b; /* 琥珀色 - 等待说话 */
+}
+
+.recording-indicator.vad-speaking .recording-wave span {
+    background: #22c55e; /* 绿色 - 检测到语音 */
+    animation: wave 0.5s ease-in-out infinite;
+}
+
+.recording-indicator.vad-silence .recording-wave span {
+    background: #3b82f6; /* 蓝色 - 检测结束中 */
+    animation: wave 1s ease-in-out infinite;
+}
+
+.recording-indicator.vad-listening .recording-text::after {
+    content: '等待说话...';
+}
+
+.recording-indicator.vad-speaking .recording-text::after {
+    content: '正在识别...';
+    color: #22c55e;
+}
+
+.recording-indicator.vad-silence .recording-text::after {
+    content: '检测结束中...';
+    color: #3b82f6;
+}
+
 .btn-stop-record {
     padding: var(--space-sm) var(--space-md);
     border: none;

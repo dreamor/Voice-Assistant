@@ -146,6 +146,19 @@
                         <input type="checkbox" id="setting-use-local-asr" checked>
                     </div>
                 </div>
+
+                <div class="setting-group">
+                    <h3>语音检测 (VAD)</h3>
+                    <div class="setting-item">
+                        <label>自动检测语音结束</label>
+                        <input type="checkbox" id="setting-vad-enabled" checked>
+                    </div>
+                    <div class="setting-item" id="vad-duration-setting">
+                        <label>静音检测时长 (ms)</label>
+                        <input type="range" id="setting-vad-duration" min="500" max="3000" value="1500" step="100">
+                        <span class="setting-value" id="vad-duration-value">1500</span>
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button class="btn-secondary" id="reset-settings">重置</button>

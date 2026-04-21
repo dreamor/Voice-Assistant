@@ -10,6 +10,15 @@ const logger = {
     error: (...args) => logger.error('[WebUI]', ...args)
 };
 
+// VAD 配置
+const vadConfig = {
+    enabled: true,                    // 启用/禁用 VAD
+    silenceThreshold: 0.01,           // 静音 RMS 阈值
+    speechThreshold: 0.02,            // 语音 RMS 阈值
+    silenceDuration: 1500,            // 静音持续时间触发停止 (ms)
+    minSpeechDuration: 500,           // 最小语音持续时间 (ms)
+};
+
 // 全局状态
 const state = {
     ws: null,
@@ -20,7 +29,18 @@ const state = {
     audioChunks: [],
     currentMessageDiv: null,
     config: {},
-    models: []
+    models: [],
+    // VAD 状态
+    vad: {
+        audioContext: null,
+        analyser: null,
+        stream: null,
+        isSpeaking: false,
+        silenceStartTime: null,
+        speechStartTime: null,
+        speechDetected: false,
+        animationFrameId: null,
+    }
 };
 
 // DOM 元素
@@ -47,6 +67,10 @@ const elements = {
     settingMaxTokens: document.getElementById('setting-max-tokens'),
     settingTtsVoice: document.getElementById('setting-tts-voice'),
     settingUseLocalAsr: document.getElementById('setting-use-local-asr'),
+    settingVadEnabled: document.getElementById('setting-vad-enabled'),
+    settingVadDuration: document.getElementById('setting-vad-duration'),
+    vadDurationValue: document.getElementById('vad-duration-value'),
+    vadDurationSetting: document.getElementById('vad-duration-setting'),
     audioPlayer: document.getElementById('audio-player'),
     quickActions: document.querySelectorAll('.quick-action')
 };
@@ -126,12 +150,33 @@ function handleWebSocketMessage(data) {
             break;
 
         case 'asr_result':
-            // 语音识别完成，将结果填入输入框，让用户确认
+            // 语音识别完成，直接上屏并发送
             hideThinking();
-            elements.textInput.value = data.content;
-            elements.textInput.focus();
-            // 可选：自动发送（如果不需要用户确认，可以取消注释下面这行）
-            // setTimeout(() => sendMessage(), 500);
+            const recognizedText = data.content?.trim();
+
+            if (recognizedText) {
+                // 显示用户消息在聊天界面
+                addUserMessage(recognizedText);
+
+                // 直接发送给后端
+                if (!state.conversationId) {
+                    state.ws.send(JSON.stringify({
+                        type: 'start_conversation',
+                        title: recognizedText.slice(0, 20)
+                    }));
+                    // 延迟发送，确保 WebSocket 消息顺序
+                    setTimeout(() => {
+                        sendTextMessage(recognizedText);
+                    }, 100);
+                } else {
+                    sendTextMessage(recognizedText);
+                }
+
+                // 清空输入框
+                elements.textInput.value = '';
+            } else {
+                showError('未能识别语音，请重试');
+            }
             break;
 
         case 'llm_thinking':
@@ -188,8 +233,25 @@ async function loadConfig() {
         elements.settingMaxTokens.value = state.config.llm.max_tokens || 2000;
         elements.settingTtsVoice.value = state.config.audio.edge_tts_voice || 'zh-CN-XiaoxiaoNeural';
         elements.settingUseLocalAsr.checked = state.config.asr.use_local !== false;
+
+        // VAD 配置
+        const vadEnabled = state.config.vad?.enabled !== false;
+        const vadDuration = state.config.vad?.silenceDuration || 1500;
+        if (elements.settingVadEnabled) {
+            elements.settingVadEnabled.checked = vadEnabled;
+            vadConfig.enabled = vadEnabled;
+        }
+        if (elements.settingVadDuration) {
+            elements.settingVadDuration.value = vadDuration;
+            vadConfig.silenceDuration = vadDuration;
+        }
+        if (elements.vadDurationValue) {
+            elements.vadDurationValue.textContent = vadDuration;
+        }
+        // 根据VAD开关显示/隐藏时长设置
+        updateVadDurationVisibility();
     } catch (error) {
-        logger.error('[WebUI] 加载配置失败:', error);
+        console.error('[WebUI] 加载配置失败:', error);
     }
 }
 
@@ -647,12 +709,16 @@ async function startRecording() {
         state.mediaRecorder.start(100);
         state.isRecording = true;
 
+        // 初始化 VAD（使用同一个音频流）
+        initVAD(stream);
+
         // 更新 UI
         elements.recordBtn.classList.add('recording');
         elements.recordingIndicator.classList.add('active');
+        updateRecordingIndicator('listening');
 
     } catch (error) {
-        logger.error('[WebUI] 录音失败:', error);
+        console.error('[WebUI] 录音失败:', error);
         showError('无法访问麦克风，请检查权限设置');
     }
 }
@@ -660,12 +726,167 @@ async function startRecording() {
 // 停止录音
 function stopRecording() {
     if (state.mediaRecorder && state.isRecording) {
+        // 清理 VAD
+        cleanupVAD();
+
         state.mediaRecorder.stop();
         state.isRecording = false;
 
         // 更新 UI
         elements.recordBtn.classList.remove('recording');
         elements.recordingIndicator.classList.remove('active');
+        elements.recordingIndicator.classList.remove('vad-listening', 'vad-speaking', 'vad-silence');
+    }
+}
+
+// ==================== VAD 函数 ====================
+
+/**
+ * 初始化 VAD 音频分析
+ * @param {MediaStream} stream - MediaStream 音频流
+ */
+function initVAD(stream) {
+    if (!vadConfig.enabled) return;
+
+    try {
+        state.vad.stream = stream;
+        state.vad.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const source = state.vad.audioContext.createMediaStreamSource(stream);
+
+        state.vad.analyser = state.vad.audioContext.createAnalyser();
+        state.vad.analyser.fftSize = 2048;
+        state.vad.analyser.smoothingTimeConstant = 0.8;
+
+        source.connect(state.vad.analyser);
+
+        // 重置 VAD 状态
+        state.vad.isSpeaking = false;
+        state.vad.silenceStartTime = null;
+        state.vad.speechStartTime = null;
+        state.vad.speechDetected = false;
+
+        // 开始分析循环
+        analyzeAudio();
+
+        console.log('[WebUI] VAD 初始化成功');
+    } catch (error) {
+        console.error('[WebUI] VAD 初始化失败:', error);
+    }
+}
+
+/**
+ * 分析音频电平进行 VAD 检测
+ */
+function analyzeAudio() {
+    if (!state.isRecording || !state.vad.analyser) return;
+
+    const dataArray = new Float32Array(state.vad.analyser.fftSize);
+    state.vad.analyser.getFloatTimeDomainData(dataArray);
+
+    // 计算 RMS (均方根) 音量电平
+    let sum = 0;
+    for (let i = 0; i < dataArray.length; i++) {
+        sum += dataArray[i] * dataArray[i];
+    }
+    const rms = Math.sqrt(sum / dataArray.length);
+
+    const now = Date.now();
+
+    // 语音检测逻辑
+    if (rms > vadConfig.speechThreshold) {
+        // 检测到语音
+        if (!state.vad.isSpeaking) {
+            // 语音开始
+            state.vad.isSpeaking = true;
+            state.vad.speechStartTime = now;
+            state.vad.speechDetected = true;
+            updateRecordingIndicator('speaking');
+            console.log('[WebUI] VAD: 检测到语音开始');
+        }
+        state.vad.silenceStartTime = null;
+    } else if (state.vad.isSpeaking) {
+        // 语音后的静音
+        if (!state.vad.silenceStartTime) {
+            state.vad.silenceStartTime = now;
+            updateRecordingIndicator('silence');
+        } else if (now - state.vad.silenceStartTime >= vadConfig.silenceDuration) {
+            // 静音时长超过阈值，停止录音
+            const speechDuration = now - state.vad.speechStartTime;
+            if (speechDuration >= vadConfig.minSpeechDuration) {
+                console.log('[WebUI] VAD: 检测到语音结束，自动停止录音');
+                stopRecording();
+                return;
+            } else {
+                // 语音时长太短，重置
+                state.vad.isSpeaking = false;
+                state.vad.silenceStartTime = null;
+                updateRecordingIndicator('listening');
+            }
+        }
+    } else if (!state.vad.speechDetected) {
+        // 还在等待语音
+        updateRecordingIndicator('listening');
+    }
+
+    // 继续分析循环
+    state.vad.animationFrameId = requestAnimationFrame(analyzeAudio);
+}
+
+/**
+ * 更新录音指示器状态
+ * @param {string} status - 'listening' | 'speaking' | 'silence'
+ */
+function updateRecordingIndicator(status) {
+    const indicator = elements.recordingIndicator;
+    if (!indicator) return;
+
+    // 移除所有状态类
+    indicator.classList.remove('vad-listening', 'vad-speaking', 'vad-silence');
+
+    // 添加当前状态类
+    switch (status) {
+        case 'listening':
+            indicator.classList.add('vad-listening');
+            break;
+        case 'speaking':
+            indicator.classList.add('vad-speaking');
+            break;
+        case 'silence':
+            indicator.classList.add('vad-silence');
+            break;
+    }
+}
+
+/**
+ * 清理 VAD 资源
+ */
+function cleanupVAD() {
+    if (state.vad.animationFrameId) {
+        cancelAnimationFrame(state.vad.animationFrameId);
+        state.vad.animationFrameId = null;
+    }
+
+    if (state.vad.audioContext) {
+        state.vad.audioContext.close().catch(() => {});
+        state.vad.audioContext = null;
+    }
+
+    state.vad.analyser = null;
+    state.vad.stream = null;
+    state.vad.isSpeaking = false;
+    state.vad.silenceStartTime = null;
+    state.vad.speechStartTime = null;
+    state.vad.speechDetected = false;
+
+    updateRecordingIndicator('listening');
+}
+
+/**
+ * 更新 VAD 时长设置的可见性
+ */
+function updateVadDurationVisibility() {
+    if (elements.vadDurationSetting) {
+        elements.vadDurationSetting.style.display = vadConfig.enabled ? 'flex' : 'none';
     }
 }
 
@@ -750,6 +971,10 @@ function bindEvents() {
             },
             asr: {
                 use_local: elements.settingUseLocalAsr.checked
+            },
+            vad: {
+                enabled: elements.settingVadEnabled?.checked !== false,
+                silenceDuration: parseInt(elements.settingVadDuration?.value) || 1500
             }
         };
 
@@ -763,12 +988,15 @@ function bindEvents() {
             const data = await response.json();
             if (data.success) {
                 state.config = { ...state.config, ...newConfig };
+                // 更新 VAD 配置
+                vadConfig.enabled = newConfig.vad.enabled;
+                vadConfig.silenceDuration = newConfig.vad.silenceDuration;
                 elements.settingsModal.classList.remove('active');
             } else {
                 showError('保存设置失败: ' + (data.error || '未知错误'));
             }
         } catch (error) {
-            logger.error('[WebUI] 保存设置失败:', error);
+            console.error('[WebUI] 保存设置失败:', error);
             showError('保存设置失败');
         }
     });
@@ -808,7 +1036,26 @@ function bindEvents() {
                 });
                 state.config.llm.model = model;
             } catch (error) {
-                logger.error('[WebUI] 切换模型失败:', error);
+                console.error('[WebUI] 切换模型失败:', error);
+            }
+        });
+    }
+
+    // VAD 开关
+    if (elements.settingVadEnabled) {
+        elements.settingVadEnabled.addEventListener('change', (e) => {
+            vadConfig.enabled = e.target.checked;
+            updateVadDurationVisibility();
+        });
+    }
+
+    // VAD 静音检测时长
+    if (elements.settingVadDuration) {
+        elements.settingVadDuration.addEventListener('input', (e) => {
+            const value = parseInt(e.target.value);
+            vadConfig.silenceDuration = value;
+            if (elements.vadDurationValue) {
+                elements.vadDurationValue.textContent = value;
             }
         });
     }
