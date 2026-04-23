@@ -166,7 +166,8 @@ def ask_online_ai_stream(text, conversation_history=None):
     messages.append({"role": "user", "content": cleaned_text})
 
     # 尝试使用当前模型，失败时自动切换
-    max_attempts = 3  # 最多尝试 3 个模型
+    queue = model_manager.get_queue()
+    max_attempts = len(queue.models) if queue else 1  # 尝试所有模型
     attempt = 0
 
     while attempt < max_attempts:
@@ -298,9 +299,10 @@ def get_current_model_name() -> str:
     return model.name if model else "未配置"
 
 
-def list_available_models() -> list[dict]:
-    """获取所有可用模型列表"""
-    return model_manager.list_available_models()
+def list_available_models() -> list[str]:
+    """获取所有可用模型列表（从配置文件读取）"""
+    from voice_assistant.config import config
+    return config.llm_models.get_model_names()
 
 
 def get_model_queue_info() -> dict:

@@ -21,6 +21,7 @@ import json
 import logging
 import os
 import sqlite3
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
@@ -28,8 +29,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 from collections import defaultdict
-from datetime import datetime, timedelta
-import time
+from datetime import datetime
 
 import numpy as np
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
@@ -37,10 +37,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from voice_assistant.config import config
-from voice_assistant.core.model_manager import model_manager
-from voice_assistant.audio.funasr_asr import FunASRClient
-from voice_assistant.audio.cloud_asr import CloudASR
-from voice_assistant.audio.tts import synthesize
+from voice_assistant.core import VoiceSession
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -83,19 +80,49 @@ def init_db():
     logger.info(f"[WebUI] 数据库初始化完成: {DB_PATH}")
 
 
+# 全局会话管理
+sessions: dict[str, VoiceSession] = {}
+
+
+def get_or_create_session(client_id: str) -> VoiceSession:
+    """获取或创建客户端会话"""
+    if client_id not in sessions:
+        session = VoiceSession(
+            auto_mode=True,
+            max_response_length=200,
+            execution_timeout=60.0,
+            on_intent_detected=lambda intent, conf: logger.info(f"[{client_id}] Intent: {intent} ({conf})"),
+        )
+        session.initialize()
+        sessions[client_id] = session
+        logger.info(f"[WebUI] 创建新会话: {client_id}")
+    return sessions[client_id]
+
+
+def cleanup_session(client_id: str):
+    """清理客户端会话"""
+    if client_id in sessions:
+        sessions[client_id].cleanup()
+        del sessions[client_id]
+        logger.info(f"[WebUI] 清理会话: {client_id}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     init_db()
     logger.info("[WebUI] 服务启动")
     yield
+    # 清理所有会话
+    for client_id in list(sessions.keys()):
+        cleanup_session(client_id)
     logger.info("[WebUI] 服务关闭")
 
 
 app = FastAPI(
     title="Voice Assistant Web UI",
     description="语音助手 Web 界面",
-    version="2.1.0",
+    version="2.2.0",
     lifespan=lifespan
 )
 
@@ -147,31 +174,57 @@ async def update_config(new_config: dict):
     try:
         if "llm" in new_config:
             llm_cfg = new_config["llm"]
-            if "model" in llm_cfg:
-                config.llm.model = llm_cfg["model"]
-            if "max_tokens" in llm_cfg:
-                config.llm.max_tokens = llm_cfg["max_tokens"]
-            if "temperature" in llm_cfg:
-                config.llm.temperature = llm_cfg["temperature"]
+            if "model" in llm_cfg and llm_cfg["model"]:
+                config.llm.model = str(llm_cfg["model"])
+            if "max_tokens" in llm_cfg and llm_cfg["max_tokens"] is not None:
+                config.llm.max_tokens = int(llm_cfg["max_tokens"])
+            if "temperature" in llm_cfg and llm_cfg["temperature"] is not None:
+                config.llm.temperature = float(llm_cfg["temperature"])
 
         if "audio" in new_config:
             audio_cfg = new_config["audio"]
-            if "edge_tts_voice" in audio_cfg:
-                config.audio.edge_tts_voice = audio_cfg["edge_tts_voice"]
+            if "edge_tts_voice" in audio_cfg and audio_cfg["edge_tts_voice"]:
+                config.audio.edge_tts_voice = str(audio_cfg["edge_tts_voice"])
 
+        # ASR 配置暂时不支持运行时修改（因为 ASRConfig 是 frozen 的）
+        # 如果需要修改 asr.use_local，需要重启服务
+
+        logger.info(f"[WebUI] 配置已更新: {new_config}")
         return {"success": True}
     except Exception as e:
+        logger.error(f"[WebUI] 配置更新失败: {e}")
         return {"success": False, "error": str(e)}
 
 
 @app.get("/api/models")
 async def get_models():
-    """获取可用模型列表"""
+    """获取可用模型列表（从配置文件读取）"""
     try:
-        models = model_manager.list_available_models()
-        return {"models": [m["id"] for m in models]}
+        model_names = config.llm_models.get_model_names()
+        primary_model = config.llm.model
+
+        return {
+            "models": model_names,
+            "total": len(model_names),
+            "primary": primary_model,
+            "checked": False,  # 不再运行时检查
+            "source": "config"
+        }
     except Exception as e:
-        return {"models": [config.llm.model], "error": str(e)}
+        logger.error(f"[WebUI] 获取模型列表失败: {e}")
+        # 回退到默认模型列表
+        default_models = [
+            "qwen-plus-latest", "qwen-turbo-latest", "qwen-max-latest",
+            "deepseek-v3.1", "deepseek-v3",
+        ]
+        return {
+            "models": default_models,
+            "total": len(default_models),
+            "primary": config.llm.model,
+            "checked": False,
+            "source": "fallback",
+            "error": str(e)
+        }
 
 
 @app.get("/api/history")
@@ -282,6 +335,19 @@ def create_conversation(title: str = None) -> str:
     return conversation_id
 
 
+def get_conversation_history(conversation_id: str, limit: int = 10) -> list:
+    """获取对话历史（用于上下文）"""
+    conn = sqlite3.connect(str(DB_PATH))
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT role, content FROM messages WHERE conversation_id = ? ORDER BY created_at DESC LIMIT ?",
+        (conversation_id, limit)
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return [{"role": r[0], "content": r[1]} for r in reversed(rows)]
+
+
 class ConnectionManager:
     """WebSocket 连接管理"""
     def __init__(self):
@@ -348,8 +414,7 @@ def validate_config(new_config: dict) -> tuple[bool, str]:
     """验证配置输入"""
     if "llm" in new_config:
         llm = new_config["llm"]
-        if "model" in llm and llm["model"] not in VALID_LLM_MODELS:
-            return False, f"无效的模型: {llm['model']}"
+        # 模型名称不做严格验证，由 API 层面处理
         if "temperature" in llm:
             temp = llm["temperature"]
             if not isinstance(temp, (int, float)) or temp < 0 or temp > 2:
@@ -361,8 +426,7 @@ def validate_config(new_config: dict) -> tuple[bool, str]:
 
     if "audio" in new_config:
         audio = new_config["audio"]
-        if "edge_tts_voice" in audio and audio["edge_tts_voice"] not in VALID_TTS_VOICES:
-            return False, f"无效的 TTS 音色: {audio['edge_tts_voice']}"
+        # TTS 音色不做严格验证，由 edge-tts 处理
 
     if "asr" in new_config:
         asr = new_config["asr"]
@@ -385,10 +449,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
         return
 
     await manager.connect(websocket, client_id)
-
     conversation_id = None
-    asr_client = None
-    cloud_asr = None
 
     try:
         while True:
@@ -455,31 +516,18 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 await manager.send_message(client_id, {"type": "asr_processing"})
 
                 try:
-                    # 使用 FunASR 进行识别
-                    if config.asr.use_local:
-                        if asr_client is None:
-                            asr_client = FunASRClient()
-                        # 在线程池中运行同步的识别函数
-                        loop = asyncio.get_event_loop()
-                        with ThreadPoolExecutor() as pool:
-                            text = await loop.run_in_executor(pool, asr_client.recognize, final_audio_path)
-                    else:
-                        # 使用云端 ASR
-                        if cloud_asr is None:
-                            cloud_asr = CloudASR(
-                                api_key=config.asr.api_key or config.llm.api_key,
-                                model=config.asr.model
-                            )
-                        # 读取音频文件为字节
-                        with open(final_audio_path, 'rb') as f:
-                            audio_bytes = f.read()
-                        # 在线程池中运行同步的识别函数
-                        loop = asyncio.get_event_loop()
-                        with ThreadPoolExecutor() as pool:
-                            text = await loop.run_in_executor(pool, cloud_asr.recognize_from_bytes, audio_bytes)
+                    # 读取音频文件
+                    with open(final_audio_path, 'rb') as f:
+                        audio_data = f.read()
+
+                    # 使用 VoiceSession 进行识别
+                    session = get_or_create_session(client_id)
+                    loop = asyncio.get_event_loop()
+                    with ThreadPoolExecutor() as pool:
+                        text = await loop.run_in_executor(pool, session.recognize, audio_data)
 
                     if text:
-                        # 发送识别结果，让用户确认或修改后再发送
+                        # 发送识别结果
                         await manager.send_message(client_id, {
                             "type": "asr_result",
                             "content": text
@@ -522,17 +570,16 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 if text:
                     await manager.send_message(client_id, {"type": "tts_generating"})
                     try:
-                        audio_path = f"/tmp/va_tts_replay_{uuid.uuid4()}.mp3"
+                        session = get_or_create_session(client_id)
                         loop = asyncio.get_event_loop()
                         with ThreadPoolExecutor() as pool:
-                            success = await loop.run_in_executor(pool, synthesize, text, audio_path)
+                            audio_data = await loop.run_in_executor(pool, session.synthesize, text)
 
-                        if success and os.path.exists(audio_path):
-                            with open(audio_path, "rb") as f:
-                                audio_data = base64.b64encode(f.read()).decode("utf-8")
+                        if audio_data:
+                            audio_b64 = base64.b64encode(audio_data).decode("utf-8")
                             await manager.send_message(client_id, {
                                 "type": "tts_audio",
-                                "data": audio_data,
+                                "data": audio_b64,
                                 "format": "mp3"
                             })
                         else:
@@ -540,9 +587,6 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                                 "type": "error",
                                 "message": "语音合成失败"
                             })
-
-                        if os.path.exists(audio_path):
-                            os.remove(audio_path)
                     except Exception as e:
                         logger.error(f"[WebUI] TTS 重播错误: {e}")
                         await manager.send_message(client_id, {
@@ -552,91 +596,61 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
 
     except WebSocketDisconnect:
         manager.disconnect(client_id)
+        cleanup_session(client_id)
     except Exception as e:
         logger.error(f"[WebUI] WebSocket 错误: {e}")
         manager.disconnect(client_id)
+        cleanup_session(client_id)
 
 
 async def process_llm_response(client_id: str, conversation_id: str, user_text: str):
-    """处理 LLM 响应，包含意图识别和路由"""
-    from voice_assistant.core.ai_client import ask_ai_stream
-    from voice_assistant.services.router import CommandRouter, simple_classify_intent
-    from voice_assistant.executors.computer import ComputerExecutor
-    from voice_assistant.executors.chat import ChatExecutor
-    from voice_assistant.config import config
-
+    """处理 LLM 响应（使用 VoiceSession）"""
     await manager.send_message(client_id, {"type": "llm_thinking"})
 
     try:
+        # 获取会话
+        session = get_or_create_session(client_id)
+        
         # 获取对话历史
-        conn = sqlite3.connect(str(DB_PATH))
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT role, content FROM messages WHERE conversation_id = ? ORDER BY created_at DESC LIMIT 10",
-            (conversation_id,)
-        )
-        history_rows = cursor.fetchall()
-        conn.close()
+        history = get_conversation_history(conversation_id, limit=10)
+        session.set_history(history)
 
-        # 构建对话历史
-        conversation_history = [
-            {"role": r[0], "content": r[1]}
-            for r in reversed(history_rows)
-        ]
-
-        # 意图识别 + 路由
-        intent = simple_classify_intent(user_text)
-        logger.info(f"[WebUI] Intent: {intent.intent_type.value} (confidence: {intent.confidence})")
-
-        # 初始化执行器
-        computer_executor = ComputerExecutor(
-            auto_run=config.interpreter.auto_run,
-            verbose=config.interpreter.verbose
-        )
-        chat_executor = ChatExecutor(max_response_length=200)
-        router = CommandRouter(executors=[computer_executor, chat_executor])
-
-        # 根据意图路由
-        context = {'history': conversation_history}
-
-        # 如果是 computer 意图，显示执行中状态
-        if intent.intent_type.value == 'computer':
-            await manager.send_message(client_id, {
-                "type": "executing",
-                "message": "正在执行操作..."
-            })
-
-        # 执行路由，带超时保护（60秒超时）
-        try:
+        # 处理文本
+        loop = asyncio.get_event_loop()
+        with ThreadPoolExecutor() as pool:
+            # 定义回调的同步包装
+            def on_execution_start():
+                asyncio.run_coroutine_threadsafe(
+                    manager.send_message(client_id, {
+                        "type": "executing",
+                        "message": "正在执行操作..."
+                    }),
+                    loop
+                )
+            
+            def on_execution_end():
+                asyncio.run_coroutine_threadsafe(
+                    manager.send_message(client_id, {
+                        "type": "execution_complete",
+                        "message": "操作执行完成"
+                    }),
+                    loop
+                )
+            
+            # 临时设置回调
+            session._on_execution_start = on_execution_start
+            session._on_execution_end = on_execution_end
+            
             result = await asyncio.wait_for(
-                asyncio.to_thread(router.route, intent, context),
+                loop.run_in_executor(pool, session.process_text, user_text),
                 timeout=60.0
             )
-        except asyncio.TimeoutError:
-            logger.error(f"[WebUI] 命令执行超时（60秒）")
-            await manager.send_message(client_id, {
-                "type": "execution_complete",
-                "message": "操作执行超时"
-            })
-            await manager.send_message(client_id, {
-                "type": "error",
-                "message": "执行超时，请重试或尝试更简单的操作"
-            })
-            return
 
-        full_response = result.get('response', '抱歉，我没有理解你的请求')
+        full_response = result.response
 
-        # 如果有执行结果，也一并返回
-        execution_output = result.get('execution_output', '')
-        if execution_output:
-            full_response = f"{full_response}\n\n执行结果:\n{execution_output}"
-
-        # 发送执行完成状态
-        if intent.intent_type.value == 'computer':
-            await manager.send_message(client_id, {
-                "type": "execution_complete",
-                "message": "操作执行完成"
-            })
+        # 如果有执行结果
+        if result.execution_output:
+            full_response = f"{full_response}\n\n执行结果:\n{result.execution_output}"
 
         # 发送完整响应
         await manager.send_message(client_id, {
@@ -656,53 +670,42 @@ async def process_llm_response(client_id: str, conversation_id: str, user_text: 
         # 生成 TTS 音频
         await generate_and_send_tts(client_id, conversation_id, full_response)
 
+    except asyncio.TimeoutError:
+        logger.error(f"[WebUI] 处理超时（60秒）")
+        await manager.send_message(client_id, {
+            "type": "error",
+            "message": "处理超时，请重试或尝试更简单的操作"
+        })
     except Exception as e:
         logger.error(f"[WebUI] 处理错误: {e}")
         await manager.send_message(client_id, {
             "type": "error",
             "message": f"处理请求失败: {str(e)}"
         })
-        await manager.send_message(client_id, {
-            "type": "error",
-            "message": f"AI 响应失败: {str(e)}"
-        })
 
 
 async def generate_and_send_tts(client_id: str, conversation_id: str, text: str):
-    """生成并发送 TTS 音频"""
+    """生成并发送 TTS 音频（使用 VoiceSession）"""
     try:
         await manager.send_message(client_id, {"type": "tts_generating"})
 
-        # 生成音频
-        audio_path = f"/tmp/va_tts_{uuid.uuid4()}.mp3"
-
-        # 使用线程池运行同步的 TTS 函数
+        session = get_or_create_session(client_id)
         loop = asyncio.get_event_loop()
         with ThreadPoolExecutor() as pool:
-            success = await loop.run_in_executor(pool, synthesize, text, audio_path)
+            audio_data = await loop.run_in_executor(pool, session.synthesize, text)
 
-        if not success or not os.path.exists(audio_path):
+        if audio_data:
+            audio_b64 = base64.b64encode(audio_data).decode("utf-8")
+            await manager.send_message(client_id, {
+                "type": "tts_audio",
+                "data": audio_b64,
+                "format": "mp3"
+            })
+        else:
             logger.warning("[WebUI] TTS 生成失败")
-            return
-
-        # 读取并编码音频
-        with open(audio_path, "rb") as f:
-            audio_data = base64.b64encode(f.read()).decode("utf-8")
-
-        # 发送音频数据
-        await manager.send_message(client_id, {
-            "type": "tts_audio",
-            "data": audio_data,
-            "format": "mp3"
-        })
-
-        # 清理
-        if os.path.exists(audio_path):
-            os.remove(audio_path)
 
     except Exception as e:
         logger.error(f"[WebUI] TTS 错误: {e}")
-        # TTS 失败不影响文本显示
 
 
 if __name__ == "__main__":
