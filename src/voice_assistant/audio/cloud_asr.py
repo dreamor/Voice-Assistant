@@ -11,7 +11,6 @@ from typing import Optional
 
 import dashscope
 import numpy as np
-from dashscope.audio.asr import Recognition, Transcription
 from voice_assistant.config import config
 from voice_assistant.security.validation import validate_audio_input, asr_limiter, RateLimitError
 
