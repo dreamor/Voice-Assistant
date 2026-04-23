@@ -483,12 +483,8 @@ class BaseExecutor(ABC):
 ```python
 class ChatExecutor(BaseExecutor):
     def execute(self, user_text: str,
-                conversation_history: list = None,
-                direct_response: str = None) -> dict
-        """对话执行
-        direct_response: 预生成回复（如多模态路径中 Gemma 的回复）
-                         提供后跳过 LLM 调用，直接使用该回复
-        """
+                conversation_history: list = None) -> dict
+        """对话执行，使用 LLM 生成回复"""
 ```
 
 ### ComputerExecutor (计算机控制执行器)
@@ -547,7 +543,6 @@ class CommandRouter:
 
 **上下文支持**：
 - `context['history']`：对话历史
-- `context['direct_response']`：预生成回复（多模态路径中由 Gemma 4 直接生成）
 
 ---
 

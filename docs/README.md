@@ -20,7 +20,7 @@
 | `ai_client.py` | LLM 对话（在线/本地） |
 | `audio_player.py` | 音频播放 |
 | `router.py` | 意图分类（LLM+关键词）和命令路由 |
-| `chat.py` | 对话执行器（支持 direct_response） |
+| `chat.py` | 对话执行器 |
 | `interpreter.py` | Open Interpreter 执行器 |
 
 ### 新功能
@@ -28,23 +28,16 @@
 | 功能 | 说明 |
 |------|------|
 | LLM 意图识别 | 云端 LLM 语义理解 + 关键词兜底 |
-| 多模态音频 | 音频直接送 Gemma 4 理解，跳过 ASR |
-| direct_response | Gemma 回复直达 ChatExecutor，跳过二次 LLM |
-| LLM 切换 | 按 `L` 键切换本地/在线模式 |
+| 模型自动切换 | 主模型故障时自动切换到备用模型 |
+| VAD 语音检测 | 自动检测说话开始/结束，无需手动操作 |
 | 中英文优化 | ASR 热词、参数优化、纠错 |
 
 ### 数据流
 
 ```
-传统路径:
 麦克风 → VAD录音 → 云端ASR识别 → 意图识别(LLM+关键词) → 执行器路由 → TTS合成 → 扬声器播放
                                             ↓
                                       本地/在线LLM
-
-多模态路径(本地模型 + M键开启):
-麦克风 → VAD录音 → Gemma 4 多模态理解 → 意图识别 → 执行器路由 → TTS合成 → 扬声器播放
-                                      ↓ (direct_response 跳过二次 LLM)
-                              ChatExecutor/ComputerExecutor
 ```
 
 ### LLM 模式

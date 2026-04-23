@@ -112,7 +112,6 @@ AppConfig
 ├── asr: ASRConfig
 ├── llm: LLMConfig
 │   └── local: LocalLLMConfig
-│       └── use_multimodal_audio: bool
 ├── audio: AudioConfig
 ├── vad: VADConfig
 ├── interpreter: InterpreterConfig
@@ -279,8 +278,7 @@ with LocalLLMClient("model.litertlm") as client:
 3. 保存音频为 WAV 格式
    │
    ▼
-4a. 多模态路径（本地模型 + 多模态开启）:
-    音频直接送 Gemma 4 → 得到回复文本 → 跳至步骤 6
+4a. 云端 ASR 识别音频为文本 → 跳至步骤 5
 4b. 传统路径（默认）:
     云端 ASR 识别音频为文本
     │
@@ -307,8 +305,7 @@ with LocalLLMClient("model.litertlm") as client:
    │   └── 返回结果
    │
    └── ChatExecutor → LLM 对话
-       ├── 多模态路径: 使用 direct_response 跳过二次 LLM
-       ├── 传统路径: 调用云端/本地 LLM
+       └── 调用云端/本地 LLM
        ├── 构建对话历史
        └── 返回回复
    │
