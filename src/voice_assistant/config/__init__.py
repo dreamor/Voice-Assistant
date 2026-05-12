@@ -327,6 +327,38 @@ def save_custom_provider(
     return provider_cfg
 
 
+def update_custom_provider(
+    provider_id: str,
+    *,
+    name: Optional[str] = None,
+    base_url: Optional[str] = None,
+    litellm_prefix: Optional[str] = None,
+    models: Optional[list[str]] = None,
+) -> Optional[ProviderConfig]:
+    """部分更新自定义 Provider。仅传入的字段被更新。
+
+    Returns:
+        更新后的 ProviderConfig，若 Provider 不存在或非自定义则返回 None。
+    """
+    existing = config.providers.get_provider(provider_id)
+    if existing is None or not existing.is_custom:
+        return None
+
+    new_name = name if name is not None else existing.name
+    new_base_url = base_url if base_url is not None else existing.base_url
+    new_prefix = litellm_prefix if litellm_prefix is not None else existing.litellm_prefix
+    new_models = models if models is not None else [m.id for m in existing.models]
+
+    return save_custom_provider(
+        provider_id=provider_id,
+        name=new_name,
+        base_url=new_base_url or "",
+        api_key_env=existing.api_key_env,
+        litellm_prefix=new_prefix,
+        models=new_models,
+    )
+
+
 def delete_custom_provider(provider_id: str) -> bool:
     """从 config/custom_providers.yaml 删除自定义 Provider"""
     project_root = _find_project_root()

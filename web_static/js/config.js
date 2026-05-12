@@ -122,7 +122,12 @@ function renderProviderDetail(page, provider) {
         <div class="detail-body">
             <div class="detail-field">
                 <label>Base URL</label>
-                <span class="detail-value">${provider.base_url || '未配置'}</span>
+                ${isCustom ? `
+                    <div class="detail-inline-edit">
+                        <input type="text" id="detail-base-url" value="${provider.base_url || ''}" placeholder="https://..." autocomplete="off">
+                        <button class="btn-sm btn-primary" id="btn-save-base-url">保存</button>
+                    </div>
+                ` : `<span class="detail-value">${provider.base_url || '未配置'}</span>`}
             </div>
             <div class="detail-field">
                 <label>API Key</label>
@@ -144,11 +149,16 @@ function renderProviderDetail(page, provider) {
             </div>
 
             <div class="detail-field">
-                <label>模型列表</label>
-                <div class="detail-models">
-                    ${provider.models.map(m => `<span class="model-tag">${m.id}</span>`).join('')}
+                <label>模型列表 ${isCustom ? '（可增删）' : ''}</label>
+                <div class="detail-models" id="detail-models-container">
+                    ${provider.models.map(m => `<span class="model-tag ${isCustom ? 'removable' : ''}" data-model-id="${m.id}">${m.id}${isCustom ? ' ✕' : ''}</span>`).join('')}
                     ${provider.models.length === 0 ? '<span class="no-models">暂无模型</span>' : ''}
                 </div>
+                ${isCustom ? `
+                    <div class="detail-inline-edit">
+                        <input type="text" id="detail-new-model-input" placeholder="输入模型 ID 后按 Enter 添加" autocomplete="off">
+                    </div>
+                ` : ''}
                 ${provider.base_url ? `<button class="btn-sm btn-secondary" id="btn-fetch-models">从 API 获取模型</button>` : ''}
             </div>
 
@@ -161,7 +171,7 @@ function renderProviderDetail(page, provider) {
         </div>
     `;
 
-    // 绑定事件
+    // 切换 Provider
     const switchBtn = panel.querySelector('#btn-switch-provider');
     if (switchBtn) {
         switchBtn.addEventListener('click', async () => {
@@ -177,6 +187,7 @@ function renderProviderDetail(page, provider) {
         });
     }
 
+    // 删除 Provider
     const deleteBtn = panel.querySelector('#btn-delete-provider');
     if (deleteBtn) {
         deleteBtn.addEventListener('click', async () => {
@@ -195,6 +206,28 @@ function renderProviderDetail(page, provider) {
         });
     }
 
+    // 保存 base_url
+    const saveBaseUrlBtn = panel.querySelector('#btn-save-base-url');
+    if (saveBaseUrlBtn) {
+        saveBaseUrlBtn.addEventListener('click', async () => {
+            const input = panel.querySelector('#detail-base-url');
+            const newUrl = input.value.trim();
+            if (!newUrl) { alert('Base URL 不能为空'); return; }
+            saveBaseUrlBtn.textContent = '保存中...';
+            saveBaseUrlBtn.disabled = true;
+            try {
+                const result = await api.updateProvider(pid, { base_url: newUrl });
+                state.providers[pid] = result.provider;
+                renderConfigPage();
+            } catch (error) {
+                alert('保存失败: ' + error.message);
+                saveBaseUrlBtn.textContent = '保存';
+                saveBaseUrlBtn.disabled = false;
+            }
+        });
+    }
+
+    // API Key 显示/隐藏
     const toggleKeyBtn = panel.querySelector('#toggle-detail-key');
     const keyInput = panel.querySelector('#detail-api-key-input');
     if (toggleKeyBtn && keyInput) {
@@ -203,6 +236,7 @@ function renderProviderDetail(page, provider) {
         });
     }
 
+    // 保存 API Key
     const saveKeyBtn = panel.querySelector('#btn-save-api-key');
     if (saveKeyBtn) {
         saveKeyBtn.addEventListener('click', async () => {
@@ -221,6 +255,49 @@ function renderProviderDetail(page, provider) {
         });
     }
 
+    // 手动添加模型（自定义 Provider）
+    if (isCustom) {
+        const newModelInput = panel.querySelector('#detail-new-model-input');
+        if (newModelInput) {
+            newModelInput.addEventListener('keydown', async (e) => {
+                if (e.key !== 'Enter' || e.isComposing) return;
+                e.preventDefault();
+                const val = newModelInput.value.trim();
+                if (!val) return;
+                const existing = provider.models.map(m => m.id);
+                if (existing.includes(val)) {
+                    newModelInput.value = '';
+                    return;
+                }
+                const newModels = [...existing, val];
+                try {
+                    const result = await api.updateProvider(pid, { models: newModels });
+                    state.providers[pid] = result.provider;
+                    renderConfigPage();
+                } catch (error) {
+                    alert('添加模型失败: ' + error.message);
+                }
+            });
+        }
+
+        // 点击标签 ✕ 删除
+        panel.querySelectorAll('.model-tag.removable').forEach(tag => {
+            tag.addEventListener('click', async () => {
+                const mid = tag.dataset.modelId;
+                if (!confirm(`删除模型 "${mid}"？`)) return;
+                const newModels = provider.models.map(m => m.id).filter(id => id !== mid);
+                try {
+                    const result = await api.updateProvider(pid, { models: newModels });
+                    state.providers[pid] = result.provider;
+                    renderConfigPage();
+                } catch (error) {
+                    alert('删除模型失败: ' + error.message);
+                }
+            });
+        });
+    }
+
+    // 从 API 获取模型
     const fetchModelsBtn = panel.querySelector('#btn-fetch-models');
     if (fetchModelsBtn) {
         fetchModelsBtn.addEventListener('click', async () => {
@@ -229,9 +306,20 @@ function renderProviderDetail(page, provider) {
             try {
                 const data = await api.fetchProviderModels(pid);
                 if (data.models && data.models.length > 0) {
-                    // 更新 state 中的 provider 模型列表
-                    if (state.providers[pid]) {
-                        state.providers[pid].models = data.models;
+                    if (isCustom) {
+                        // 自定义 Provider：合并后持久化
+                        const existing = new Set(provider.models.map(m => m.id));
+                        const merged = [...provider.models.map(m => m.id)];
+                        for (const m of data.models) {
+                            if (!existing.has(m.id)) merged.push(m.id);
+                        }
+                        const result = await api.updateProvider(pid, { models: merged });
+                        state.providers[pid] = result.provider;
+                    } else {
+                        // 内置 Provider：仅内存展示
+                        if (state.providers[pid]) {
+                            state.providers[pid].models = data.models;
+                        }
                     }
                     renderConfigPage();
                 } else {

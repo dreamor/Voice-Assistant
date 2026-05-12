@@ -463,6 +463,40 @@ async def delete_provider(provider_id: str):
     return {"success": True}
 
 
+@app.patch("/api/providers/{provider_id}")
+async def update_provider(provider_id: str, request: dict):
+    """更新自定义 Provider（base_url / 模型列表 / 名称等）"""
+    from voice_assistant.config import update_custom_provider
+
+    provider = config.providers.get_provider(provider_id)
+    if not provider:
+        raise HTTPException(status_code=404, detail=f"Provider 不存在: {provider_id}")
+    if not provider.is_custom:
+        raise HTTPException(status_code=400, detail=f"无法修改内置 Provider: {provider_id}")
+
+    updated = update_custom_provider(
+        provider_id,
+        name=request.get("name"),
+        base_url=request.get("base_url"),
+        litellm_prefix=request.get("litellm_prefix"),
+        models=request.get("models"),
+    )
+    if updated is None:
+        raise HTTPException(status_code=500, detail="更新失败")
+
+    return {
+        "success": True,
+        "provider": {
+            "id": provider_id,
+            "name": updated.name,
+            "has_key": updated.has_key,
+            "models": [{"id": m.id, "name": m.name} for m in updated.models],
+            "is_custom": True,
+            "base_url": updated.base_url,
+        },
+    }
+
+
 @app.get("/api/providers/{provider_id}/models")
 async def fetch_provider_models(provider_id: str):
     """从 Provider 的 /models 端点自动获取模型列表"""
@@ -476,31 +510,46 @@ async def fetch_provider_models(provider_id: str):
         raise HTTPException(status_code=400, detail=f"Provider {provider_id} 未配置 base_url")
 
     api_key = provider.api_key
+    if not api_key:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Provider {provider_id} 未配置 API Key（请先保存 Key 后再获取模型）",
+        )
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            headers = {}
-            if api_key:
-                headers["Authorization"] = f"Bearer {api_key}"
-
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            headers = {"Authorization": f"Bearer {api_key}"}
             url = f"{provider.base_url.rstrip('/')}/models"
             response = await client.get(url, headers=headers)
             response.raise_for_status()
 
             data = response.json()
+            raw_models = data.get("data") or data.get("models") or []
             models = []
-            for model in data.get("data", []):
-                model_id = model.get("id", "")
+            for model in raw_models:
+                if isinstance(model, dict):
+                    model_id = model.get("id") or model.get("name") or ""
+                    name = model.get("name") or model_id
+                elif isinstance(model, str):
+                    model_id = model
+                    name = model
+                else:
+                    continue
                 if model_id:
-                    models.append({"id": model_id, "name": model.get("name", model_id)})
+                    models.append({"id": model_id, "name": name})
 
             return {"models": models, "total": len(models)}
     except httpx.TimeoutException:
-        raise HTTPException(status_code=504, detail="请求 Provider 超时")
+        raise HTTPException(status_code=504, detail="请求 Provider 超时（15s）")
     except httpx.HTTPStatusError as e:
-        raise HTTPException(status_code=502, detail=f"Provider 返回错误: {e.response.status_code}")
+        body = e.response.text[:200] if e.response is not None else ""
+        raise HTTPException(
+            status_code=502,
+            detail=f"Provider /models 返回 {e.response.status_code}: {body}",
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"[WebUI] 获取 Provider 模型失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}")
 
 
 @app.get("/api/history")

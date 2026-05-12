@@ -39,6 +39,10 @@ ENV/
 .env
 .env.local
 
+# User runtime data (written by Web UI)
+config/custom_providers.yaml
+data/*.db
+
 # OS
 .DS_Store
 Thumbs.db

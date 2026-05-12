@@ -134,22 +134,11 @@ export function enterSelectMode() {
     state.isSelectMode = true;
     state.selectedConversationIds.clear();
 
-    // 显示选择按钮
     const selectBtn = document.getElementById('select-mode-btn');
     if (selectBtn) selectBtn.classList.add('active');
 
-    // 直接在已有 DOM 上添加 checkbox，无需重新 fetch
-    document.querySelectorAll('.history-item').forEach(item => {
-        const id = item.dataset.id;
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.className = 'history-checkbox';
-        checkbox.dataset.id = id;
-        item.insertBefore(checkbox, item.firstChild);
-        item.classList.remove('selected');
-    });
-
-    updateBatchActionBar();
+    // 重新渲染列表，让 renderHistoryList 统一处理 checkbox DOM 与 change 绑定
+    api.loadHistory().then(renderHistoryList);
 }
 
 /**

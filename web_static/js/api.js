@@ -261,6 +261,30 @@ export async function deleteProvider(providerId) {
 }
 
 /**
+ * 部分更新自定义 Provider
+ * @param {string} providerId - Provider ID
+ * @param {Object} patch - 可选字段 base_url / name / models / litellm_prefix
+ * @returns {Promise<Object>}
+ */
+export async function updateProvider(providerId, patch) {
+    try {
+        const response = await fetch(`/api/providers/${providerId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(patch)
+        });
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || '更新失败');
+        }
+        return await response.json();
+    } catch (error) {
+        logger.error('[WebUI] 更新 Provider 失败:', error);
+        throw error;
+    }
+}
+
+/**
  * 从 Provider 获取模型列表
  * @param {string} providerId - Provider ID
  * @returns {Promise<Object>}
