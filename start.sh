@@ -1,95 +1,94 @@
 #!/bin/bash
-# Voice Assistant launcher
-# Uses uv for Python environment
+# Voice Assistant launcher (Web only)
 
 set -e
 
-ARG="$1"
+cd "$(dirname "$0")"
 
 show_help() {
-    echo "================================"
-    echo "  Voice Assistant Launcher"
-    echo "================================"
-    echo ""
-    echo "Usage: start.sh [MODE]"
-    echo "  start.sh           - CLI mode"
-    echo "  start.sh --web     - Web UI"
-    echo "  start.sh --both   - CLI + Web UI"
-    echo "  start.sh --help    - This help"
-    echo ""
+    cat <<EOF
+================================
+  Voice Assistant Launcher
+================================
+
+Usage: start.sh [OPTION]
+  start.sh            Start Web UI (default)
+  start.sh --check    Verify dependencies and exit
+  start.sh --help     Show this help
+
+After start, open http://127.0.0.1:8000 in browser.
+EOF
 }
 
+ARG="$1"
 case "$ARG" in
     --help|-h) show_help; exit 0 ;;
-    --web) MODE="web" ;;
-    --both) MODE="both" ;;
-    "") MODE="cli" ;;
-    *) echo "[ERROR] Unknown: $ARG"; exit 1 ;;
+    --check)   MODE="check" ;;
+    "")        MODE="web" ;;
+    *) echo "[ERROR] Unknown arg: $ARG"; show_help; exit 1 ;;
 esac
 
 echo "================================"
 echo "  Voice Assistant"
 echo "================================"
-echo ""
-
-# Kill existing process on port 8000
-kill_port_8000() {
-    if lsof -i :8000 &>/dev/null; then
-        echo "[INFO] Port 8000 in use, killing existing process..."
-        lsof -ti :8000 | xargs kill -9 2>/dev/null || true
-        sleep 1
-    fi
-}
+echo
 
 # Check uv
-if ! command -v uv &> /dev/null; then
+if ! command -v uv >/dev/null 2>&1; then
     echo "[INFO] Installing uv..."
     curl -LsSf https://astral.sh/uv/install.sh | sh
+    export PATH="$HOME/.local/bin:$PATH"
 fi
 
 # Create venv
 if [ ! -d ".venv" ]; then
     echo "[INFO] Creating venv..."
-    uv venv --python 3.12
+    uv venv .venv --python 3.12
 fi
 
-# Check ffmpeg (required for FunASR)
-if ! command -v ffmpeg &> /dev/null; then
-    echo "[INFO] Installing ffmpeg..."
-    if command -v brew &> /dev/null; then
-        brew install ffmpeg
-    elif command -v apt &> /dev/null; then
-        sudo apt update && sudo apt install -y ffmpeg
+# Check ffmpeg
+if ! command -v ffmpeg >/dev/null 2>&1; then
+    echo "[WARNING] ffmpeg not found."
+    if command -v brew >/dev/null 2>&1; then
+        echo "[INFO] Installing ffmpeg via brew..."
+        brew install ffmpeg || true
+    elif command -v apt-get >/dev/null 2>&1; then
+        echo "[INFO] Installing ffmpeg via apt..."
+        sudo apt-get install -y ffmpeg || true
+    else
+        echo "[WARNING] Please install ffmpeg manually."
     fi
 fi
 
-# Always install FunASR for local ASR option
-echo "[INFO] Installing dependencies (with FunASR)..."
-uv pip install -e ".[dev,local-asr]" 2>/dev/null || true
+# Install deps (idempotent)
+echo "[INFO] Installing deps..."
+.venv/bin/python -m pip install -e ".[dev]" >/dev/null 2>&1 || \
+    echo "[WARNING] Some dependencies may have failed to install."
 
-# Copy .env
+# Copy .env if missing
 if [ ! -f ".env" ] && [ -f ".env.example" ]; then
     cp .env.example .env
+    echo "[INFO] Created .env from .env.example - please edit and add API key"
 fi
 
-echo "[INFO] Ready"
-echo ""
+kill_port_8000() {
+    pid=$(lsof -ti:8000 2>/dev/null || true)
+    if [ -n "$pid" ]; then
+        echo "[INFO] Killing existing process on port 8000 (PID: $pid)"
+        kill -9 $pid 2>/dev/null || true
+    fi
+}
 
-# Launch
+echo "[INFO] Ready"
+echo
+
 case "$MODE" in
+    check)
+        .venv/bin/python -m voice_assistant --check
+        ;;
     web)
         kill_port_8000
-        echo "Starting Web UI..."
-        .venv/bin/python -m voice_assistant --web
-        ;;
-    both)
-        kill_port_8000
-        echo "Starting both modes..."
-        .venv/bin/python -m voice_assistant --web &
-        .venv/bin/python -m voice_assistant
-        ;;
-    *)
-        echo "Starting CLI..."
+        echo "[INFO] Starting Web UI on http://127.0.0.1:8000"
         .venv/bin/python -m voice_assistant
         ;;
 esac
