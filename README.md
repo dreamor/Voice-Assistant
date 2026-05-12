@@ -17,7 +17,23 @@
 - **历史管理** · SQLite 持久化，支持批量选择 / 全选 / 删除
 - **平台工具** · macOS / Windows / Linux 自动加载对应原生操作
 
-## 快速开始
+## 一键启动
+
+```bash
+# macOS / Linux
+./start.sh              # 自动装 uv / ffmpeg / 依赖，拉起 Web UI
+
+# Windows
+start.bat
+
+# 其他选项
+./start.sh --check      # 仅检查依赖
+./start.sh --help
+```
+
+首次运行会自动从 `.env.example` 复制出 `.env`，填入任一 Provider 的 API Key 后重启即可。浏览器打开 **http://127.0.0.1:8000**。
+
+## 手动启动
 
 ```bash
 # 1. 安装依赖
