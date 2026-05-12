@@ -1,0 +1,131 @@
+# Voice Assistant 配置文件
+# 敏感信息（API Key 等）请放入 .env 文件
+
+# 应用配置
+app:
+  name: "Voice Assistant"
+  version: "2.0.0"
+
+# ASR 配置（语音识别）
+asr:
+  model: "paraformer-realtime-v2"
+  base_url: "https://dashscope.aliyuncs.com/api/v1"
+  # 中英文混合识别优化参数
+  language_hints: ["zh", "en"]
+  disfluency_removal_enabled: true  # 过滤语气词（嗯、啊等）
+  max_sentence_silence: 1200  # 句间停顿容忍时间（毫秒）
+  # 本地 ASR 切换（FunASR 本地模型）
+  use_local: false  # true 使用本地 FunASR，false 使用云端 ASR
+  local:
+    enabled: false
+    model_path: null  # null=自动下载，或指定本地模型路径
+    device: "cpu"     # "cpu" 或 "cuda"
+    vad_threshold: 0.5
+  # 热词配置（需要阿里云付费配额，免费配额已超出）
+  hotwords:
+    enabled: false
+    config_file: "config/hotwords.json"
+    vocabulary_id: null  # 运行时自动创建/更新
+
+# LLM 配置（AI 对话）
+llm:
+  provider: "dashscope"  # 当前活跃 provider
+  model: "qwen3-coder-plus-2025-09-23"
+  base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+  max_tokens: 2000
+  temperature: 0.7
+
+# 多 Provider 配置
+providers:
+  dashscope:
+    name: "阿里云 DashScope"
+    litellm_prefix: "openai"
+    base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    api_key_env: "LLM_API_KEY"
+    models:
+      - id: "qwen3-coder-plus-2025-09-23"
+        name: "Qwen3 Coder Plus"
+      - id: "qwen-plus-latest"
+        name: "Qwen Plus"
+      - id: "qwen-turbo-latest"
+        name: "Qwen Turbo"
+  openai:
+    name: "OpenAI"
+    litellm_prefix: "openai"
+    base_url: null
+    api_key_env: "OPENAI_API_KEY"
+    models:
+      - id: "gpt-4o"
+        name: "GPT-4o"
+      - id: "gpt-4o-mini"
+        name: "GPT-4o Mini"
+  anthropic:
+    name: "Anthropic"
+    litellm_prefix: "anthropic"
+    base_url: null
+    api_key_env: "ANTHROPIC_API_KEY"
+    models:
+      - id: "claude-sonnet-4-20250514"
+        name: "Claude Sonnet 4"
+      - id: "claude-haiku-4-5-20251001"
+        name: "Claude Haiku 4.5"
+  deepseek:
+    name: "DeepSeek"
+    litellm_prefix: "openai"
+    base_url: "https://api.deepseek.com/v1"
+    api_key_env: "DEEPSEEK_API_KEY"
+    models:
+      - id: "deepseek-chat"
+        name: "DeepSeek Chat"
+      - id: "deepseek-coder"
+        name: "DeepSeek Coder"
+
+# 音频配置
+audio:
+  sample_rate: 16000  # 标准 ASR 采样率，提升识别准确率
+  edge_tts_voice: "zh-CN-XiaoxiaoNeural"  # 已废弃，请使用下方 tts.voice
+
+# TTS 配置（语音合成）
+tts:
+  provider: "edge-tts"  # TTS 引擎: "edge-tts" | 其他注册的 provider
+  voice: "zh-CN-XiaoxiaoNeural"  # 语音名称
+  rate: ""   # 语速调整，如 "+10%", "-5%"
+  pitch: ""  # 音调调整，如 "+2Hz", "-1Hz"
+
+# VAD 配置
+vad:
+  threshold: 0.02
+  silence_timeout: 1.5
+  min_speech: 0.15  # 降低阈值，允许短语音（如单个词"北京"）
+  wait_timeout: 10
+  max_recording: 30
+
+# Open Interpreter 配置
+interpreter:
+  auto_run: true
+  verbose: false
+
+# 对话历史配置
+history:
+  max_turns: 20
+
+# 日志配置
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(levelname)s - %(message)s"
+
+# 意图识别配置（LLM 意图分类）
+intent:
+  model: "qwen-turbo"  # 轻量模型，适合分类任务
+  timeout: 5           # 超时时间（秒）
+
+# Agent 配置（LLM function calling 循环）
+agent:
+  max_iterations: 5          # Agent 循环最大迭代次数
+  confirmation_timeout: 60   # 确认等待超时（秒）
+  fallback_to_interpreter: true  # 无匹配 tool 时回退到 Open Interpreter
+
+# Tools 配置
+tools:
+  blocked: []  # 被阻止的工具名称列表，如 ["delete_file", "kill_process"]
+  overrides: []  # 工具安全级别覆盖，格式: [{name: "tool_name", level: "read_only"}]

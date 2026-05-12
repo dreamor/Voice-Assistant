@@ -1,0 +1,49 @@
+# LLM 备选模型配置
+# 按能力从强到弱排序，故障转移时按顺序尝试
+# 更新时间：2026-04-28
+
+models:
+  # ============ 第一梯队：Coder Plus 旗舰代码模型 ============
+  - name: "qwen3-coder-plus-2025-09-23"
+    description: "Qwen3 Coder Plus 最新快照版 - 代码能力最强"
+
+  - name: "qwen3-coder-plus-2025-07-22"
+    description: "Qwen3 Coder Plus 快照版 2025-07"
+
+  # ============ 第二梯队：Qwen3 Max 通用旗舰 ============
+  - name: "qwen3-max-2025-09-23"
+    description: "Qwen3 Max 快照版 2025-09 - 通用旗舰"
+
+  # ============ 第三梯队：Qwen3 235B MoE 系列 ============
+  - name: "qwen3-235b-a22b"
+    description: "Qwen3 235B MoE 基座版"
+
+  - name: "qwen3-235b-a22b-instruct-2507"
+    description: "Qwen3 235B MoE Instruct 版"
+
+  # ============ 第四梯队：Next Thinking 系列 ============
+  - name: "qwen3-next-80b-a3b-thinking"
+    description: "Qwen3 Next 80B Thinking - 推理增强"
+
+  # ============ 第五梯队：Coder 中轻量系列 ============
+  - name: "qwen3-coder-30b-a3b-instruct"
+    description: "Qwen3 Coder 30B MoE Instruct - 轻量代码模型"
+
+  - name: "qwen3-coder-flash-2025-07-28"
+    description: "Qwen3 Coder Flash - 代码极速版"
+
+  # ============ 第六梯队：VL 多模态系列 ============
+  - name: "qwen3-vl-235b-a22b-thinking"
+    description: "Qwen3 VL 235B Thinking - 多模态推理旗舰"
+
+  - name: "qwen3-vl-flash-2025-10-15"
+    description: "Qwen3 VL Flash 快照版 2025-10 - 多模态极速"
+
+  - name: "qwen3-vl-flash"
+    description: "Qwen3 VL Flash - 多模态极速版"
+
+  - name: "qwen3-vl-32b-thinking"
+    description: "Qwen3 VL 32B Thinking - 中量级多模态推理"
+
+  - name: "qwen3-vl-30b-a3b-thinking"
+    description: "Qwen3 VL 30B MoE Thinking - 轻量多模态推理"
