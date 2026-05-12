@@ -152,9 +152,7 @@ def get_or_create_session(client_id: str) -> VoiceSession:
     """获取或创建客户端会话"""
     if client_id not in sessions:
         session = VoiceSession(
-            auto_mode=True,
             max_response_length=200,
-            execution_timeout=60.0,
             on_intent_detected=lambda intent, conf: logger.info(f"[{client_id}] Intent: {intent} ({conf})"),
         )
         session.initialize()
@@ -940,7 +938,7 @@ async def process_llm_response(client_id: str, conversation_id: str, user_text: 
 
         # 尝试流式处理
         full_response = ""
-        use_stream = session._orchestrator is not None and session._auto_mode
+        use_stream = session._orchestrator is not None
 
         if use_stream:
             # 流式路径：在线程池中运行生成器

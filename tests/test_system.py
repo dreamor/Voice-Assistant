@@ -81,11 +81,6 @@ class TestConfiguration:
         assert config.vad.min_speech is not None
         assert config.vad.wait_timeout is not None
 
-    def test_interpreter_config(self):
-        from voice_assistant.config import config
-        assert config.interpreter.auto_run is not None
-        assert config.interpreter.verbose is not None
-
     def test_asr_language_hints(self):
         from voice_assistant.config import config
         assert config.asr.language_hints is not None
@@ -189,16 +184,16 @@ class TestVoiceAssistantAI:
 
     def test_modules_load(self):
         from voice_assistant.config import config
-        from voice_assistant.executors.chat import ChatExecutor
-        from voice_assistant.executors.computer import ComputerExecutor
-        from voice_assistant.services.router import CommandRouter
+        from voice_assistant.agent.orchestrator import AgentOrchestrator
         from voice_assistant.audio.cloud_asr import CloudASR
         from voice_assistant.audio.tts import synthesize
+        from voice_assistant.core.session import VoiceSession
 
         assert config is not None
-        assert ChatExecutor is not None
-        assert ComputerExecutor is not None
-        assert CommandRouter is not None
+        assert AgentOrchestrator is not None
+        assert CloudASR is not None
+        assert synthesize is not None
+        assert VoiceSession is not None
 
 
 class TestASRCorrector:

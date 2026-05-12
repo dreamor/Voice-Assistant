@@ -100,11 +100,6 @@ vad:
   wait_timeout: 10
   max_recording: 30
 
-# Open Interpreter 配置
-interpreter:
-  auto_run: true
-  verbose: false
-
 # 对话历史配置
 history:
   max_turns: 20
@@ -123,7 +118,6 @@ intent:
 agent:
   max_iterations: 5          # Agent 循环最大迭代次数
   confirmation_timeout: 60   # 确认等待超时（秒）
-  fallback_to_interpreter: true  # 无匹配 tool 时回退到 Open Interpreter
 
 # Tools 配置
 tools:

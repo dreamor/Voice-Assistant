@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from voice_assistant.config import (
     AppConfig, ASRConfig, LLMConfig, AudioConfig, TTSConfig,
-    VADConfig, InterpreterConfig, HistoryConfig, IntentConfig,
+    VADConfig, HistoryConfig, IntentConfig,
     LoggingConfig, AgentConfig, ToolsConfig, HotwordsConfig, LocalASRConfig,
     _validate_config,
 )
@@ -40,7 +40,6 @@ def _make_config(**overrides):
             tts=TTSConfig(provider="edge-tts", voice="zh-CN-XiaoxiaoNeural"),
         ),
         vad=VADConfig(threshold=0.02, silence_timeout=1.5, min_speech=0.15, wait_timeout=10, max_recording=30),
-        interpreter=InterpreterConfig(auto_run=False, verbose=False),
         history=HistoryConfig(max_turns=20),
         intent=IntentConfig(model="test", timeout=5),
         logging=LoggingConfig(level="INFO", format="%(message)s"),

@@ -152,6 +152,7 @@ class TestCloudASRInit:
         mock_config.asr.max_sentence_silence = 500
         mock_config.asr.hotwords.enabled = True
         mock_config.asr.hotwords.config_file = "config/hotwords.json"
+        mock_config.asr.hotwords.vocabulary_id = None
 
         mock_manager = MagicMock()
         mock_manager.load_hotwords_from_file.return_value = [{"text": "test", "weight": 4, "lang": "en"}]
@@ -178,6 +179,7 @@ class TestCloudASRInit:
         mock_config.asr.max_sentence_silence = 500
         mock_config.asr.hotwords.enabled = True
         mock_config.asr.hotwords.config_file = "config/hotwords.json"
+        mock_config.asr.hotwords.vocabulary_id = None
 
         mock_manager = MagicMock()
         mock_manager.load_hotwords_from_file.return_value = []

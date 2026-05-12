@@ -16,7 +16,6 @@
 - **模型自动切换** · 主模型失败按队列降级到备用模型
 - **历史管理** · SQLite 持久化，支持批量选择 / 全选 / 删除
 - **平台工具** · macOS / Windows / Linux 自动加载对应原生操作
-
 ## 一键启动
 
 ```bash
@@ -90,7 +89,6 @@ asr:
   use_local: false                 # 可切换到 FunASR
 agent:
   max_iterations: 5
-  fallback_to_interpreter: true
 providers:
   # 内置：dashscope / openai / anthropic / deepseek
   # 自定义 provider 写入 config/custom_providers.yaml

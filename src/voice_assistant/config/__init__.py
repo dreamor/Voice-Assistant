@@ -86,13 +86,6 @@ class VADConfig:
 
 
 @dataclass(frozen=True)
-class InterpreterConfig:
-    """Open Interpreter 配置"""
-    auto_run: bool
-    verbose: bool
-
-
-@dataclass(frozen=True)
 class HistoryConfig:
     """对话历史配置"""
     max_turns: int
@@ -117,7 +110,6 @@ class AgentConfig:
     """Agent 配置"""
     max_iterations: int = 5
     confirmation_timeout: int = 60
-    fallback_to_interpreter: bool = True
 
 
 @dataclass(frozen=True)
@@ -198,7 +190,6 @@ class AppConfig:
     llm: LLMConfig
     audio: AudioConfig
     vad: VADConfig
-    interpreter: InterpreterConfig
     history: HistoryConfig
     intent: IntentConfig
     logging: LoggingConfig
@@ -513,10 +504,6 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
             wait_timeout=cfg['vad']['wait_timeout'],
             max_recording=cfg['vad']['max_recording'],
         ),
-        interpreter=InterpreterConfig(
-            auto_run=cfg['interpreter']['auto_run'],
-            verbose=cfg['interpreter']['verbose'],
-        ),
         history=HistoryConfig(max_turns=cfg['history']['max_turns']),
         intent=IntentConfig(
             model=cfg.get('intent', {}).get('model', 'qwen-turbo'),
@@ -530,7 +517,6 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         agent=AgentConfig(
             max_iterations=cfg.get('agent', {}).get('max_iterations', 5),
             confirmation_timeout=cfg.get('agent', {}).get('confirmation_timeout', 60),
-            fallback_to_interpreter=cfg.get('agent', {}).get('fallback_to_interpreter', True),
         ),
         tools=ToolsConfig(
             blocked=tuple(cfg.get('tools', {}).get('blocked', [])),
