@@ -110,7 +110,11 @@ class CloudASR:
 
         # 如果启用了热词，初始化热词
         if asr_cfg.hotwords.enabled:
-            self._init_hotwords(asr_cfg.hotwords.config_file)
+            if asr_cfg.hotwords.vocabulary_id:
+                self._vocabulary_id = asr_cfg.hotwords.vocabulary_id
+                logger.info(f"使用已注册热词列表: {self._vocabulary_id}")
+            else:
+                self._init_hotwords(asr_cfg.hotwords.config_file)
 
     def _configure_dashscope(self):
         """配置 dashscope SDK 全局参数
