@@ -15,7 +15,7 @@
 - **Agent Loop** · function calling + tool 注册表 + 分级安全守卫（auto / confirm / double-confirm / blocked）
 - **Python 代码兜底** · 内置 `run_python_code` tool，LLM 可在没有专用工具时执行短脚本（受确认与超时保护）
 - **ASR** · DashScope Paraformer，或可选本地 FunASR Paraformer-zh 离线运行
-- **模型自动切换** · 主模型失败按队列降级到备用模型
+- **模型自动切换** · 主模型失败时在当前 Provider 的 models 内按顺序降级
 - **历史管理** · SQLite 持久化，支持批量选择 / 全选 / 删除
 - **平台工具** · macOS / Windows / Linux 自动加载对应原生操作
 ## 一键启动

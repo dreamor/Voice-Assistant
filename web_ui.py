@@ -260,33 +260,34 @@ async def update_config(new_config: dict):
 
 @app.get("/api/models")
 async def get_models():
-    """获取可用模型列表（从配置文件读取）"""
-    try:
-        model_names = config.llm_models.get_model_names()
-        primary_model = config.llm.model
-
+    """获取当前 provider 的可用模型列表（队首即主模型 = config.llm.model）"""
+    provider = config.providers.get_provider(config.provider) if config.provider else None
+    if provider is None:
         return {
-            "models": model_names,
-            "total": len(model_names),
-            "primary": primary_model,
-            "checked": False,  # 不再运行时检查
-            "source": "config"
-        }
-    except Exception as e:
-        logger.error(f"[WebUI] 获取模型列表失败: {e}")
-        # 回退到默认模型列表
-        default_models = [
-            "qwen-plus-latest", "qwen-turbo-latest", "qwen-max-latest",
-            "deepseek-v3.1", "deepseek-v3",
-        ]
-        return {
-            "models": default_models,
-            "total": len(default_models),
+            "models": [],
+            "total": 0,
             "primary": config.llm.model,
-            "checked": False,
-            "source": "fallback",
-            "error": str(e)
+            "provider": config.provider or "",
+            "source": "none",
+            "error": "未配置 provider，请在 ⚙ 配置页选择 Provider",
         }
+
+    model_ids = [m.id for m in provider.models]
+    primary = config.llm.model
+
+    # 主模型提到队首（与 ModelManager fallback 顺序一致）
+    if primary and primary in model_ids:
+        ordered = [primary] + [m for m in model_ids if m != primary]
+    else:
+        ordered = model_ids
+
+    return {
+        "models": ordered,
+        "total": len(ordered),
+        "primary": primary,
+        "provider": config.provider,
+        "source": "provider",
+    }
 
 
 @app.get("/api/providers")

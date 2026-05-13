@@ -13,11 +13,26 @@ from voice_assistant.config import (
     LLMConfig,
     LocalASRConfig,
     LoggingConfig,
+    ProviderConfig,
+    ProviderModelConfig,
+    ProvidersConfig,
     ToolsConfig,
     TTSConfig,
     VADConfig,
     _validate_config,
 )
+
+
+def _make_providers() -> ProvidersConfig:
+    return ProvidersConfig(providers={
+        "dashscope": ProviderConfig(
+            name="DashScope",
+            litellm_prefix="openai",
+            base_url="http://localhost",
+            api_key_env="LLM_API_KEY",
+            models=[ProviderModelConfig(id="test-model", name="Test Model")],
+        ),
+    })
 
 
 def _make_config(**overrides):
@@ -54,6 +69,8 @@ def _make_config(**overrides):
         logging=LoggingConfig(level="INFO", format="%(message)s"),
         agent=AgentConfig(max_iterations=5),
         tools=ToolsConfig(),
+        providers=_make_providers(),
+        provider="dashscope",
     )
     defaults.update(overrides)
     return AppConfig(**defaults)
@@ -157,4 +174,16 @@ class TestValidateConfig:
     def test_history_max_turns_too_low(self):
         config = _make_config(history=HistoryConfig(max_turns=0))
         with pytest.raises(ValueError, match="max_turns"):
+            _validate_config(config)
+
+    def test_missing_provider_raises(self):
+        """provider 字段为空时应抛错"""
+        config = _make_config(provider="")
+        with pytest.raises(ValueError, match="未配置 LLM provider"):
+            _validate_config(config)
+
+    def test_unknown_provider_raises(self):
+        """provider 不在 providers 列表里时应抛错"""
+        config = _make_config(provider="not-a-real-provider")
+        with pytest.raises(ValueError, match="未知的 LLM provider"):
             _validate_config(config)

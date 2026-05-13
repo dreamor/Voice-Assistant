@@ -94,84 +94,66 @@ class ModelManager:
 
     def build_model_queue(self, api_key: str | None = None) -> ModelQueue:
         """
-        构建模型候选队列
+        构建模型候选队列。
 
-        优先使用 providers 配置构建；如果无 providers 配置，
-        回退到传统的单一 base_url + llm_models.yaml 模式。
+        必须基于 providers 配置：当前 provider 的 models 即为故障降级队列，
+        其中 `config.llm.model`（用户在 ⚙ 配置页选择的主模型）被提到队首，
+        其余按 provider.models 定义顺序作为 fallback。
 
         Args:
-            api_key: API Key，默认从配置读取
+            api_key: 兼容旧签名，已弃用。Provider 的 api_key 通过环境变量获取。
 
         Returns:
             模型队列
+
+        Raises:
+            ValueError: 未配置 provider，或当前 provider 不存在 / 未提供 API Key / 无可用模型。
         """
         provider_id = config.provider
-        providers_cfg = config.providers
+        if not provider_id:
+            raise ValueError(
+                "未配置 LLM provider。请在 config.yaml 设置 llm.provider，或在 Web UI ⚙ 配置页选择 Provider。"
+            )
 
-        # Provider 模式：从 providers 配置构建
-        if provider_id and providers_cfg.providers:
-            provider = providers_cfg.get_provider(provider_id)
-            if provider and provider.api_key:
-                return self._build_from_provider(provider)
+        provider = config.providers.get_provider(provider_id)
+        if provider is None:
+            raise ValueError(f"未知的 LLM provider: {provider_id}")
 
-        # 回退模式：传统单一 base_url
-        return self._build_from_legacy(api_key)
+        if not provider.api_key:
+            raise ValueError(
+                f"Provider {provider.name} 未配置 API Key，请设置环境变量 {provider.api_key_env}"
+            )
+
+        return self._build_from_provider(provider)
 
     def _build_from_provider(self, provider) -> ModelQueue:
-        """从 Provider 配置构建模型队列"""
-        queue: list[ModelConfig] = []
-        added_models: set[str] = set()
+        """从 Provider 配置构建模型队列，主模型(`config.llm.model`)排队首"""
         api_key = provider.api_key
         base_url = provider.base_url or ""
         prefix = provider.litellm_prefix
+        primary = config.llm.model
 
-        for model_cfg in provider.models:
-            if model_cfg.id not in added_models:
-                queue.append(ModelConfig(
-                    name=model_cfg.id,
-                    base_url=base_url,
-                    api_key=api_key,
-                    litellm_prefix=prefix,
-                ))
-                added_models.add(model_cfg.id)
-                logger.info(f"[ModelManager] Provider {provider.name} 模型: {model_cfg.id}")
+        # 主模型提到队首；其余按 provider.models 顺序作为 fallback
+        provider_model_ids = [m.id for m in provider.models]
+        ordered_ids: list[str] = []
+        if primary and primary in provider_model_ids:
+            ordered_ids.append(primary)
+        for mid in provider_model_ids:
+            if mid not in ordered_ids:
+                ordered_ids.append(mid)
+
+        queue = [
+            ModelConfig(name=mid, base_url=base_url, api_key=api_key, litellm_prefix=prefix)
+            for mid in ordered_ids
+        ]
 
         if not queue:
             logger.warning(f"[ModelManager] Provider {provider.name} 没有可用模型")
-
-        self._queue = ModelQueue(models=queue)
-        return self._queue
-
-    def _build_from_legacy(self, api_key: str | None = None) -> ModelQueue:
-        """从传统配置构建模型队列（向后兼容）"""
-        api_key = api_key or config.llm.api_key
-        base_url = config.llm.base_url
-        primary_model = config.llm.model
-
-        queue: list[ModelConfig] = []
-        added_models: set[str] = set()
-
-        if primary_model and api_key:
-            queue.append(ModelConfig(
-                name=primary_model,
-                base_url=base_url,
-                api_key=api_key,
-            ))
-            added_models.add(primary_model)
-            logger.info(f"[ModelManager] 主模型: {primary_model}")
-
-        for model_cfg in config.llm_models.models:
-            if model_cfg.name not in added_models and api_key:
-                queue.append(ModelConfig(
-                    name=model_cfg.name,
-                    base_url=base_url,
-                    api_key=api_key,
-                ))
-                added_models.add(model_cfg.name)
-                logger.info(f"[ModelManager] 备用模型: {model_cfg.name}")
-
-        if not queue:
-            logger.warning("[ModelManager] 没有可用的模型")
+        else:
+            logger.info(
+                f"[ModelManager] Provider {provider.name} 模型队列: "
+                f"{[m.name for m in queue]}（队首=主模型）"
+            )
 
         self._queue = ModelQueue(models=queue)
         return self._queue

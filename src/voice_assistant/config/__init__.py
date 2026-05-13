@@ -125,13 +125,6 @@ class ToolsConfig:
     overrides: tuple = ()
 
 
-@dataclass
-class LLMModelConfig:
-    """单个 LLM 模型配置"""
-    name: str
-    description: str = ""
-
-
 @dataclass(frozen=True)
 class ProviderModelConfig:
     """Provider 下的单个模型配置"""
@@ -171,16 +164,6 @@ class ProvidersConfig:
 
 
 @dataclass
-class LLMModelsConfig:
-    """LLM 备选模型配置"""
-    models: list[LLMModelConfig] = field(default_factory=list)
-
-    def get_model_names(self) -> list[str]:
-        """获取所有模型名称列表"""
-        return [m.name for m in self.models]
-
-
-@dataclass
 class AppConfig:
     """应用配置"""
     name: str
@@ -192,7 +175,6 @@ class AppConfig:
     history: HistoryConfig
     intent: IntentConfig
     logging: LoggingConfig
-    llm_models: LLMModelsConfig = field(default_factory=LLMModelsConfig)
     agent: AgentConfig = field(default_factory=AgentConfig)
     tools: ToolsConfig = field(default_factory=ToolsConfig)
     providers: ProvidersConfig = field(default_factory=ProvidersConfig)
@@ -207,39 +189,6 @@ def _find_project_root() -> Path:
             return current
         current = current.parent
     return Path(__file__).resolve().parent.parent.parent
-
-
-def load_llm_models_config(project_root: Path) -> LLMModelsConfig:
-    """加载 LLM 备选模型配置"""
-    models_path = project_root / "config" / "llm_models.yaml"
-
-    if not models_path.exists():
-        logger.warning(f"[Config] 模型配置文件不存在: {models_path}，使用默认模型列表")
-        return LLMModelsConfig(models=[
-            LLMModelConfig(name="qwen-plus-latest", description="默认主模型"),
-            LLMModelConfig(name="qwen-turbo-latest", description="默认备用模型"),
-        ])
-
-    try:
-        with open(models_path, encoding='utf-8') as f:
-            cfg = yaml.safe_load(f)
-
-        models = []
-        for m in cfg.get("models", []):
-            models.append(LLMModelConfig(
-                name=m["name"],
-                description=m.get("description", "")
-            ))
-
-        logger.info(f"[Config] 加载了 {len(models)} 个备选模型")
-        return LLMModelsConfig(models=models)
-
-    except Exception as e:
-        logger.error(f"[Config] 加载模型配置失败: {e}")
-        return LLMModelsConfig(models=[
-            LLMModelConfig(name="qwen-plus-latest", description="默认主模型"),
-            LLMModelConfig(name="qwen-turbo-latest", description="默认备用模型"),
-        ])
 
 
 def _load_custom_providers(project_root: Path) -> dict[str, ProviderConfig]:
@@ -387,6 +336,17 @@ def _validate_config(cfg: AppConfig) -> list[str]:
     if not cfg.asr.api_key and not cfg.asr.use_local:
         raise ValueError("ASR_API_KEY 环境变量未设置（或设置 asr.use_local: true）")
 
+    # Provider 必须配置（fallback 队列依赖 provider.models）
+    if not cfg.provider:
+        raise ValueError(
+            "未配置 LLM provider。请在 config.yaml 设置 llm.provider，例如 'dashscope' / 'openai' 等"
+        )
+    if cfg.provider not in cfg.providers.providers:
+        raise ValueError(
+            f"未知的 LLM provider: {cfg.provider}。"
+            f"可选: {list(cfg.providers.providers.keys())}"
+        )
+
     # 范围校验
     if not 0 <= cfg.llm.temperature <= 2:
         warnings.append(f"llm.temperature={cfg.llm.temperature} 超出推荐范围 [0, 2]")
@@ -450,9 +410,6 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
     with open(full_path, encoding='utf-8') as f:
         cfg = yaml.safe_load(f)
 
-    # 加载 LLM 备选模型配置
-    llm_models = load_llm_models_config(project_root)
-
     # 加载自定义 Provider
     custom_providers = _load_custom_providers(project_root)
 
@@ -512,7 +469,6 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
             level=cfg['logging']['level'],
             format=cfg['logging']['format'],
         ),
-        llm_models=llm_models,
         agent=AgentConfig(
             max_iterations=cfg.get('agent', {}).get('max_iterations', 5),
             confirmation_timeout=cfg.get('agent', {}).get('confirmation_timeout', 60),

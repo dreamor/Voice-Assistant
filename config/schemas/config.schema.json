@@ -210,23 +210,6 @@
           }
         }
       }
-    },
-
-    "llm_models": {
-      "type": "object",
-      "description": "备用模型队列（用于故障转移）",
-      "properties": {
-        "models": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "name": { "type": "string" }
-            }
-          }
-        }
-      }
     }
   }
 }

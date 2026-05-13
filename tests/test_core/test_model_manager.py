@@ -167,58 +167,92 @@ class TestModelManager:
         error = Exception("Bad request: model not found")
         assert manager.should_switch_model(error) is True
 
-    def test_build_model_queue(self):
-        """测试构建模型队列（从配置文件读取）"""
-        from voice_assistant.config import LLMModelConfig, LLMModelsConfig
+    def test_build_model_queue_from_provider(self):
+        """主模型存在于 provider.models 时，应被提到队首；其余按定义顺序作为 fallback"""
+        from voice_assistant.config import ProviderConfig, ProviderModelConfig, ProvidersConfig
         mm_module = sys.modules['voice_assistant.core.model_manager']
 
+        provider = ProviderConfig(
+            name="DashScope",
+            litellm_prefix="openai",
+            base_url="https://example.com/v1",
+            api_key_env="LLM_API_KEY",
+            models=[
+                ProviderModelConfig(id="qwen-plus", name="Qwen Plus"),
+                ProviderModelConfig(id="qwen-max", name="Qwen Max"),
+                ProviderModelConfig(id="qwen-turbo", name="Qwen Turbo"),
+            ],
+        )
+
         mock_config = MagicMock()
-        mock_config.provider = None
-        mock_config.providers = MagicMock()
-        mock_config.providers.providers = {}
-        mock_config.llm.api_key = "test-key"
-        mock_config.llm.base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-        mock_config.llm.model = "qwen-max"
-        mock_config.llm_models = LLMModelsConfig(models=[
-            LLMModelConfig(name="qwen-plus-latest", description="备用模型1"),
-            LLMModelConfig(name="qwen-turbo-latest", description="备用模型2"),
-        ])
+        mock_config.provider = "dashscope"
+        mock_config.providers = ProvidersConfig(providers={"dashscope": provider})
+        mock_config.llm.model = "qwen-max"  # 主模型不是 provider.models[0]
 
         original = mm_module.config
         mm_module.config = mock_config
         try:
+            import os
+            os.environ['LLM_API_KEY'] = 'test-key'
             manager = ModelManager()
             queue = manager.build_model_queue()
 
-            # 主模型 + 两个备用模型
-            assert len(queue.models) == 3
-            assert queue.models[0].name == "qwen-max"
-            assert queue.models[1].name == "qwen-plus-latest"
-            assert queue.models[2].name == "qwen-turbo-latest"
+            # 队首应为主模型 qwen-max；其余按 provider.models 顺序
+            assert [m.name for m in queue.models] == ["qwen-max", "qwen-plus", "qwen-turbo"]
             assert queue.current_index == 0
         finally:
             mm_module.config = original
 
-    def test_build_model_queue_no_api_key(self):
-        """测试无 API Key 时构建队列"""
-        from voice_assistant.config import LLMModelsConfig
+    def test_build_model_queue_primary_not_in_provider(self):
+        """主模型不在 provider.models 时，按 provider.models 原序，不强行加入"""
+        from voice_assistant.config import ProviderConfig, ProviderModelConfig, ProvidersConfig
+        mm_module = sys.modules['voice_assistant.core.model_manager']
+
+        provider = ProviderConfig(
+            name="DashScope",
+            litellm_prefix="openai",
+            base_url="https://example.com/v1",
+            api_key_env="LLM_API_KEY",
+            models=[
+                ProviderModelConfig(id="qwen-plus", name="Qwen Plus"),
+                ProviderModelConfig(id="qwen-turbo", name="Qwen Turbo"),
+            ],
+        )
+
+        mock_config = MagicMock()
+        mock_config.provider = "dashscope"
+        mock_config.providers = ProvidersConfig(providers={"dashscope": provider})
+        mock_config.llm.model = "non-existent-model"
+
+        original = mm_module.config
+        mm_module.config = mock_config
+        try:
+            import os
+            os.environ['LLM_API_KEY'] = 'test-key'
+            manager = ModelManager()
+            queue = manager.build_model_queue()
+
+            assert [m.name for m in queue.models] == ["qwen-plus", "qwen-turbo"]
+        finally:
+            mm_module.config = original
+
+    def test_build_model_queue_no_provider_raises(self):
+        """未配置 provider 时启动应直接抛错"""
+        import pytest
+
+        from voice_assistant.config import ProvidersConfig
         mm_module = sys.modules['voice_assistant.core.model_manager']
 
         mock_config = MagicMock()
-        mock_config.provider = None
-        mock_config.providers = MagicMock()
-        mock_config.providers.providers = {}
-        mock_config.llm.api_key = None
-        mock_config.llm.base_url = "https://example.com/v1"
-        mock_config.llm.model = "test-model"
-        mock_config.llm_models = LLMModelsConfig(models=[])
+        mock_config.provider = ""
+        mock_config.providers = ProvidersConfig(providers={})
 
         original = mm_module.config
         mm_module.config = mock_config
         try:
             manager = ModelManager()
-            queue = manager.build_model_queue()
-            assert len(queue.models) == 0
+            with pytest.raises(ValueError, match="未配置 LLM provider"):
+                manager.build_model_queue()
         finally:
             mm_module.config = original
 
