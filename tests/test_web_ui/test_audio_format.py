@@ -1,7 +1,6 @@
 """Web UI 音频格式转换测试"""
 import io
 import wave
-from unittest import mock
 
 import pytest
 

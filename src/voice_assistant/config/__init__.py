@@ -6,7 +6,6 @@ import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 import yaml
 from dotenv import load_dotenv
@@ -22,14 +21,14 @@ class HotwordsConfig:
     """热词配置"""
     enabled: bool
     config_file: str
-    vocabulary_id: Optional[str]
+    vocabulary_id: str | None
 
 
 @dataclass(frozen=True)
 class LocalASRConfig:
     """本地 FunASR 配置"""
     enabled: bool
-    model_path: Optional[str]
+    model_path: str | None
     device: str
     vad_threshold: float
 
@@ -145,13 +144,13 @@ class ProviderConfig:
     """单个 Provider 配置"""
     name: str
     litellm_prefix: str
-    base_url: Optional[str]
+    base_url: str | None
     api_key_env: str
     models: list[ProviderModelConfig] = field(default_factory=list)
     is_custom: bool = False
 
     @property
-    def api_key(self) -> Optional[str]:
+    def api_key(self) -> str | None:
         return os.getenv(self.api_key_env)
 
     @property
@@ -164,7 +163,7 @@ class ProvidersConfig:
     """多 Provider 配置"""
     providers: dict[str, ProviderConfig] = field(default_factory=dict)
 
-    def get_provider(self, provider_id: str) -> Optional[ProviderConfig]:
+    def get_provider(self, provider_id: str) -> ProviderConfig | None:
         return self.providers.get(provider_id)
 
     def get_all_provider_ids(self) -> list[str]:
@@ -321,11 +320,11 @@ def save_custom_provider(
 def update_custom_provider(
     provider_id: str,
     *,
-    name: Optional[str] = None,
-    base_url: Optional[str] = None,
-    litellm_prefix: Optional[str] = None,
-    models: Optional[list[str]] = None,
-) -> Optional[ProviderConfig]:
+    name: str | None = None,
+    base_url: str | None = None,
+    litellm_prefix: str | None = None,
+    models: list[str] | None = None,
+) -> ProviderConfig | None:
     """部分更新自定义 Provider。仅传入的字段被更新。
 
     Returns:
@@ -457,7 +456,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
     # 加载自定义 Provider
     custom_providers = _load_custom_providers(project_root)
 
-    return AppConfig(
+    app_config = AppConfig(
         name=cfg['app']['name'],
         version=cfg['app']['version'],
         asr=ASRConfig(

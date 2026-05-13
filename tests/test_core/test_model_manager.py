@@ -1,13 +1,12 @@
 """模型管理器测试"""
 import sys
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 
 from voice_assistant.core.model_manager import (
-    ModelConfig,
-    ModelQueue,
-    ModelManager,
     NON_SWITCHABLE_ERROR_MESSAGES,
+    ModelConfig,
+    ModelManager,
+    ModelQueue,
 )
 
 

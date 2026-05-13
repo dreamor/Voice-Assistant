@@ -46,24 +46,24 @@ def check_config_files():
     # 检查 config.yaml
     config_yaml = project_root / "config.yaml"
     if config_yaml.exists():
-        print(f"  ✓ config.yaml")
+        print("  ✓ config.yaml")
     else:
-        print(f"  ✗ config.yaml 缺失")
+        print("  ✗ config.yaml 缺失")
         all_ok = False
 
     # 检查 .env
     env_file = project_root / ".env"
     if env_file.exists():
-        print(f"  ✓ .env")
+        print("  ✓ .env")
     else:
-        print(f"  ⚠ .env 缺失（可选，用于环境变量）")
+        print("  ⚠ .env 缺失（可选，用于环境变量）")
 
     # 检查热词配置
     hotwords_file = project_root / "config" / "hotwords.json"
     if hotwords_file.exists():
-        print(f"  ✓ config/hotwords.json")
+        print("  ✓ config/hotwords.json")
     else:
-        print(f"  ⚠ config/hotwords.json 缺失（热词功能不可用）")
+        print("  ⚠ config/hotwords.json 缺失（热词功能不可用）")
 
     return all_ok
 
@@ -96,15 +96,15 @@ def check_api_keys():
         if asr_key:
             print(f"  ✓ ASR_API_KEY: {'*' * 8}{asr_key[-4:]}")
         else:
-            print(f"  ⚠ ASR_API_KEY 未设置")
-        
+            print("  ⚠ ASR_API_KEY 未设置")
+
         if llm_key:
             print(f"  ✓ LLM_API_KEY: {'*' * 8}{llm_key[-4:]}")
         else:
-            print(f"  ⚠ LLM_API_KEY 未设置")
-        
+            print("  ⚠ LLM_API_KEY 未设置")
+
         if not asr_key and not llm_key:
-            print(f"  ✗ 请设置 DASHSCOPE_API_KEY 或 ASR_API_KEY/LLM_API_KEY")
+            print("  ✗ 请设置 DASHSCOPE_API_KEY 或 ASR_API_KEY/LLM_API_KEY")
             all_ok = False
 
     return all_ok
@@ -170,8 +170,8 @@ def main():
     print("=" * 50)
 
     try:
-        from voice_assistant.core.dependencies import check_dependencies
         from voice_assistant.config import config
+        from voice_assistant.core.dependencies import check_dependencies
 
         manager = check_dependencies(config, verbose=True)
         results.append(("Python 依赖", not manager.has_blocking_errors()))

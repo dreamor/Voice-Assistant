@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E402
 """注册热词到 DashScope，并打印 vocabulary_id。
 
 用法：

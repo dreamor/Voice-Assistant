@@ -1,10 +1,5 @@
 """WebSocket 通信测试"""
-import pytest
-import json
-from unittest.mock import MagicMock, patch, AsyncMock
 
-from fastapi.testclient import TestClient
-from fastapi import FastAPI, WebSocket
 
 
 class TestWebSocketConnection:
@@ -111,8 +106,6 @@ class TestStreamingAudioPlayer:
         """验证播放器块管理逻辑"""
         # 模拟 StreamingAudioPlayer 的行为
         chunks = {}
-        next_chunk_index = 0
-        is_playing = False
 
         # 添加块
         def add_chunk(base64_data, index):

@@ -3,8 +3,8 @@
 跨平台剪贴板读写
 """
 import logging
-import subprocess
 import platform
+import subprocess
 
 logger = logging.getLogger(__name__)
 

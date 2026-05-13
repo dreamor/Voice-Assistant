@@ -6,8 +6,8 @@ ASR + Agent Loop（LLM + function calling + tool 执行）+ TTS + 历史
 import logging
 import os
 import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Optional
 
 from voice_assistant.audio.asr_provider import ASRProvider, create_asr_provider
 from voice_assistant.audio.tts import TTSProvider, create_tts_provider
@@ -54,7 +54,7 @@ class ProcessResult:
     response: str
     intent_type: str = "agent"
     confidence: float = 1.0
-    execution_output: Optional[str] = None
+    execution_output: str | None = None
     history_updated: bool = False
 
 
@@ -68,9 +68,9 @@ class VoiceSession:
     def __init__(
         self,
         max_response_length: int = 200,
-        on_intent_detected: Optional[Callable[[str, float], None]] = None,
-        on_execution_start: Optional[Callable[[], None]] = None,
-        on_execution_end: Optional[Callable[[], None]] = None,
+        on_intent_detected: Callable[[str, float], None] | None = None,
+        on_execution_start: Callable[[], None] | None = None,
+        on_execution_end: Callable[[], None] | None = None,
     ):
         self._max_response_length = max_response_length
 
@@ -79,11 +79,11 @@ class VoiceSession:
         self._on_execution_end = on_execution_end
 
         # 确认回调（由 Web UI 设置）
-        self._confirm_callback: Optional[Callable] = None
+        self._confirm_callback: Callable | None = None
 
         # 组件（延迟初始化）
-        self._asr: Optional[ASRProvider] = None
-        self._tts: Optional[TTSProvider] = None
+        self._asr: ASRProvider | None = None
+        self._tts: TTSProvider | None = None
         self._orchestrator = None  # AgentOrchestrator
         self._history: list = []
         self._max_history_turns = max(2, getattr(config.history, "max_turns", 20))
@@ -136,7 +136,7 @@ class VoiceSession:
             logger.error(f"[VoiceSession] ASR 错误: {e}")
             return ""
 
-    def process_text(self, user_text: str, history: Optional[list] = None) -> ProcessResult:
+    def process_text(self, user_text: str, history: list | None = None) -> ProcessResult:
         """同步处理用户文本，返回 ProcessResult"""
         self._ensure_initialized()
         if not user_text.strip():
@@ -180,7 +180,7 @@ class VoiceSession:
             if self._on_execution_end:
                 self._on_execution_end()
 
-    def process_text_stream(self, user_text: str, history: Optional[list] = None):
+    def process_text_stream(self, user_text: str, history: list | None = None):
         """流式处理（生成 AgentEvent）"""
         from voice_assistant.agent.orchestrator import AgentEvent
 
@@ -230,7 +230,7 @@ class VoiceSession:
             if self._on_execution_end:
                 self._on_execution_end()
 
-    def synthesize(self, text: str) -> Optional[bytes]:
+    def synthesize(self, text: str) -> bytes | None:
         """语音合成"""
         if not text:
             return None

@@ -6,7 +6,6 @@ FunASR 本地语音识别模块
 import logging
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 import soundfile as sf
@@ -37,7 +36,7 @@ class FunASREngine:
 
     def __init__(
         self,
-        model_path: Optional[str] = None,
+        model_path: str | None = None,
         device: str = "cpu",
         vad_threshold: float = 0.5,
         vad_max_single_segment_time: int = 6000,
@@ -98,7 +97,7 @@ class FunASREngine:
         except Exception as e:
             raise FunASRError(f"FunASR 引擎初始化失败: {e}")
 
-    def recognize(self, audio_path: str, hotwords: Optional[list[str]] = None) -> str:
+    def recognize(self, audio_path: str, hotwords: list[str] | None = None) -> str:
         """从音频文件识别
 
         Args:
@@ -138,7 +137,7 @@ class FunASREngine:
 
     def recognize_bytes(
         self, audio_bytes: bytes, sample_rate: int = 16000,
-        hotwords: Optional[list[str]] = None,
+        hotwords: list[str] | None = None,
     ) -> str:
         """从音频字节识别
 
@@ -194,7 +193,7 @@ class FunASRClient:
 
     def __init__(
         self,
-        model_path: Optional[str] = None,
+        model_path: str | None = None,
         device: str = "cpu",
         vad_threshold: float = 0.5,
     ):
@@ -205,7 +204,7 @@ class FunASRClient:
             device: 推理设备
             vad_threshold: VAD 阈值
         """
-        self._engine: Optional[FunASREngine] = None
+        self._engine: FunASREngine | None = None
         self.model_path = model_path
         self.device = device
         self.vad_threshold = vad_threshold
@@ -220,9 +219,9 @@ class FunASRClient:
             )
         return self._engine
 
-    def recognize(self, audio_path: str, hotwords: Optional[list[str]] = None) -> str:
+    def recognize(self, audio_path: str, hotwords: list[str] | None = None) -> str:
         """识别音频文件
-        
+
         实现 ASRProvider 协议。识别失败时返回空字符串而非抛出异常。
         """
         try:
@@ -237,10 +236,10 @@ class FunASRClient:
 
     def recognize_bytes(
         self, audio_bytes: bytes, sample_rate: int = 16000,
-        hotwords: Optional[list[str]] = None,
+        hotwords: list[str] | None = None,
     ) -> str:
         """识别音频字节
-        
+
         实现 ASRProvider 协议。识别失败时返回空字符串而非抛出异常。
         """
         try:

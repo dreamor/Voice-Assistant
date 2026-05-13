@@ -1,7 +1,5 @@
 """run_python_code tool 测试"""
-import sys
 
-import pytest
 
 from voice_assistant.tools.universal.code_ops import (
     MAX_OUTPUT_BYTES,

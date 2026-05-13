@@ -1,20 +1,18 @@
 """
 依赖管理模块测试
 """
-import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from voice_assistant.core.dependencies import (
-    Dependency,
-    DependencyStatus,
-    DependencyCheckResult,
-    DependencyManager,
-    check_dependency,
-    parse_version,
-    compare_versions,
-    get_installed_version,
     CORE_DEPENDENCIES,
     LOCAL_ASR_DEPENDENCIES,
+    Dependency,
+    DependencyCheckResult,
+    DependencyManager,
+    DependencyStatus,
+    check_dependency,
+    compare_versions,
+    parse_version,
 )
 
 

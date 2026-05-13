@@ -8,7 +8,7 @@ __version__ = "2.0.0"
 __author__ = "Voice Assistant Team"
 
 # 导出公共 API
-from voice_assistant.config import config, load_config, AppConfig
+from voice_assistant.config import AppConfig, config, load_config
 
 __all__ = [
     'config',

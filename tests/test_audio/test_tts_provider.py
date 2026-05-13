@@ -1,16 +1,16 @@
 """TTS Provider 协议与工厂测试"""
-import pytest
 from unittest.mock import MagicMock
 
-from voice_assistant.audio.tts import (
-    TTSProvider,
-    EdgeTTSProvider,
-    create_tts_provider,
-    register_tts_provider,
-    _TTS_REGISTRY,
-    preprocess_text,
-)
+import pytest
 
+from voice_assistant.audio.tts import (
+    _TTS_REGISTRY,
+    EdgeTTSProvider,
+    TTSProvider,
+    create_tts_provider,
+    preprocess_text,
+    register_tts_provider,
+)
 
 # ---------------------------------------------------------------------------
 # TTSProvider 协议一致性

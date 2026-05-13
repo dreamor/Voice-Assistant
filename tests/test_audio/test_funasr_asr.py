@@ -3,9 +3,9 @@ import os
 import struct
 import tempfile
 import wave
+from unittest.mock import MagicMock, patch
 
 import pytest
-from unittest.mock import MagicMock, patch
 
 
 class TestFunASREngineIntegration:

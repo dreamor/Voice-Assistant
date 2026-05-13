@@ -2,7 +2,6 @@
 
 验证 get_sentence() 返回累积文本时，回调不会产生重复拼接。
 """
-import pytest
 
 
 class MockSentence:

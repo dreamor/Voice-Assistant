@@ -1,7 +1,5 @@
 """LLM 客户端流式调用测试"""
-import json
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from voice_assistant.agent.llm_client import (
     StreamEvent,

@@ -1,6 +1,5 @@
 """TTS 流式合成测试"""
-import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import AsyncMock, patch
 
 from voice_assistant.audio.tts import EdgeTTSProvider, TTSProvider
 
@@ -71,7 +70,7 @@ class TestTTSStreaming:
         with patch.object(provider, '_synthesize_sentence_async', new_callable=AsyncMock) as mock:
             mock.return_value = b"audio"
             # 连续标点 - 预处理会在标点后添加空格，影响分割
-            chunks = list(provider.synthesize_stream("你好。。。世界。"))
+            list(provider.synthesize_stream("你好。。。世界。"))
 
             # 预处理后实际产生多个句子
             assert mock.call_count >= 2

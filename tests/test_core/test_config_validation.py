@@ -1,12 +1,21 @@
 """配置验证测试"""
+
 import pytest
-import os
-from unittest.mock import patch
 
 from voice_assistant.config import (
-    AppConfig, ASRConfig, LLMConfig, AudioConfig, TTSConfig,
-    VADConfig, HistoryConfig, IntentConfig,
-    LoggingConfig, AgentConfig, ToolsConfig, HotwordsConfig, LocalASRConfig,
+    AgentConfig,
+    AppConfig,
+    ASRConfig,
+    AudioConfig,
+    HistoryConfig,
+    HotwordsConfig,
+    IntentConfig,
+    LLMConfig,
+    LocalASRConfig,
+    LoggingConfig,
+    ToolsConfig,
+    TTSConfig,
+    VADConfig,
     _validate_config,
 )
 

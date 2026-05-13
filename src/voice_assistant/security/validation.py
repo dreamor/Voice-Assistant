@@ -2,10 +2,11 @@
 安全工具模块
 提供输入验证、速率限制等安全功能
 """
-import time
 import threading
+import time
+from collections.abc import Callable
 from functools import wraps
-from typing import Callable, Any
+from typing import Any
 
 # 安全常量
 MAX_TEXT_LENGTH = 1000  # 最大文本输入长度

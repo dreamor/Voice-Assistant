@@ -1,11 +1,9 @@
 """
 跨平台适配层 - 统一 Mac/Windows 系统操作接口
 """
-import os
 import platform
 import subprocess
 from abc import ABC, abstractmethod
-from pathlib import Path
 
 
 class PlatformAdapter(ABC):
@@ -137,12 +135,12 @@ class WindowsAdapter(PlatformAdapter):
 
     def open_url(self, url: str, browser: str = None) -> str:
         if browser:
-            result = subprocess.run(
+            subprocess.run(
                 ["start", browser, url],
                 shell=True, capture_output=True, text=True, timeout=30
             )
         else:
-            result = subprocess.run(
+            subprocess.run(
                 ["start", url],
                 shell=True, capture_output=True, text=True, timeout=30
             )

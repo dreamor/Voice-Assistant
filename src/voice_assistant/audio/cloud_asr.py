@@ -7,12 +7,17 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 import dashscope
 import numpy as np
+
 from voice_assistant.config import config
-from voice_assistant.security.validation import validate_audio_input, asr_limiter, RateLimitError, InputValidationError
+from voice_assistant.security.validation import (
+    InputValidationError,
+    RateLimitError,
+    asr_limiter,
+    validate_audio_input,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +28,7 @@ class HotwordsManager:
     def __init__(self, api_key: str, base_url: str):
         self.api_key = api_key
         self.base_url = base_url
-        self._vocabulary_id: Optional[str] = None
+        self._vocabulary_id: str | None = None
 
     def create_vocabulary(self, vocabulary: list, target_model: str = "paraformer-realtime-v2") -> str:
         """创建热词列表
@@ -58,7 +63,7 @@ class HotwordsManager:
         except Exception as e:
             error_str = str(e)
             if "429" in error_str or "Throttling" in error_str or "quota" in error_str.lower():
-                logger.warning(f"热词服务配额已用完（免费限额），将使用默认识别。如需热词功能，请升级阿里云付费套餐。")
+                logger.warning("热词服务配额已用完（免费限额），将使用默认识别。如需热词功能，请升级阿里云付费套餐。")
             else:
                 logger.error(f"热词列表创建异常: {type(e).__name__}: {e}")
             return None
@@ -77,7 +82,7 @@ class HotwordsManager:
             project_root = Path(__file__).resolve().parent.parent.parent.parent
             full_path = project_root / config_file
 
-            with open(full_path, 'r', encoding='utf-8') as f:
+            with open(full_path, encoding='utf-8') as f:
                 data = json.load(f)
 
             return data.get('vocabulary', [])
@@ -87,7 +92,7 @@ class HotwordsManager:
             return []
 
     @property
-    def vocabulary_id(self) -> Optional[str]:
+    def vocabulary_id(self) -> str | None:
         return self._vocabulary_id
 
 
@@ -105,8 +110,8 @@ class CloudASR:
         self.max_sentence_silence = asr_cfg.max_sentence_silence
 
         # 初始化热词管理器
-        self._hotwords_manager: Optional[HotwordsManager] = None
-        self._vocabulary_id: Optional[str] = None
+        self._hotwords_manager: HotwordsManager | None = None
+        self._vocabulary_id: str | None = None
 
         # 如果启用了热词，初始化热词
         if asr_cfg.hotwords.enabled:
@@ -118,7 +123,7 @@ class CloudASR:
 
     def _configure_dashscope(self):
         """配置 dashscope SDK 全局参数
-        
+
         注意：dashscope SDK 使用模块级全局变量，无法避免全局变异。
         这是 SDK 的已知限制。在多实例场景中需注意调用顺序。
         """
@@ -142,7 +147,7 @@ class CloudASR:
         else:
             logger.warning("热词配置为空，跳过热词初始化")
 
-    def recognize_from_file(self, audio_file_path: str, sample_rate: Optional[int] = None) -> str:
+    def recognize_from_file(self, audio_file_path: str, sample_rate: int | None = None) -> str:
         """从音频文件识别 - 使用 DashScope SDK
 
         Args:
@@ -165,7 +170,7 @@ class CloudASR:
             self._configure_dashscope()
 
             from dashscope.audio.asr import Recognition, RecognitionCallback
-            
+
             # 存储识别结果 - 使用 completed_sentences + current_sentence
             # 因为 get_sentence() 返回当前句子的累积文本（非增量），
             # 不能用 += 拼接，否则会产生重复（如 "打开" + "打开计算器" = "打开打开计算器"）
@@ -228,13 +233,13 @@ class CloudASR:
 
             # 开始识别
             recognition.start()
-            
+
             # 发送音频数据（分块发送，每块约 16KB）
             chunk_size = 16000
             for i in range(0, len(audio_data), chunk_size):
                 chunk = audio_data[i:i+chunk_size]
                 recognition.send_audio_frame(chunk)
-            
+
             # 停止识别
             recognition.stop()
 
@@ -258,7 +263,7 @@ class CloudASR:
             logger.error(f"ASR 识别失败: {e}")
             raise RuntimeError(f"云端ASR错误: {e}") from e
 
-    def recognize_from_bytes(self, audio_bytes: bytes, sample_rate: Optional[int] = None) -> str:
+    def recognize_from_bytes(self, audio_bytes: bytes, sample_rate: int | None = None) -> str:
         """从音频字节数据识别
 
         Args:

@@ -11,7 +11,6 @@
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Optional
 
 import requests
 
@@ -58,7 +57,7 @@ class ModelQueue:
     models: list[ModelConfig] = field(default_factory=list)
     current_index: int = 0
 
-    def current(self) -> Optional[ModelConfig]:
+    def current(self) -> ModelConfig | None:
         """获取当前模型"""
         if 0 <= self.current_index < len(self.models):
             return self.models[self.current_index]
@@ -69,7 +68,7 @@ class ModelQueue:
         if self.current_index < len(self.models) - 1:
             self.current_index += 1
 
-    def next_model(self) -> Optional[ModelConfig]:
+    def next_model(self) -> ModelConfig | None:
         """前进并返回下一个模型，如果没有更多模型返回 None"""
         if self.current_index >= len(self.models) - 1:
             return None
@@ -89,11 +88,11 @@ class ModelManager:
     """模型管理器"""
 
     def __init__(self):
-        self._queue: Optional[ModelQueue] = None
+        self._queue: ModelQueue | None = None
         self._last_fail_time: dict[str, float] = {}  # model_name -> timestamp
         self._cooldown_seconds: float = 60.0  # 冷却时间：失败后60秒内不重试该模型
 
-    def build_model_queue(self, api_key: Optional[str] = None) -> ModelQueue:
+    def build_model_queue(self, api_key: str | None = None) -> ModelQueue:
         """
         构建模型候选队列
 
@@ -143,7 +142,7 @@ class ModelManager:
         self._queue = ModelQueue(models=queue)
         return self._queue
 
-    def _build_from_legacy(self, api_key: Optional[str] = None) -> ModelQueue:
+    def _build_from_legacy(self, api_key: str | None = None) -> ModelQueue:
         """从传统配置构建模型队列（向后兼容）"""
         api_key = api_key or config.llm.api_key
         base_url = config.llm.base_url
@@ -177,7 +176,7 @@ class ModelManager:
         self._queue = ModelQueue(models=queue)
         return self._queue
 
-    def switch_provider(self, provider_id: str, model_id: Optional[str] = None) -> Optional[ModelConfig]:
+    def switch_provider(self, provider_id: str, model_id: str | None = None) -> ModelConfig | None:
         """切换到指定 Provider
 
         Args:
@@ -212,7 +211,7 @@ class ModelManager:
         logger.info(f"[ModelManager] 切换到 Provider: {provider.name}, 模型: {queue.current().name if queue.current() else 'N/A'}")
         return queue.current()
 
-    def get_queue(self) -> Optional[ModelQueue]:
+    def get_queue(self) -> ModelQueue | None:
         """获取当前模型队列"""
         return self._queue
 
@@ -245,7 +244,7 @@ class ModelManager:
 
         if status_code:
             if status_code == 400:
-                logger.info(f"[ModelManager] HTTP 400 错误，不切换模型（通常是请求格式问题）")
+                logger.info("[ModelManager] HTTP 400 错误，不切换模型（通常是请求格式问题）")
                 return False
             return status_code >= 401
 
@@ -257,7 +256,7 @@ class ModelManager:
         self._last_fail_time[model_name] = time.time()
         logger.debug(f"[ModelManager] 记录模型失败: {model_name}")
 
-    def switch_to_next_model(self) -> Optional[ModelConfig]:
+    def switch_to_next_model(self) -> ModelConfig | None:
         """切换到下一个备用模型"""
         if self._queue is None:
             logger.warning("[ModelManager] 模型队列未初始化")
@@ -269,7 +268,7 @@ class ModelManager:
 
         return self._queue.next_model()
 
-    def get_current_model(self) -> Optional[ModelConfig]:
+    def get_current_model(self) -> ModelConfig | None:
         """
         获取当前模型配置
 

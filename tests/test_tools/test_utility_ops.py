@@ -1,5 +1,4 @@
 """utility_ops 单元测试"""
-import pytest
 from voice_assistant.tools.universal.utility_ops import calculate
 
 

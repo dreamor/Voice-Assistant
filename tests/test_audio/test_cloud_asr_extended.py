@@ -1,11 +1,11 @@
 """Cloud ASR 扩展测试"""
-import json
 import os
 import tempfile
-import pytest
+from unittest.mock import MagicMock, patch
+
 import numpy as np
+import pytest
 import soundfile as sf
-from unittest.mock import patch, MagicMock, mock_open
 
 
 class TestHotwordsManager:
@@ -262,7 +262,7 @@ class TestCloudASRRecognize:
         try:
             from voice_assistant.audio.cloud_asr import CloudASR
 
-            asr = CloudASR()
+            CloudASR()  # ensure init doesn't crash
 
             # 验证 WAV 头检测
             assert wav_bytes[:4] == b'RIFF'

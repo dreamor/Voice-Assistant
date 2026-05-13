@@ -1,9 +1,8 @@
 """AgentOrchestrator.run_stream() 测试"""
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from voice_assistant.agent.orchestrator import AgentOrchestrator, AgentEvent, AgentResult
 from voice_assistant.agent.llm_client import StreamEvent
+from voice_assistant.agent.orchestrator import AgentEvent, AgentOrchestrator, AgentResult
 
 
 def _make_registry():

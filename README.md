@@ -1,5 +1,6 @@
 # Voice Assistant
 
+[![CI](https://github.com/dreamor/Voice-Assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/dreamor/Voice-Assistant/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688)](https://fastapi.tiangolo.com/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)

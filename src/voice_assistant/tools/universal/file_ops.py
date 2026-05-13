@@ -2,12 +2,10 @@
 通用文件操作工具 - file_ops
 跨平台文件读写、列表、搜索、删除
 """
-import os
 import logging
+import os
 import shutil
 from pathlib import Path
-
-from voice_assistant.security.safe_guard import SecurityLevel
 
 logger = logging.getLogger(__name__)
 

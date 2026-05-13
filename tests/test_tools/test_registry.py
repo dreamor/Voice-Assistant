@@ -1,7 +1,6 @@
 """ToolRegistry 单元测试"""
-import pytest
-from voice_assistant.tools.registry import ToolRegistry, ToolDefinition
-from voice_assistant.security.safe_guard import SecurityLevel, SafeGuard, GuardAction
+from voice_assistant.security.safe_guard import GuardAction, SafeGuard, SecurityLevel
+from voice_assistant.tools.registry import ToolDefinition, ToolRegistry
 
 
 def _dummy_handler(**kwargs):

@@ -102,6 +102,7 @@ class TestLLMAPI:
 
     def test_llm_api_endpoint(self):
         import requests
+
         from voice_assistant.config import config
 
         response = requests.get(
@@ -122,9 +123,10 @@ class TestCloudASR:
         assert asr.model is not None
 
     def test_cloud_asr_recognize_silence(self):
-        from voice_assistant.audio.cloud_asr import CloudASR
         import numpy as np
         import soundfile as sf
+
+        from voice_assistant.audio.cloud_asr import CloudASR
 
         sample_rate = 16000  # 标准 ASR 采样率
         duration = 1
@@ -183,10 +185,10 @@ class TestVoiceAssistantAI:
         assert __main__ is not None
 
     def test_modules_load(self):
-        from voice_assistant.config import config
         from voice_assistant.agent.orchestrator import AgentOrchestrator
         from voice_assistant.audio.cloud_asr import CloudASR
         from voice_assistant.audio.tts import synthesize
+        from voice_assistant.config import config
         from voice_assistant.core.session import VoiceSession
 
         assert config is not None
@@ -200,7 +202,7 @@ class TestASRCorrector:
     """Test ASR correction functionality"""
 
     def test_corrector_imports(self):
-        from voice_assistant.core.asr_corrector import correct_asr_result, _needs_correction
+        from voice_assistant.core.asr_corrector import _needs_correction, correct_asr_result
         assert correct_asr_result is not None
         assert _needs_correction is not None
 
@@ -238,20 +240,16 @@ class TestSecurityUtils:
 
     def test_security_imports(self):
         from voice_assistant.security.validation import (
-            validate_text_input,
-            validate_audio_input,
             rate_limit,
-            RateLimiter,
-            SecurityError,
-            RateLimitError,
-            InputValidationError
+            validate_audio_input,
+            validate_text_input,
         )
         assert validate_text_input is not None
         assert validate_audio_input is not None
         assert rate_limit is not None
 
     def test_text_validation(self):
-        from voice_assistant.security.validation import validate_text_input, InputValidationError
+        from voice_assistant.security.validation import InputValidationError, validate_text_input
 
         # 正常文本
         result = validate_text_input("Hello World")
@@ -266,7 +264,7 @@ class TestSecurityUtils:
             validate_text_input("x" * 2000)
 
     def test_audio_validation(self):
-        from voice_assistant.security.validation import validate_audio_input, InputValidationError
+        from voice_assistant.security.validation import InputValidationError, validate_audio_input
 
         # 正常音频数据
         result = validate_audio_input(b"RIFF" + b"x" * 100)
@@ -277,7 +275,7 @@ class TestSecurityUtils:
             validate_audio_input(b"")
 
     def test_rate_limit(self):
-        from voice_assistant.security.validation import rate_limit, RateLimitError
+        from voice_assistant.security.validation import RateLimitError, rate_limit
 
         @rate_limit(calls=3, period=1.0)
         def test_func():

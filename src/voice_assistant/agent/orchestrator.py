@@ -4,12 +4,15 @@ LLM function calling → tool 执行 → 结果回传 → 循环
 """
 import json
 import logging
+from collections.abc import Callable, Generator
 from dataclasses import dataclass, field
-from typing import Any, Callable, Generator, Optional
 
-from voice_assistant.agent.llm_client import call_llm_with_tools, call_llm_with_tools_stream, StreamEvent
+from voice_assistant.agent.llm_client import (
+    call_llm_with_tools,
+    call_llm_with_tools_stream,
+)
+from voice_assistant.security.safe_guard import GuardResult
 from voice_assistant.tools.registry import ToolRegistry
-from voice_assistant.security.safe_guard import GuardAction, GuardResult
 
 logger = logging.getLogger(__name__)
 
@@ -30,12 +33,12 @@ class AgentResult:
 class AgentEvent:
     """Agent 循环流式事件"""
     type: str  # "llm_token" | "tool_start" | "tool_result" | "complete" | "error"
-    content: Optional[str] = None
-    tool_name: Optional[str] = None
-    tool_arguments: Optional[dict] = None
-    tool_result: Optional[str] = None
-    success: Optional[bool] = None
-    result: Optional[AgentResult] = None
+    content: str | None = None
+    tool_name: str | None = None
+    tool_arguments: dict | None = None
+    tool_result: str | None = None
+    success: bool | None = None
+    result: AgentResult | None = None
 
 
 class AgentOrchestrator:
@@ -45,7 +48,7 @@ class AgentOrchestrator:
         self,
         tool_registry: ToolRegistry,
         max_iterations: int = MAX_ITERATIONS,
-        confirm_callback: Optional[Callable[[str, dict, GuardResult], bool]] = None,
+        confirm_callback: Callable[[str, dict, GuardResult], bool] | None = None,
     ):
         self._registry = tool_registry
         self._max_iterations = max_iterations
@@ -54,7 +57,7 @@ class AgentOrchestrator:
     def run(
         self,
         user_text: str,
-        conversation_history: Optional[list] = None,
+        conversation_history: list | None = None,
     ) -> AgentResult:
         """执行 Agent 循环
 
@@ -185,7 +188,7 @@ class AgentOrchestrator:
         self,
         user_text: str,
         pending_confirm: dict,
-        conversation_history: Optional[list] = None,
+        conversation_history: list | None = None,
     ) -> AgentResult:
         """带已确认操作的继续执行
 
@@ -223,7 +226,7 @@ class AgentOrchestrator:
     def run_stream(
         self,
         user_text: str,
-        conversation_history: Optional[list] = None,
+        conversation_history: list | None = None,
     ) -> Generator[AgentEvent, None, None]:
         """流式执行 Agent 循环
 

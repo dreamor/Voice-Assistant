@@ -4,7 +4,6 @@ ASR 纠错模块
 """
 import logging
 import re
-from typing import Optional
 
 from voice_assistant.config import config
 
@@ -104,7 +103,7 @@ def _needs_correction(text: str) -> bool:
     return False
 
 
-def _llm_correct(text: str, conversation_history: list = None) -> Optional[str]:
+def _llm_correct(text: str, conversation_history: list = None) -> str | None:
     """使用 LLM 进行纠错
 
     Args:

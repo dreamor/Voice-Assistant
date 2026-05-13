@@ -1,14 +1,14 @@
 """ASR Provider 注册表与工厂测试"""
-import pytest
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from voice_assistant.audio.asr_provider import (
+    _ASR_REGISTRY,
     ASRProvider,
     create_asr_provider,
     register_asr_provider,
-    _ASR_REGISTRY,
 )
-
 
 # ---------------------------------------------------------------------------
 # ASRProvider 协议
@@ -113,7 +113,7 @@ class TestCreateASRProvider:
         config = self._make_config(use_local=True)
         # 模拟 FunASR 不可用
         with patch("voice_assistant.audio.asr_provider._ASR_REGISTRY", {"cloud": _ASR_REGISTRY.get("cloud")}):
-            with patch("voice_assistant.audio.asr_provider.create_asr_provider") as mock_create:
+            with patch("voice_assistant.audio.asr_provider.create_asr_provider") as mock_create:  # noqa: F841
                 # 直接测试回退逻辑
                 from voice_assistant.audio.cloud_asr import CloudASR
                 provider = CloudASR(api_key=config.asr.api_key, model=config.asr.model)

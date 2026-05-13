@@ -5,7 +5,6 @@ import logging
 import sqlite3
 import uuid
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +51,7 @@ def init_db():
     logger.info(f"[DB] 数据库初始化完成: {DB_PATH}")
 
 
-def save_message(conversation_id: str, role: str, content: str, audio_path: Optional[str] = None):
+def save_message(conversation_id: str, role: str, content: str, audio_path: str | None = None):
     """保存消息到数据库"""
     conn = sqlite3.connect(str(DB_PATH))
     cursor = conn.cursor()

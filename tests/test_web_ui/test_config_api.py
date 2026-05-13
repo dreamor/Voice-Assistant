@@ -1,6 +1,4 @@
 """Config API 测试"""
-import pytest
-from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
 

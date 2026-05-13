@@ -1,0 +1,232 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dreamor/Voice-Assistant/blob/main/config/schemas/config.schema.json",
+  "title": "Voice Assistant Configuration",
+  "description": "Schema for voice-assistant `config.yaml`. Sensitive values (API keys) belong in `.env`, not here.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["app", "asr", "llm", "audio", "vad", "history", "logging", "intent"],
+  "properties": {
+    "app": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+" }
+      }
+    },
+
+    "asr": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model", "base_url"],
+      "properties": {
+        "model": { "type": "string", "description": "DashScope ASR 模型，如 paraformer-realtime-v2" },
+        "base_url": { "type": "string", "format": "uri" },
+        "language_hints": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "ASR 语种提示，如 [\"zh\", \"en\"]"
+        },
+        "disfluency_removal_enabled": { "type": "boolean" },
+        "max_sentence_silence": { "type": "integer", "minimum": 200, "maximum": 5000 },
+        "use_local": { "type": "boolean", "description": "true 使用本地 FunASR，false 使用云端 DashScope" },
+        "local": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "model_path": { "type": ["string", "null"] },
+            "device": { "type": "string", "enum": ["cpu", "cuda", "mps"] },
+            "vad_threshold": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        },
+        "hotwords": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "config_file": { "type": "string" },
+            "vocabulary_id": {
+              "type": ["string", "null"],
+              "description": "已注册的 DashScope vocabulary ID，如 vocab-vasr-xxxxx"
+            }
+          }
+        }
+      }
+    },
+
+    "llm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model", "base_url", "max_tokens", "temperature"],
+      "properties": {
+        "provider": { "type": "string", "description": "当前活跃 provider ID（与 providers 字段对应）" },
+        "model": { "type": "string", "minLength": 1 },
+        "base_url": { "type": "string", "format": "uri" },
+        "max_tokens": { "type": "integer", "minimum": 100, "maximum": 32000 },
+        "temperature": { "type": "number", "minimum": 0, "maximum": 2 }
+      }
+    },
+
+    "providers": {
+      "type": "object",
+      "description": "内置 Provider 字典。运行时用户自定义 Provider 写入 config/custom_providers.yaml",
+      "patternProperties": {
+        "^[a-zA-Z0-9_-]+$": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "litellm_prefix", "api_key_env", "models"],
+          "properties": {
+            "name": { "type": "string" },
+            "litellm_prefix": {
+              "type": "string",
+              "description": "litellm provider 前缀，如 openai / anthropic",
+              "examples": ["openai", "anthropic"]
+            },
+            "base_url": { "type": ["string", "null"], "format": "uri" },
+            "api_key_env": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9_]*$",
+              "description": "API Key 环境变量名（写在 .env 中），如 DASHSCOPE_API_KEY"
+            },
+            "models": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id", "name"],
+                "properties": {
+                  "id": { "type": "string" },
+                  "name": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "audio": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sample_rate"],
+      "properties": {
+        "sample_rate": { "type": "integer", "enum": [8000, 16000, 22050, 44100, 48000] },
+        "edge_tts_voice": {
+          "type": "string",
+          "description": "已废弃，请使用 tts.voice"
+        }
+      }
+    },
+
+    "tts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "provider": { "type": "string", "examples": ["edge-tts"] },
+        "voice": { "type": "string", "examples": ["zh-CN-XiaoxiaoNeural", "zh-CN-YunyangNeural"] },
+        "rate": { "type": "string", "examples": ["", "+10%", "-5%"] },
+        "pitch": { "type": "string", "examples": ["", "+2Hz", "-1Hz"] }
+      }
+    },
+
+    "vad": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["threshold", "silence_timeout", "min_speech", "wait_timeout", "max_recording"],
+      "properties": {
+        "threshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "silence_timeout": { "type": "number", "minimum": 0.1, "maximum": 10 },
+        "min_speech": { "type": "number", "minimum": 0.05, "maximum": 5 },
+        "wait_timeout": { "type": "number", "minimum": 1, "maximum": 60 },
+        "max_recording": { "type": "number", "minimum": 1, "maximum": 300 }
+      }
+    },
+
+    "history": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_turns"],
+      "properties": {
+        "max_turns": { "type": "integer", "minimum": 1, "maximum": 200 }
+      }
+    },
+
+    "logging": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "type": "string", "enum": ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] },
+        "format": { "type": "string" },
+        "file": { "type": ["string", "null"] }
+      }
+    },
+
+    "intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model"],
+      "properties": {
+        "model": { "type": "string", "description": "意图分类用的轻量模型" },
+        "timeout": { "type": "integer", "minimum": 1, "maximum": 60 }
+      }
+    },
+
+    "agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_iterations": { "type": "integer", "minimum": 1, "maximum": 20 },
+        "confirmation_timeout": { "type": "integer", "minimum": 5, "maximum": 600 }
+      }
+    },
+
+    "tools": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "blocked": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "被完全禁用的工具名称列表，如 [\"run_python_code\"]"
+        },
+        "overrides": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "level"],
+            "properties": {
+              "name": { "type": "string" },
+              "level": {
+                "type": "string",
+                "enum": ["read_only", "write", "dangerous", "blocked"],
+                "description": "工具安全级别覆盖"
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "llm_models": {
+      "type": "object",
+      "description": "备用模型队列（用于故障转移）",
+      "properties": {
+        "models": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

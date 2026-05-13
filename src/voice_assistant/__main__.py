@@ -12,8 +12,9 @@ def main():
         result = validate_environment()
         sys.exit(0 if result else 1)
     else:
-        import uvicorn
         from pathlib import Path
+
+        import uvicorn
         project_root = str(Path(__file__).resolve().parent.parent.parent)
         if project_root not in sys.path:
             sys.path.insert(0, project_root)

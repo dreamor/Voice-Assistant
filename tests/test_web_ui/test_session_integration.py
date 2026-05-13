@@ -1,6 +1,4 @@
 """Session Web 集成测试"""
-import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
 
 
 class TestVoiceSessionWebIntegration:
@@ -14,8 +12,9 @@ class TestVoiceSessionWebIntegration:
 
     def test_voice_session_synthesize_stream_signature(self):
         """验证 VoiceSession.synthesize_stream 方法签名"""
-        from voice_assistant.core.session import VoiceSession
         import inspect
+
+        from voice_assistant.core.session import VoiceSession
 
         sig = inspect.signature(VoiceSession.synthesize_stream)
         params = list(sig.parameters.keys())
@@ -31,8 +30,9 @@ class TestVoiceSessionWebIntegration:
 
     def test_voice_session_get_history_signature(self):
         """验证 get_history 方法签名"""
-        from voice_assistant.core.session import VoiceSession
         import inspect
+
+        from voice_assistant.core.session import VoiceSession
 
         sig = inspect.signature(VoiceSession.get_history)
         params = list(sig.parameters.keys())
@@ -40,8 +40,9 @@ class TestVoiceSessionWebIntegration:
 
     def test_voice_session_set_history_signature(self):
         """验证 set_history 方法签名"""
-        from voice_assistant.core.session import VoiceSession
         import inspect
+
+        from voice_assistant.core.session import VoiceSession
 
         sig = inspect.signature(VoiceSession.set_history)
         params = list(sig.parameters.keys())
@@ -60,8 +61,9 @@ class TestVoiceSessionStreamProcessing:
 
     def test_process_text_stream_signature(self):
         """验证 process_text_stream 方法签名"""
-        from voice_assistant.core.session import VoiceSession
         import inspect
+
+        from voice_assistant.core.session import VoiceSession
 
         sig = inspect.signature(VoiceSession.process_text_stream)
         params = list(sig.parameters.keys())

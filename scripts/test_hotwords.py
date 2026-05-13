@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 """端到端测试热词：TTS 合成 → ASR 识别 → 校验关键词。"""
 import os
 import sys
@@ -22,8 +23,9 @@ TEST_PHRASES = [
 
 
 def mp3_to_wav16k(mp3_bytes: bytes) -> bytes:
-    from pydub import AudioSegment
     import io
+
+    from pydub import AudioSegment
     seg = AudioSegment.from_file(io.BytesIO(mp3_bytes), format="mp3")
     seg = seg.set_frame_rate(16000).set_channels(1).set_sample_width(2)
     out = io.BytesIO()

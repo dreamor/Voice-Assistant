@@ -6,14 +6,13 @@ import json
 import logging
 import os
 import platform
+from collections.abc import Generator
 from dataclasses import dataclass
-from typing import Optional, Generator
 
 import litellm
 
-from voice_assistant.config import config
 from voice_assistant.core.model_manager import model_manager
-from voice_assistant.security.validation import validate_text_input, RateLimitError, llm_limiter
+from voice_assistant.security.validation import RateLimitError, llm_limiter, validate_text_input
 
 logger = logging.getLogger(__name__)
 
@@ -29,9 +28,9 @@ litellm.drop_params = True
 class StreamEvent:
     """LLM 流式事件"""
     type: str  # "token" | "tool_calls" | "error" | "done"
-    content: Optional[str] = None
-    tool_calls: Optional[list] = None
-    finish_reason: Optional[str] = None
+    content: str | None = None
+    tool_calls: list | None = None
+    finish_reason: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -101,7 +100,7 @@ AGENT_SYSTEM_PROMPT = f"""你是一个智能电脑助手（Jarvis），你可以
 """
 
 
-def _build_messages(user_text: str, conversation_history: Optional[list] = None) -> list:
+def _build_messages(user_text: str, conversation_history: list | None = None) -> list:
     messages = [{"role": "system", "content": AGENT_SYSTEM_PROMPT}]
     if conversation_history:
         messages.extend(conversation_history)
@@ -112,7 +111,7 @@ def _build_messages(user_text: str, conversation_history: Optional[list] = None)
 def call_llm_with_tools(
     user_text: str,
     tools: list[dict],
-    conversation_history: Optional[list] = None,
+    conversation_history: list | None = None,
 ) -> dict:
     """单次 LLM function calling 调用
 
@@ -228,7 +227,7 @@ def call_llm_with_tools(
 def call_llm_with_tools_stream(
     user_text: str,
     tools: list[dict],
-    conversation_history: Optional[list] = None,
+    conversation_history: list | None = None,
 ) -> Generator[StreamEvent, None, None]:
     """流式 LLM function calling 调用
 

@@ -10,7 +10,7 @@ import time
 logger = logging.getLogger(__name__)
 
 try:
-    from PIL import Image
+    from PIL import Image  # noqa: F401  availability check
     HAS_PILLOW = True
 except ImportError:
     HAS_PILLOW = False

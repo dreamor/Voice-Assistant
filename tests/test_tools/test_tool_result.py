@@ -1,9 +1,13 @@
 """ToolResult 类型和参数校验测试"""
-import pytest
 from unittest.mock import MagicMock
 
-from voice_assistant.tools.registry import ToolResult, ToolDefinition, ToolRegistry, _validate_arguments
-from voice_assistant.security.safe_guard import SecurityLevel, SafeGuard
+from voice_assistant.security.safe_guard import SafeGuard, SecurityLevel
+from voice_assistant.tools.registry import (
+    ToolDefinition,
+    ToolRegistry,
+    ToolResult,
+    _validate_arguments,
+)
 
 
 class TestToolResult:

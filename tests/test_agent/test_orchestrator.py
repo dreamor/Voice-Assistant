@@ -1,9 +1,9 @@
 """AgentOrchestrator 单元测试"""
-import pytest
 from unittest.mock import MagicMock, patch
-from voice_assistant.agent.orchestrator import AgentOrchestrator, AgentResult, MAX_ITERATIONS
-from voice_assistant.tools.registry import ToolRegistry, ToolDefinition
-from voice_assistant.security.safe_guard import SecurityLevel, GuardAction, GuardResult
+
+from voice_assistant.agent.orchestrator import MAX_ITERATIONS, AgentOrchestrator, AgentResult
+from voice_assistant.security.safe_guard import SecurityLevel
+from voice_assistant.tools.registry import ToolDefinition, ToolRegistry
 
 
 def _echo_handler(**kwargs):

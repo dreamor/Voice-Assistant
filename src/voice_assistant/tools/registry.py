@@ -2,10 +2,11 @@
 工具注册中心 - 统一管理所有 Agent Tool
 """
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional
+from typing import Any
 
-from voice_assistant.security.safe_guard import SecurityLevel, SafeGuard, GuardResult
+from voice_assistant.security.safe_guard import GuardResult, SafeGuard, SecurityLevel
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ class ToolResult:
     output: str = ""
     data: dict[str, Any] = field(default_factory=dict)
     needs_confirmation: bool = False
-    guard_result: Optional[GuardResult] = None
+    guard_result: GuardResult | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """转换为字典（向后兼容）"""
@@ -91,7 +92,7 @@ class ToolDefinition:
 class ToolRegistry:
     """工具注册中心"""
 
-    def __init__(self, current_platform: str, safe_guard: Optional[SafeGuard] = None):
+    def __init__(self, current_platform: str, safe_guard: SafeGuard | None = None):
         self._tools: dict[str, ToolDefinition] = {}
         self._platform = current_platform
         self._guard = safe_guard or SafeGuard()
@@ -110,7 +111,7 @@ class ToolRegistry:
         for t in tools:
             self.register(t)
 
-    def get_tool(self, name: str) -> Optional[ToolDefinition]:
+    def get_tool(self, name: str) -> ToolDefinition | None:
         return self._tools.get(name)
 
     def has_tool(self, name: str) -> bool:

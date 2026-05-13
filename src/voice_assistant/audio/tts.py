@@ -5,12 +5,12 @@ TTS (Text-to-Speech) 模块
 import asyncio
 import logging
 import re
-from typing import Protocol, runtime_checkable, Optional, Dict, Type
+from typing import Protocol, runtime_checkable
 
 logger = logging.getLogger(__name__)
 
 # 模块级事件循环（避免每次调用 asyncio.run() 创建新循环）
-_tts_loop: Optional[asyncio.AbstractEventLoop] = None
+_tts_loop: asyncio.AbstractEventLoop | None = None
 
 
 def _get_tts_loop() -> asyncio.AbstractEventLoop:
@@ -53,7 +53,7 @@ class TTSProvider(Protocol):
         """
         ...
 
-    def synthesize_to_bytes(self, text: str) -> Optional[bytes]:
+    def synthesize_to_bytes(self, text: str) -> bytes | None:
         """将文本合成为音频字节数据
 
         Args:
@@ -91,7 +91,7 @@ class EdgeTTSProvider:
         self.voice = voice
         self.rate = rate
         self.pitch = pitch
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._loop: asyncio.AbstractEventLoop | None = None
 
     def _get_loop(self) -> asyncio.AbstractEventLoop:
         """获取或创建事件循环"""
@@ -115,10 +115,11 @@ class EdgeTTSProvider:
         communicate = edge_tts.Communicate(text, **self._build_communicate_kwargs())
         await communicate.save(output_file)
 
-    async def _synthesize_bytes_async(self, text: str) -> Optional[bytes]:
+    async def _synthesize_bytes_async(self, text: str) -> bytes | None:
         """异步合成语音到字节数据"""
-        import edge_tts
         import io
+
+        import edge_tts
 
         communicate = edge_tts.Communicate(text, **self._build_communicate_kwargs())
         buffer = io.BytesIO()
@@ -145,7 +146,7 @@ class EdgeTTSProvider:
             logger.error(f"TTS错误: {e}")
             return False
 
-    def synthesize_to_bytes(self, text: str) -> Optional[bytes]:
+    def synthesize_to_bytes(self, text: str) -> bytes | None:
         """同步接口：将文本合成为音频字节数据"""
         try:
             processed_text = preprocess_text(text)
@@ -188,10 +189,11 @@ class EdgeTTSProvider:
         # 过滤空句子
         return [s.strip() for s in result if s.strip()]
 
-    async def _synthesize_sentence_async(self, sentence: str) -> Optional[bytes]:
+    async def _synthesize_sentence_async(self, sentence: str) -> bytes | None:
         """异步合成单个句子"""
-        import edge_tts
         import io
+
+        import edge_tts
 
         try:
             communicate = edge_tts.Communicate(sentence, **self._build_communicate_kwargs())
@@ -254,7 +256,7 @@ class EdgeTTSProvider:
 # TTS Provider 注册表
 # ---------------------------------------------------------------------------
 
-_TTS_REGISTRY: Dict[str, Type] = {}
+_TTS_REGISTRY: dict[str, type] = {}
 
 
 def register_tts_provider(name: str, cls: type) -> None:
@@ -327,7 +329,7 @@ def create_tts_provider(config) -> TTSProvider:
 # 向后兼容的模块级函数
 # ---------------------------------------------------------------------------
 
-_default_provider: Optional[EdgeTTSProvider] = None
+_default_provider: EdgeTTSProvider | None = None
 
 
 def _get_default_provider() -> EdgeTTSProvider:

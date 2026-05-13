@@ -1,7 +1,9 @@
 """SafeGuard 单元测试"""
-import pytest
 from voice_assistant.security.safe_guard import (
-    SecurityLevel, GuardAction, GuardResult, ToolPolicy, SafeGuard,
+    GuardAction,
+    SafeGuard,
+    SecurityLevel,
+    ToolPolicy,
 )
 
 

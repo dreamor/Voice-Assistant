@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 """清理多余的热词列表，保留正在使用的一个。
 
 策略：
@@ -27,6 +28,7 @@ if not keep_id:
 apply = "--apply" in sys.argv
 
 import dashscope
+
 dashscope.api_key = (
     os.environ.get("DASHSCOPE_API_KEY")
     or os.environ.get("ASR_API_KEY")
@@ -34,6 +36,7 @@ dashscope.api_key = (
 )
 
 from dashscope.audio.asr import VocabularyService
+
 s = VocabularyService()
 
 items = s.list_vocabularies(prefix="vasr", page_index=0, page_size=50)

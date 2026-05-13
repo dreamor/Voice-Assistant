@@ -3,7 +3,7 @@ ASR 提供者协议与工厂
 定义语音识别的标准接口，支持云端和本地 ASR 的统一切换
 """
 import logging
-from typing import Protocol, runtime_checkable, Dict, Type, Optional
+from typing import Protocol, runtime_checkable
 
 logger = logging.getLogger(__name__)
 
@@ -40,10 +40,10 @@ class ASRProvider(Protocol):
 # ASR Provider 注册表
 # ---------------------------------------------------------------------------
 
-_ASR_REGISTRY: Dict[str, Type] = {}
+_ASR_REGISTRY: dict[str, type] = {}
 
 
-def register_asr_provider(name: str, cls: Type) -> None:
+def register_asr_provider(name: str, cls: type) -> None:
     """注册 ASR 提供者
 
     Args:

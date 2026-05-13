@@ -3,8 +3,6 @@
 鼠标移动/点击、键盘输入、滚动等
 """
 import logging
-import time
-import platform
 
 logger = logging.getLogger(__name__)
 

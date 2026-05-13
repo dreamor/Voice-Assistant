@@ -3,10 +3,8 @@
 检查和验证项目依赖，支持配置感知的条件依赖加载
 """
 import logging
-import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +23,9 @@ class Dependency:
     name: str  # 显示名称
     package_name: str  # Python 包名（用于 import）
     min_version: str  # 最低版本
-    max_version: Optional[str] = None  # 最高版本（不包含）
+    max_version: str | None = None  # 最高版本（不包含）
     required: bool = True  # 是否必需
-    config_flag: Optional[str] = None  # 配置项路径，如 "llm.use_local"
+    config_flag: str | None = None  # 配置项路径，如 "llm.use_local"
     install_hint: str = ""  # 安装提示
     version_attr: str = "__version__"  # 版本属性名
 
@@ -46,7 +44,7 @@ class DependencyCheckResult:
     """依赖检查结果"""
     status: DependencyStatus
     dependency: Dependency
-    installed_version: Optional[str] = None
+    installed_version: str | None = None
     message: str = ""
 
     @property
@@ -168,7 +166,7 @@ def compare_versions(v1: str, v2: str) -> int:
     return 0
 
 
-def get_installed_version(package_name: str, version_attr: str = "__version__") -> Optional[str]:
+def get_installed_version(package_name: str, version_attr: str = "__version__") -> str | None:
     """获取已安装包的版本"""
     # 首先尝试从 importlib.metadata 获取（最可靠）
     try:
@@ -242,7 +240,7 @@ def check_dependency(dep: Dependency) -> DependencyCheckResult:
     )
 
 
-def get_config_value(config, path: str) -> Optional[bool]:
+def get_config_value(config, path: str) -> bool | None:
     """从配置对象获取嵌套值"""
     parts = path.split(".")
     obj = config
@@ -387,9 +385,7 @@ def validate_environment(config=None) -> bool:
     print("\n正在检查依赖...")
 
     manager = check_dependencies(config, verbose=True)
-
-    if verbose:
-        manager.print_summary()
+    manager.print_summary()
 
     return not manager.has_blocking_errors()
 

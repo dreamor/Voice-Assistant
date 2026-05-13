@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=./config/schemas/config.schema.json
 # Voice Assistant 配置文件
 # 敏感信息（API Key 等）请放入 .env 文件
 

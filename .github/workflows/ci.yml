@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    env:
+      # 让需要在 CI 跳过的网络/UI 测试可以分辨环境
+      CI: "true"
+      DASHSCOPE_API_KEY: dummy
+      ASR_API_KEY: dummy
+      LLM_API_KEY: dummy
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install ffmpeg (for pydub)
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ffmpeg
+
+      - name: Create venv & install deps
+        run: |
+          uv venv --python ${{ matrix.python-version }}
+          uv pip install -e ".[dev]"
+
+      - name: Run tests
+        run: |
+          # 跳过依赖真实 API/桌面 UI 的两类测试
+          uv run pytest tests/ -v \
+            --ignore=tests/test_platform \
+            --deselect tests/test_system.py::TestLLMAPI::test_llm_api_endpoint \
+            --deselect tests/test_audio/test_funasr_asr.py
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install ruff
+        run: uv pip install --system ruff
+
+      - name: Ruff check
+        run: ruff check src/ tests/ scripts/

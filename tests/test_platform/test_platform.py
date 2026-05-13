@@ -1,9 +1,15 @@
 """platform 模块单元测试"""
-import pytest
 import platform as stdlib_platform
+
+import pytest
+
 from voice_assistant.platform import (
-    PlatformAdapter, MacAdapter, WindowsAdapter,
-    detect_platform, create_adapter, get_adapter, get_platform,
+    MacAdapter,
+    WindowsAdapter,
+    create_adapter,
+    detect_platform,
+    get_adapter,
+    get_platform,
 )
 
 

@@ -2,9 +2,8 @@
 安全守卫 - Agent tool 执行安全控制
 对 tool 调用进行分级拦截和确认
 """
+from dataclasses import dataclass
 from enum import Enum
-from dataclasses import dataclass, field
-from typing import Optional
 
 
 class SecurityLevel(Enum):
@@ -33,8 +32,8 @@ class GuardResult:
 class ToolPolicy:
     """单个 tool 的安全策略覆盖"""
     tool_name: str
-    override_level: Optional[SecurityLevel] = None
-    require_confirmation: Optional[bool] = None
+    override_level: SecurityLevel | None = None
+    require_confirmation: bool | None = None
     blocked: bool = False
     note: str = ""
 

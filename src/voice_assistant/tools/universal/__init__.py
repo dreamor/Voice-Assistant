@@ -2,29 +2,45 @@
 通用工具注册 - Layer 1
 跨平台纯 Python 工具（文件、系统、输入、屏幕、剪贴板、计算器）
 """
-from voice_assistant.tools.registry import ToolDefinition
 from voice_assistant.security.safe_guard import SecurityLevel
-
-from voice_assistant.tools.universal.file_ops import (
-    read_file, write_file, delete_file, list_directory, find_files, delete_directory,
-)
-from voice_assistant.tools.universal.system_ops import (
-    get_system_info, get_running_processes, get_active_window_title, kill_process,
-)
-from voice_assistant.tools.universal.input_ops import (
-    move_mouse, click_mouse, double_click, right_click, type_text, press_keys, scroll,
-)
-from voice_assistant.tools.universal.screen_ops import (
-    take_screenshot, locate_on_screen, get_screen_size,
-)
+from voice_assistant.tools.registry import ToolDefinition
 from voice_assistant.tools.universal.clipboard_ops import (
-    get_clipboard, set_clipboard,
-)
-from voice_assistant.tools.universal.utility_ops import (
-    calculate,
+    get_clipboard,
+    set_clipboard,
 )
 from voice_assistant.tools.universal.code_ops import (
     run_python_code,
+)
+from voice_assistant.tools.universal.file_ops import (
+    delete_directory,
+    delete_file,
+    find_files,
+    list_directory,
+    read_file,
+    write_file,
+)
+from voice_assistant.tools.universal.input_ops import (
+    click_mouse,
+    double_click,
+    move_mouse,
+    press_keys,
+    right_click,
+    scroll,
+    type_text,
+)
+from voice_assistant.tools.universal.screen_ops import (
+    get_screen_size,
+    locate_on_screen,
+    take_screenshot,
+)
+from voice_assistant.tools.universal.system_ops import (
+    get_active_window_title,
+    get_running_processes,
+    get_system_info,
+    kill_process,
+)
+from voice_assistant.tools.universal.utility_ops import (
+    calculate,
 )
 
 

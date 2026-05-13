@@ -6,8 +6,8 @@ import logging
 import os
 import subprocess
 
-from voice_assistant.tools.registry import ToolDefinition
 from voice_assistant.security.safe_guard import SecurityLevel
+from voice_assistant.tools.registry import ToolDefinition
 
 logger = logging.getLogger(__name__)
 
