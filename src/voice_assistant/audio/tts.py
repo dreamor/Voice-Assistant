@@ -293,19 +293,11 @@ def create_tts_provider(config) -> TTSProvider:
     Raises:
         ValueError: 未知的 TTS 提供者名称
     """
-    # 兼容旧配置：从 tts 或 audio.edge_tts_voice 读取
-    tts_cfg = getattr(config, 'tts', None)
-    if tts_cfg is not None:
-        provider_name = tts_cfg.provider
-        voice = tts_cfg.voice
-        rate = getattr(tts_cfg, 'rate', '') or ''
-        pitch = getattr(tts_cfg, 'pitch', '') or ''
-    else:
-        # 向后兼容：从 AudioConfig 读取
-        provider_name = "edge-tts"
-        voice = config.audio.edge_tts_voice
-        rate = ""
-        pitch = ""
+    tts_cfg = config.audio.tts
+    provider_name = tts_cfg.provider
+    voice = tts_cfg.voice
+    rate = tts_cfg.rate or ''
+    pitch = tts_cfg.pitch or ''
 
     if provider_name not in _TTS_REGISTRY:
         available = ", ".join(_TTS_REGISTRY.keys()) or "(无)"
@@ -337,12 +329,7 @@ def _get_default_provider() -> EdgeTTSProvider:
     global _default_provider
     if _default_provider is None:
         from voice_assistant.config import config as app_config
-        tts_cfg = getattr(app_config, 'tts', None)
-        if tts_cfg is not None:
-            voice = tts_cfg.voice
-        else:
-            voice = app_config.audio.edge_tts_voice
-        _default_provider = EdgeTTSProvider(voice=voice)
+        _default_provider = EdgeTTSProvider(voice=app_config.audio.tts.voice)
     return _default_provider
 
 

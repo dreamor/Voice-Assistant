@@ -22,8 +22,12 @@ cp .env.example .env
 
 | 变量名 | 必填 | 说明 |
 |--------|------|------|
-| `ASR_API_KEY` | ✅ | 语音识别 API 密钥 |
-| `LLM_API_KEY` | ✅ | AI 对话 API 密钥（在线模式） |
+| `ASR_API_KEY` | ✅ | 语音识别 API 密钥（DashScope Paraformer） |
+| `DASHSCOPE_API_KEY` | ✅ (默认 provider) | dashscope provider 的 LLM Key |
+| `OPENAI_API_KEY` | 可选 | 切到 openai provider 时使用 |
+| `ANTHROPIC_API_KEY` | 可选 | 切到 anthropic provider 时使用 |
+| `DEEPSEEK_API_KEY` | 可选 | 切到 deepseek provider 时使用 |
+| `{PROVIDER_ID}_API_KEY` | 可选 | 自定义 provider，按 ID 推导命名 |
 
 ### 获取 API Key
 
@@ -135,13 +139,11 @@ llm:
 ```yaml
 audio:
   sample_rate: 16000
-  edge_tts_voice: "zh-CN-XiaoxiaoNeural"
 ```
 
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
 | `sample_rate` | 采样率 (Hz) | 16000 |
-| `edge_tts_voice` | TTS 音色 | zh-CN-XiaoxiaoNeural |
 
 **采样率说明：**
 - `16000`: ASR 标准采样率（推荐）
@@ -208,29 +210,7 @@ logging:
 
 ### 意图识别配置
 
-```yaml
-intent:
-  model: "qwen-turbo"  # 轻量模型，适合分类任务
-  timeout: 5           # 超时时间（秒）
-```
-
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `model` | 意图识别使用的 LLM 模型 | qwen-turbo |
-| `timeout` | LLM 调用超时时间（秒） | 5 |
-
-**意图分类机制**：
-
-采用 **LLM 优先 + 关键词兜底** 策略：
-
-1. **优先调用云端 LLM**（qwen-turbo）进行语义理解，返回 JSON 格式的意图类型和置信度
-2. **LLM 失败或置信度 < 0.3** 时，自动降级到关键词匹配
-3. 三种意图类型：
-   - `computer_control`：电脑操作指令
-   - `query_answer`：事实性问题查询
-   - `ordinary_chat`：普通闲聊对话
-
-详见 [MODULES.md](MODULES.md) 中的路由服务说明。
+> 已废弃；旧版本配置项保留兼容，新版本不再读取。可从 yaml 删除该节。
 
 ### Agent 配置
 
@@ -307,7 +287,10 @@ asr:
 ```env
 # 敏感配置 - 不要提交到版本控制
 ASR_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx
-LLM_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx
+DASHSCOPE_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx
+# 切到其他 provider 时再填对应 key：
+# OPENAI_API_KEY=sk-...
+# ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 ### config.yaml
@@ -330,17 +313,29 @@ asr:
     config_file: "config/hotwords.json"
 
 llm:
-  model: "kimi-k2.5"
-  base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+  provider: "dashscope"
+  model: "qwen3-coder-plus-2025-09-23"
   max_tokens: 2000
   temperature: 0.7
-  local:
-    system_prompt: "你是一个友好的中文语音助手，回复要简洁口语化，适合语音播放。"
-    use_multimodal_audio: false  # 直接将音频送给本地模型，跳过 ASR
+
+providers:
+  dashscope:
+    name: "阿里云 DashScope"
+    litellm_prefix: "openai"
+    base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    api_key_env: "DASHSCOPE_API_KEY"
+    models:
+      - id: "qwen3-coder-plus-2025-09-23"
+        name: "Qwen3 Coder Plus"
+      - id: "qwen-plus-latest"
+        name: "Qwen Plus"
 
 audio:
   sample_rate: 16000
-  edge_tts_voice: "zh-CN-XiaoxiaoNeural"
+
+tts:
+  provider: "edge-tts"
+  voice: "zh-CN-XiaoxiaoNeural"
 
 vad:
   threshold: 0.02
@@ -349,10 +344,6 @@ vad:
   wait_timeout: 10
   max_recording: 30
 
-interpreter:
-  auto_run: true
-  verbose: false
-
 history:
   max_turns: 20
 
@@ -360,9 +351,9 @@ logging:
   level: "INFO"
   format: "%(asctime)s - %(levelname)s - %(message)s"
 
-intent:
-  model: "qwen-turbo"
-  timeout: 5
+agent:
+  max_iterations: 5
+  confirmation_timeout: 60
 ```
 
 ---

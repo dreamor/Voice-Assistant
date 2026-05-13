@@ -207,10 +207,13 @@ async def favicon():
 @app.get("/api/config")
 async def get_config():
     """获取当前配置"""
+    current_provider = config.providers.get_provider(config.provider) if config.provider else None
+    base_url = current_provider.base_url if current_provider else None
     return {
         "llm": {
+            "provider": config.provider,
             "model": config.llm.model,
-            "base_url": config.llm.base_url,
+            "base_url": base_url,
             "max_tokens": config.llm.max_tokens,
             "temperature": config.llm.temperature,
         },
@@ -220,7 +223,7 @@ async def get_config():
         },
         "audio": {
             "sample_rate": config.audio.sample_rate,
-            "edge_tts_voice": config.audio.edge_tts_voice,
+            "tts_voice": config.audio.tts.voice,
         }
     }
 

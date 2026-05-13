@@ -5,7 +5,7 @@
   "description": "Schema for voice-assistant `config.yaml`. Sensitive values (API keys) belong in `.env`, not here.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["app", "asr", "llm", "audio", "vad", "history", "logging", "intent"],
+  "required": ["app", "asr", "llm", "audio", "vad", "history", "logging"],
   "properties": {
     "app": {
       "type": "object",
@@ -60,11 +60,10 @@
     "llm": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["model", "base_url", "max_tokens", "temperature"],
+      "required": ["provider", "model", "max_tokens", "temperature"],
       "properties": {
         "provider": { "type": "string", "description": "当前活跃 provider ID（与 providers 字段对应）" },
         "model": { "type": "string", "minLength": 1 },
-        "base_url": { "type": "string", "format": "uri" },
         "max_tokens": { "type": "integer", "minimum": 100, "maximum": 32000 },
         "temperature": { "type": "number", "minimum": 0, "maximum": 2 }
       }
@@ -113,11 +112,7 @@
       "additionalProperties": false,
       "required": ["sample_rate"],
       "properties": {
-        "sample_rate": { "type": "integer", "enum": [8000, 16000, 22050, 44100, 48000] },
-        "edge_tts_voice": {
-          "type": "string",
-          "description": "已废弃，请使用 tts.voice"
-        }
+        "sample_rate": { "type": "integer", "enum": [8000, 16000, 22050, 44100, 48000] }
       }
     },
 
@@ -162,16 +157,6 @@
         "level": { "type": "string", "enum": ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] },
         "format": { "type": "string" },
         "file": { "type": ["string", "null"] }
-      }
-    },
-
-    "intent": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["model"],
-      "properties": {
-        "model": { "type": "string", "description": "意图分类用的轻量模型" },
-        "timeout": { "type": "integer", "minimum": 1, "maximum": 60 }
       }
     },
 

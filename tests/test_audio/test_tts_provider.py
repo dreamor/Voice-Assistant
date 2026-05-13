@@ -121,11 +121,12 @@ class TestCreateTTSProvider:
 
     def _make_config(self, provider="edge-tts", voice="zh-CN-XiaoxiaoNeural",
                      rate="", pitch=""):
-        from voice_assistant.config import TTSConfig
+        from voice_assistant.config import AudioConfig, TTSConfig
         mock_config = MagicMock()
-        mock_config.tts = TTSConfig(provider=provider, voice=voice, rate=rate, pitch=pitch)
-        mock_config.audio = MagicMock()
-        mock_config.audio.edge_tts_voice = voice
+        mock_config.audio = AudioConfig(
+            sample_rate=16000,
+            tts=TTSConfig(provider=provider, voice=voice, rate=rate, pitch=pitch),
+        )
         return mock_config
 
     def test_create_edge_tts(self):
@@ -144,14 +145,6 @@ class TestCreateTTSProvider:
         config = self._make_config(provider="nonexistent")
         with pytest.raises(ValueError, match="未知的 TTS 提供者"):
             create_tts_provider(config)
-
-    def test_fallback_to_audio_config(self):
-        mock_config = MagicMock()
-        mock_config.tts = None
-        mock_config.audio = MagicMock()
-        mock_config.audio.edge_tts_voice = "en-US-JennyNeural"
-        provider = create_tts_provider(mock_config)
-        assert provider.voice == "en-US-JennyNeural"
 
 
 # ---------------------------------------------------------------------------

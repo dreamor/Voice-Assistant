@@ -49,10 +49,8 @@ class ASRConfig:
 
 @dataclass
 class LLMConfig:
-    """LLM 配置"""
+    """LLM 配置（base_url 与 api_key 由当前 provider 提供）"""
     model: str
-    base_url: str
-    api_key: str
     max_tokens: int
     temperature: float
 
@@ -70,7 +68,6 @@ class TTSConfig:
 class AudioConfig:
     """音频配置"""
     sample_rate: int
-    edge_tts_voice: str  # 已废弃，使用 config.tts.voice 代替
     tts: TTSConfig = field(default_factory=TTSConfig)
 
 
@@ -88,13 +85,6 @@ class VADConfig:
 class HistoryConfig:
     """对话历史配置"""
     max_turns: int
-
-
-@dataclass(frozen=True)
-class IntentConfig:
-    """意图识别配置"""
-    model: str
-    timeout: int
 
 
 @dataclass(frozen=True)
@@ -173,7 +163,6 @@ class AppConfig:
     audio: AudioConfig
     vad: VADConfig
     history: HistoryConfig
-    intent: IntentConfig
     logging: LoggingConfig
     agent: AgentConfig = field(default_factory=AgentConfig)
     tools: ToolsConfig = field(default_factory=ToolsConfig)
@@ -330,13 +319,11 @@ def _validate_config(cfg: AppConfig) -> list[str]:
     """
     warnings: list[str] = []
 
-    # 必填字段检查
-    if not cfg.llm.api_key:
-        raise ValueError("LLM_API_KEY 环境变量未设置")
+    # ASR Key 必填（除非走本地模式）
     if not cfg.asr.api_key and not cfg.asr.use_local:
         raise ValueError("ASR_API_KEY 环境变量未设置（或设置 asr.use_local: true）")
 
-    # Provider 必须配置（fallback 队列依赖 provider.models）
+    # Provider 必须配置
     if not cfg.provider:
         raise ValueError(
             "未配置 LLM provider。请在 config.yaml 设置 llm.provider，例如 'dashscope' / 'openai' 等"
@@ -345,6 +332,14 @@ def _validate_config(cfg: AppConfig) -> list[str]:
         raise ValueError(
             f"未知的 LLM provider: {cfg.provider}。"
             f"可选: {list(cfg.providers.providers.keys())}"
+        )
+
+    # 当前 provider 的 API Key 必须存在
+    current_provider = cfg.providers.providers[cfg.provider]
+    if not current_provider.api_key:
+        raise ValueError(
+            f"Provider {current_provider.name} 未配置 API Key，"
+            f"请在 .env 设置环境变量 {current_provider.api_key_env}"
         )
 
     # 范围校验
@@ -360,10 +355,6 @@ def _validate_config(cfg: AppConfig) -> list[str]:
         raise ValueError(f"agent.max_iterations={cfg.agent.max_iterations} 必须 >= 1")
     if cfg.history.max_turns < 1:
         raise ValueError(f"history.max_turns={cfg.history.max_turns} 必须 >= 1")
-
-    # 废弃字段警告
-    if cfg.audio.edge_tts_voice != "zh-CN-XiaoxiaoNeural":
-        warnings.append("audio.edge_tts_voice 已废弃，请使用 tts.voice 代替")
 
     # TTS 配置校验
     if cfg.audio.tts.provider not in ("edge-tts",):
@@ -438,17 +429,14 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         ),
         llm=LLMConfig(
             model=cfg['llm']['model'],
-            base_url=cfg['llm']['base_url'],
-            api_key=os.getenv('LLM_API_KEY'),
             max_tokens=cfg['llm']['max_tokens'],
             temperature=cfg['llm']['temperature'],
         ),
         audio=AudioConfig(
             sample_rate=cfg['audio']['sample_rate'],
-            edge_tts_voice=cfg['audio'].get('edge_tts_voice', 'zh-CN-XiaoxiaoNeural'),
             tts=TTSConfig(
                 provider=cfg.get('tts', {}).get('provider', 'edge-tts'),
-                voice=cfg.get('tts', {}).get('voice', cfg['audio'].get('edge_tts_voice', 'zh-CN-XiaoxiaoNeural')),
+                voice=cfg.get('tts', {}).get('voice', 'zh-CN-XiaoxiaoNeural'),
                 rate=cfg.get('tts', {}).get('rate', ''),
                 pitch=cfg.get('tts', {}).get('pitch', ''),
             ),
@@ -461,10 +449,6 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
             max_recording=cfg['vad']['max_recording'],
         ),
         history=HistoryConfig(max_turns=cfg['history']['max_turns']),
-        intent=IntentConfig(
-            model=cfg.get('intent', {}).get('model', 'qwen-turbo'),
-            timeout=cfg.get('intent', {}).get('timeout', 5),
-        ),
         logging=LoggingConfig(
             level=cfg['logging']['level'],
             format=cfg['logging']['format'],

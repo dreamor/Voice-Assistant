@@ -9,7 +9,6 @@ from voice_assistant.config import (
     AudioConfig,
     HistoryConfig,
     HotwordsConfig,
-    IntentConfig,
     LLMConfig,
     LocalASRConfig,
     LoggingConfig,
@@ -23,16 +22,22 @@ from voice_assistant.config import (
 )
 
 
-def _make_providers() -> ProvidersConfig:
+def _make_providers(api_key_env: str = "DASHSCOPE_API_KEY") -> ProvidersConfig:
     return ProvidersConfig(providers={
         "dashscope": ProviderConfig(
             name="DashScope",
             litellm_prefix="openai",
             base_url="http://localhost",
-            api_key_env="LLM_API_KEY",
+            api_key_env=api_key_env,
             models=[ProviderModelConfig(id="test-model", name="Test Model")],
         ),
     })
+
+
+@pytest.fixture(autouse=True)
+def _set_dashscope_key(monkeypatch):
+    """默认让 DASHSCOPE_API_KEY 存在，单个用例需要时再清掉"""
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "dummy")
 
 
 def _make_config(**overrides):
@@ -53,19 +58,15 @@ def _make_config(**overrides):
         ),
         llm=LLMConfig(
             model="test-model",
-            base_url="http://localhost",
-            api_key="test-key",
             max_tokens=2000,
             temperature=0.7,
         ),
         audio=AudioConfig(
             sample_rate=16000,
-            edge_tts_voice="zh-CN-XiaoxiaoNeural",
             tts=TTSConfig(provider="edge-tts", voice="zh-CN-XiaoxiaoNeural"),
         ),
         vad=VADConfig(threshold=0.02, silence_timeout=1.5, min_speech=0.15, wait_timeout=10, max_recording=30),
         history=HistoryConfig(max_turns=20),
-        intent=IntentConfig(model="test", timeout=5),
         logging=LoggingConfig(level="INFO", format="%(message)s"),
         agent=AgentConfig(max_iterations=5),
         tools=ToolsConfig(),
@@ -82,12 +83,11 @@ class TestValidateConfig:
         warnings = _validate_config(config)
         assert warnings == []
 
-    def test_missing_llm_api_key(self):
-        config = _make_config(llm=LLMConfig(
-            model="test", base_url="http://localhost", api_key="",
-            max_tokens=2000, temperature=0.7,
-        ))
-        with pytest.raises(ValueError, match="LLM_API_KEY"):
+    def test_missing_provider_api_key(self, monkeypatch):
+        """当前 provider 的 api_key_env 未设置应抛错"""
+        monkeypatch.delenv("DASHSCOPE_API_KEY", raising=False)
+        config = _make_config()
+        with pytest.raises(ValueError, match="DASHSCOPE_API_KEY"):
             _validate_config(config)
 
     def test_missing_asr_api_key_cloud_mode(self):
@@ -117,16 +117,14 @@ class TestValidateConfig:
 
     def test_temperature_out_of_range(self):
         config = _make_config(llm=LLMConfig(
-            model="test", base_url="http://localhost", api_key="test-key",
-            max_tokens=2000, temperature=3.0,
+            model="test", max_tokens=2000, temperature=3.0,
         ))
         warnings = _validate_config(config)
         assert any("temperature" in w for w in warnings)
 
     def test_max_tokens_too_low(self):
         config = _make_config(llm=LLMConfig(
-            model="test", base_url="http://localhost", api_key="test-key",
-            max_tokens=0, temperature=0.7,
+            model="test", max_tokens=0, temperature=0.7,
         ))
         with pytest.raises(ValueError, match="max_tokens"):
             _validate_config(config)
@@ -142,7 +140,6 @@ class TestValidateConfig:
     def test_non_standard_sample_rate(self):
         config = _make_config(audio=AudioConfig(
             sample_rate=96000,
-            edge_tts_voice="zh-CN-XiaoxiaoNeural",
             tts=TTSConfig(provider="edge-tts", voice="zh-CN-XiaoxiaoNeural"),
         ))
         warnings = _validate_config(config)
@@ -153,19 +150,9 @@ class TestValidateConfig:
         with pytest.raises(ValueError, match="max_iterations"):
             _validate_config(config)
 
-    def test_deprecated_edge_tts_voice(self):
-        config = _make_config(audio=AudioConfig(
-            sample_rate=16000,
-            edge_tts_voice="zh-CN-YunxiNeural",
-            tts=TTSConfig(provider="edge-tts", voice="zh-CN-YunxiNeural"),
-        ))
-        warnings = _validate_config(config)
-        assert any("edge_tts_voice" in w for w in warnings)
-
     def test_unknown_tts_provider(self):
         config = _make_config(audio=AudioConfig(
             sample_rate=16000,
-            edge_tts_voice="zh-CN-XiaoxiaoNeural",
             tts=TTSConfig(provider="unknown-tts", voice="test"),
         ))
         warnings = _validate_config(config)

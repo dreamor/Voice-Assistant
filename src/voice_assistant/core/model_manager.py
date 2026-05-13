@@ -184,10 +184,8 @@ class ModelManager:
                     queue.current_index = i
                     break
 
-        # 同步更新 config.llm
+        # 同步主模型选择
         config.llm.model = queue.current().name if queue.current() else config.llm.model
-        config.llm.base_url = queue.current().base_url if queue.current() else config.llm.base_url
-        config.llm.api_key = queue.current().api_key if queue.current() else config.llm.api_key
         config.provider = provider_id
 
         logger.info(f"[ModelManager] 切换到 Provider: {provider.name}, 模型: {queue.current().name if queue.current() else 'N/A'}")
