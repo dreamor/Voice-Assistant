@@ -23,6 +23,9 @@ from voice_assistant.tools.universal.clipboard_ops import (
 from voice_assistant.tools.universal.utility_ops import (
     calculate,
 )
+from voice_assistant.tools.universal.code_ops import (
+    run_python_code,
+)
 
 
 def get_universal_tools() -> list[ToolDefinition]:
@@ -305,5 +308,32 @@ def get_universal_tools() -> list[ToolDefinition]:
             },
             handler=calculate,
             security_level=SecurityLevel.READ_ONLY,
+        ),
+        # 代码执行（兜底通用任务）
+        ToolDefinition(
+            name="run_python_code",
+            description=(
+                "执行一段 Python 代码并返回 stdout/stderr/返回码。"
+                "用于在没有专用 tool 时完成数据处理、文件批操作、网络请求等任务。"
+                "代码在独立子进程中运行，默认 30 秒超时（最大 120 秒）。"
+                "需要用户确认后才执行。"
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "description": "完整 Python 源码。可使用标准库及项目已安装的第三方包 (requests, pydub, PIL, psutil 等)。",
+                    },
+                    "timeout": {
+                        "type": "integer",
+                        "description": "最大执行秒数 (1-120, 默认 30)",
+                        "default": 30,
+                    },
+                },
+                "required": ["code"],
+            },
+            handler=run_python_code,
+            security_level=SecurityLevel.DANGEROUS,
         ),
     ]

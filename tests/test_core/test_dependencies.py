@@ -15,7 +15,6 @@ from voice_assistant.core.dependencies import (
     get_installed_version,
     CORE_DEPENDENCIES,
     LOCAL_ASR_DEPENDENCIES,
-    INTERPRETER_DEPENDENCIES,
 )
 
 
@@ -298,8 +297,3 @@ class TestDependencyGroups:
         for dep in LOCAL_ASR_DEPENDENCIES:
             assert dep.required is False
             assert dep.config_flag is not None
-
-    def test_interpreter_dependencies_required(self):
-        """测试 Open Interpreter 依赖为必需"""
-        for dep in INTERPRETER_DEPENDENCIES:
-            assert dep.required is True

@@ -136,17 +136,6 @@ LOCAL_ASR_DEPENDENCIES = [
     ),
 ]
 
-INTERPRETER_DEPENDENCIES = [
-    Dependency(
-        name="Open Interpreter",
-        package_name="interpreter",
-        min_version="0.3.0",
-        max_version="0.5.0",
-        required=True,
-        install_hint="pip install 'open-interpreter>=0.3.0,<0.5.0'"
-    ),
-]
-
 
 def parse_version(version_str: str) -> tuple:
     """解析版本字符串为元组"""
@@ -190,7 +179,6 @@ def get_installed_version(package_name: str, version_attr: str = "__version__") 
             "dotenv": "python-dotenv",
             "edge_tts": "edge-tts",
             "funasr": "funasr",
-            "interpreter": "open-interpreter",
         }
         pkg_name = package_name_map.get(package_name, package_name.replace("_", "-"))
         return importlib.metadata.version(pkg_name)
@@ -305,13 +293,6 @@ class DependencyManager:
                 if verbose:
                     logger.info(f"  ⊙ {result.message}")
 
-        # 检查 Open Interpreter 依赖
-        for dep in INTERPRETER_DEPENDENCIES:
-            result = check_dependency(dep)
-            self.results.append(result)
-            if verbose:
-                self._log_result(result)
-
         return self.results
 
     def _log_result(self, result: DependencyCheckResult):
@@ -416,7 +397,7 @@ def validate_environment(config=None) -> bool:
 def get_dependency_report() -> str:
     """获取依赖报告（用于调试）"""
     lines = ["依赖报告:", "-" * 40]
-    all_deps = CORE_DEPENDENCIES + LOCAL_ASR_DEPENDENCIES + INTERPRETER_DEPENDENCIES
+    all_deps = CORE_DEPENDENCIES + LOCAL_ASR_DEPENDENCIES
 
     for dep in all_deps:
         version = get_installed_version(dep.package_name, dep.version_attr)
@@ -438,5 +419,4 @@ __all__ = [
     'get_dependency_report',
     'CORE_DEPENDENCIES',
     'LOCAL_ASR_DEPENDENCIES',
-    'INTERPRETER_DEPENDENCIES',
 ]

@@ -239,9 +239,17 @@ agent:
 
 ```yaml
 tools:
-  blocked: []  # 被阻止的工具名称列表
-  overrides: []  # 工具安全级别覆盖
+  blocked: []  # 被阻止的工具名称列表，如 ["run_python_code"] 完全禁用代码执行
+  overrides: []  # 工具安全级别覆盖，例如：
+    # - name: run_python_code
+    #   level: blocked          # 完全禁用
+    # - name: write_file
+    #   level: dangerous        # 升级为二次确认
 ```
+
+**`run_python_code` 默认行为**：
+
+DANGEROUS 级别，每次执行都需要用户二次确认；30 秒超时（最大 120 秒）；在独立子进程中运行，cwd 默认为用户 home 目录；stdout/stderr 输出超过 8KB 时尾部截断。如完全不需要，可在 `tools.blocked` 中加入 `run_python_code`。
 
 ---
 
