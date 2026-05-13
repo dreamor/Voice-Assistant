@@ -104,7 +104,10 @@ providers:
 pytest tests/ -v             # 测试（~340 用例）
 ruff check src/ tests/       # lint
 pyright src/                 # type check
+python scripts/check_env.py  # 环境自检（Python / 依赖 / .env / 麦克风）
 ```
+
+> 启用 ASR 热词：`python scripts/register_hotwords.py` → 把输出的 `vocabulary_id` 填入 `config.yaml`。详见 [CONFIG](docs/CONFIG.md)。
 
 更多见 [DEVELOPMENT](docs/DEVELOPMENT.md)。
 

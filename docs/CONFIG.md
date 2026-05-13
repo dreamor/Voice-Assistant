@@ -57,6 +57,7 @@ asr:
   max_sentence_silence: 1200
   hotwords:
     enabled: true
+    vocabulary_id: ""                # 由 register_hotwords.py 注册后填入
     config_file: "config/hotwords.json"
 ```
 
@@ -68,7 +69,25 @@ asr:
 | `disfluency_removal_enabled` | 过滤语气词 | true |
 | `max_sentence_silence` | 句间停顿容忍(ms) | 1200 |
 | `hotwords.enabled` | 启用热词 | false (阿里云免费配额已用完) |
+| `hotwords.vocabulary_id` | 已注册的热词列表 ID，留空则首次启动自动创建 | "" |
 | `hotwords.config_file` | 热词配置文件 | config/hotwords.json |
+
+**热词注册流程**（启用 `hotwords.enabled` 后）：
+
+```bash
+# 1. 编辑 config/hotwords.json，写入业务相关词表
+# 2. 注册到 DashScope，拿到 vocabulary_id
+python scripts/register_hotwords.py
+# 3. 把打印出的 ID 填到 config.yaml 的 asr.hotwords.vocabulary_id
+```
+
+辅助工具：
+
+| 脚本 | 用途 |
+|------|------|
+| `scripts/register_hotwords.py` | 注册 `config/hotwords.json` 到 DashScope，输出 `vocabulary_id` |
+| `scripts/list_hotwords.py` | 列出账号下已注册的热词列表（`--match` 与本地比对） |
+| `scripts/cleanup_hotwords.py` | 清理冗余的旧热词列表，避免配额超限 |
 
 **可用模型：**
 
