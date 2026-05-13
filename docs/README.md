@@ -36,7 +36,7 @@ ASR 识别（云端 / 本地）
     ↓
 意图识别 → Router
     ├─ 电脑操作 → Agent Loop（function calling + tool）
-    └─ 对话 → ChatExecutor（LLM 流式）
+    └─ 对话 → 直接由 LLM 回答（流式）
     ↓
 TTS 分块合成 → 浏览器 StreamingAudioPlayer 逐句播放
 ```

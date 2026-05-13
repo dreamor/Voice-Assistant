@@ -1,712 +1,333 @@
 # API 参考
 
-本文件记录各模块的公共接口和 Web UI API。
+Web UI 后端（FastAPI）+ Python 模块 API。
 
-> **注意**: 项目使用 `src/voice_assistant/` 作为源代码包。以下示例假设项目已正确安装或您正在从项目根目录运行。
+## REST API
 
----
+所有响应均为 JSON。错误使用 HTTP 状态码 + `{"detail": "..."}`。
 
-## Web UI API
+### 配置
 
-Web UI 提供 REST API 和 WebSocket 接口。
+#### `GET /api/config`
 
-### REST API
+返回当前生效配置（已过滤敏感字段）。
 
-#### GET /api/config
-
-获取当前配置。
-
-**响应:**
 ```json
 {
-  "asr": {
-    "model": "paraformer-realtime-v2",
-    "language_hints": ["zh", "en"]
+  "llm": {"model": "...", "base_url": "...", "max_tokens": 2000, "temperature": 0.7},
+  "asr": {"use_local": false, "model": "..."},
+  "audio": {"sample_rate": 16000, "edge_tts_voice": "zh-CN-XiaoxiaoNeural"}
+}
+```
+
+#### `POST /api/config`
+
+部分更新配置：
+
+```json
+{
+  "llm": {"temperature": 0.5, "max_tokens": 1500},
+  "audio": {"edge_tts_voice": "zh-CN-YunyangNeural"}
+}
+```
+
+### Provider 管理
+
+#### `GET /api/providers`
+
+列出所有 Provider 与模型：
+
+```json
+{
+  "providers": {
+    "dashscope": {
+      "name": "阿里云 DashScope",
+      "has_key": true,
+      "models": [{"id": "qwen-plus-latest", "name": "Qwen Plus"}],
+      "is_custom": false,
+      "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    }
   },
-  "llm": {
-    "model": "kimi-k2.5",
-    "temperature": 0.7,
-    "max_tokens": 2000
-  },
-  "audio": {
-    "sample_rate": 16000,
-    "edge_tts_voice": "zh-CN-XiaoxiaoNeural"
-  }
+  "current_provider": "dashscope",
+  "current_model": "qwen-plus-latest"
 }
 ```
 
----
+#### `POST /api/providers/create`
 
-#### POST /api/config
-
-更新配置。
-
-**请求体:**
 ```json
 {
-  "llm": {
-    "model": "qwen-plus",
-    "temperature": 0.8
-  }
+  "id": "my-vllm",
+  "name": "My vLLM",
+  "base_url": "https://api.example.com/v1",
+  "api_key": "sk-...",
+  "litellm_prefix": "openai",
+  "models": ["custom-7b"]
 }
 ```
 
-**响应:**
+Provider ID 必须匹配 `^[a-zA-Z0-9_-]+$`，不可覆盖内置 ID。API Key 会写入 `.env`（变量名由 ID 推导，如 `MY_VLLM_API_KEY`）。
+
+#### `PATCH /api/providers/{provider_id}`
+
+部分更新自定义 Provider：
+
 ```json
 {
-  "success": true,
-  "message": "配置已更新"
+  "name": "新名称",
+  "base_url": "https://new-url.com/v1",
+  "models": ["model-a", "model-b"],
+  "litellm_prefix": "openai"
 }
 ```
 
----
+#### `DELETE /api/providers/{provider_id}`
 
-#### GET /api/models
+删除自定义 Provider（不可删内置）。
 
-获取可用模型列表。
+#### `GET /api/providers/{provider_id}/models`
 
-**响应:**
+从 Provider 的 `/models` 端点拉取模型列表。需要 API Key 已配置。
+
 ```json
-{
-  "models": [
-    {"id": "kimi-k2.5", "name": "kimi-k2.5"},
-    {"id": "qwen-plus", "name": "qwen-plus"},
-    {"id": "qwen-turbo", "name": "qwen-turbo"}
-  ],
-  "current_model": "kimi-k2.5"
-}
+{"models": [{"id": "...", "name": "..."}], "total": 10}
 ```
 
----
+#### `POST /api/providers/switch`
 
-#### GET /api/history
+```json
+{"provider_id": "dashscope", "model_id": "qwen-plus-latest"}
+```
 
-获取对话历史。
+#### `POST /api/providers/api-key`
 
-**响应:**
+```json
+{"provider_id": "openai", "api_key": "sk-..."}
+```
+
+### 对话历史
+
+#### `GET /api/history?limit=20`
+
 ```json
 {
   "conversations": [
-    {
-      "id": 1,
-      "session_id": "default",
-      "role": "user",
-      "content": "讲个笑话",
-      "created_at": "2026-04-14 16:30:00"
-    },
-    {
-      "id": 2,
-      "session_id": "default",
-      "role": "assistant",
-      "content": "给你讲个短的哈：为什么企鹅的肚子是白的...",
-      "created_at": "2026-04-14 16:30:05"
-    }
+    {"id": "...", "title": "今天天气", "created_at": "..."}
   ]
 }
 ```
 
----
+#### `GET /api/history/{conversation_id}`
 
-#### POST /api/history/clear
-
-清除对话历史。
-
-**响应:**
 ```json
 {
-  "success": true,
-  "message": "对话历史已清除"
+  "id": "...",
+  "title": "...",
+  "created_at": "...",
+  "messages": [
+    {"role": "user", "content": "...", "created_at": "..."},
+    {"role": "assistant", "content": "...", "created_at": "..."}
+  ]
 }
 ```
 
----
+#### `DELETE /api/history/{conversation_id}`
 
-### WebSocket API
-
-#### /ws/{client_id}
-
-实时聊天 WebSocket 连接。
-
-**连接:**
-```javascript
-const clientId = 'client_' + Math.random().toString(36).substr(2, 9);
-const ws = new WebSocket(`ws://127.0.0.1:8000/ws/${clientId}`);
-```
-
-**客户端 → 服务器消息:**
-
-1. **开始对话:**
 ```json
-{
-  "type": "start_conversation",
-  "title": "新对话"
-}
+{"success": true}
 ```
 
-2. **加载对话:**
+#### `POST /api/history/batch-delete`
+
 ```json
-{
-  "type": "load_conversation",
-  "conversation_id": "uuid-string"
-}
+{"ids": ["conv1", "conv2"]}
 ```
 
-3. **文本消息:**
+返回 `{"deleted": 2}`。
+
+#### `POST /api/history/clear`
+
+清空所有对话。返回 `{"success": true}`。
+
+## WebSocket
+
+### `ws://127.0.0.1:8000/ws/{client_id}`
+
+`client_id` 由前端生成（建议 UUID）。
+
+#### 客户端 → 服务端
+
 ```json
-{
-  "type": "text_message",
-  "content": "讲个笑话"
-}
+{"type": "user_text", "text": "你好", "conversation_id": "..."}
+{"type": "audio_chunk", "data": "<base64 wav/webm>", "format": "wav"}
+{"type": "start_conversation", "title": "..."}
+{"type": "tts_replay", "text": "..."}
+{"type": "confirm_response", "confirm_id": "...", "approved": true}
 ```
 
-4. **音频数据:**
-```json
-{
-  "type": "audio_data",
-  "data": "base64_encoded_audio_data...",
-  "format": "audio/webm"
-}
-```
+#### 服务端 → 客户端
 
-5. **TTS 重播:**
-```json
-{
-  "type": "replay_tts",
-  "content": "要重播的文本"
-}
-```
-
-6. **设置更新:**
-```json
-{
-  "type": "update_settings",
-  "settings": {
-    "model": "qwen-plus",
-    "temperature": 0.8,
-    "max_tokens": 2000,
-    "tts_voice": "zh-CN-YunxiNeural"
-  }
-}
-```
-
-**服务器 → 客户端消息:**
-
-1. **对话开始:**
-```json
-{
-  "type": "conversation_started",
-  "conversation_id": "uuid-string"
-}
-```
-
-2. **语音识别中:**
-```json
-{
-  "type": "asr_processing"
-}
-```
-
-3. **语音识别结果:**
-```json
-{
-  "type": "asr_result",
-  "content": "识别到的文本"
-}
-```
-
-4. **用户消息:**
-```json
-{
-  "type": "user_message",
-  "content": "用户输入的文本"
-}
-```
-
-5. **AI 思考中:**
-```json
-{
-  "type": "llm_thinking",
-  "message": "AI 正在思考..."
-}
-```
-
-6. **执行中（计算机控制）:**
-```json
-{
-  "type": "executing",
-  "message": "正在执行操作..."
-}
-```
-
-7. **执行完成:**
-```json
-{
-  "type": "execution_complete",
-  "message": "操作执行完成"
-}
-```
-
-8. **流式文本响应:**
-```json
-{
-  "type": "llm_stream",
-  "content": "流式输出的文本片段"
-}
-```
-
-9. **响应完成:**
-```json
-{
-  "type": "llm_complete",
-  "content": "完整的响应文本"
-}
-```
-
-10. **TTS 生成中:**
-```json
-{
-  "type": "tts_generating"
-}
-```
-
-11. **TTS 音频:**
-```json
-{
-  "type": "tts_audio",
-  "data": "base64_encoded_mp3_audio..."
-}
-```
-
-12. **错误消息:**
-```json
-{
-  "type": "error",
-  "message": "错误描述"
-}
-```
-
----
+| `type` | 字段 | 触发时机 |
+|--------|------|---------|
+| `asr_result` | `text` | ASR 完成 |
+| `llm_token` | `content` | LLM 逐 token |
+| `tool_start` | `tool_name`, `arguments` | 工具调用开始 |
+| `tool_result` | `tool_name`, `result`, `success` | 工具调用完成 |
+| `tts_chunk` | `data`, `index` | TTS 分句合成 |
+| `complete` | `response`, `intent_type` | 整轮完成 |
+| `confirm_request` | `confirm_id`, `tool_name`, `arguments`, `level`, `message` | 需要二次确认 |
+| `error` | `message` | 异常 |
 
 ## Python 模块 API
 
-## voice_assistant.audio.cloud_asr 模块
+### `voice_assistant.core.session.VoiceSession`
 
-### CloudASR 类
+统一会话入口：
+
+```python
+from voice_assistant.core.session import VoiceSession
+
+session = VoiceSession(max_response_length=200)
+session.initialize()
+
+# 同步处理
+result = session.process_text("打开 VS Code")
+print(result.response)  # str
+print(result.execution_output)  # tool 调用列表
+
+# 流式处理
+for event in session.process_text_stream("讲个笑话"):
+    if event.type == "llm_token":
+        print(event.content, end="", flush=True)
+    elif event.type == "complete":
+        print(event.result.response)
+
+# ASR
+text = session.recognize(wav_bytes, sample_rate=16000)
+
+# TTS
+mp3 = session.synthesize("你好")
+for chunk in session.synthesize_stream("你好世界"):
+    play(chunk)
+
+# 历史
+session.set_history(history_list)
+session.get_history()
+session.clear_history()
+
+session.cleanup()
+```
+
+### `voice_assistant.agent.orchestrator.AgentOrchestrator`
+
+```python
+from voice_assistant.agent.orchestrator import AgentOrchestrator
+from voice_assistant.tools.registry import ToolRegistry
+
+orch = AgentOrchestrator(tool_registry=registry, max_iterations=5)
+result = orch.run(user_text="...", conversation_history=[])
+# result.response, result.tool_calls_made, result.iterations
+
+for event in orch.run_stream("..."):
+    # event.type: "llm_token" | "tool_start" | "tool_result" | "complete" | "error"
+    pass
+```
+
+### `voice_assistant.agent.llm_client`
+
+```python
+from voice_assistant.agent.llm_client import call_llm_with_tools_stream
+
+for event in call_llm_with_tools_stream(messages=[...], tools=[...]):
+    # event.type: "token" | "tool_calls" | "finish"
+    pass
+```
+
+### `voice_assistant.tools.registry`
+
+```python
+from voice_assistant.tools.registry import register_tool, ToolResult
+
+@register_tool(
+    name="my_tool",
+    description="...",
+    parameters={"type": "object", "properties": {...}, "required": [...]},
+    safety_level="confirm",  # auto / confirm / double_confirm / blocked
+)
+def my_tool(arg1: str) -> ToolResult:
+    return ToolResult(success=True, data={"result": ...})
+```
+
+### `voice_assistant.audio.cloud_asr.CloudASR`
 
 ```python
 from voice_assistant.audio.cloud_asr import CloudASR
 
-asr = CloudASR(api_key=None, model=None)
-```
-
-#### 构造函数
-
-```python
-def __init__(self, api_key=None, model=None)
-```
-
-**参数:**
-- `api_key` (str, optional): ASR 服务 API 密钥，默认从环境变量读取
-- `model` (str, optional): ASR 模型名称，默认从 `config.asr.model` 读取
-
----
-
-#### recognize_from_file
-
-```python
-def recognize_from_file(self, audio_file_path, sample_rate=None) -> str
-```
-
-从音频文件识别语音。
-
-**参数:**
-- `audio_file_path` (str): WAV 音频文件路径
-- `sample_rate` (int, optional): 采样率，默认从配置读取
-
-**返回:**
-- (str): 识别的文本，识别失败返回错误信息
-
-**示例:**
-```python
 asr = CloudASR()
-result = asr.recognize_from_file("test.wav")
-print(result)  # "你好"
+text = asr.recognize_bytes(wav_bytes, sample_rate=16000)
+text = asr.recognize_from_file("audio.wav")
 ```
 
----
-
-#### recognize_from_bytes
+### `voice_assistant.audio.tts`
 
 ```python
-def recognize_from_bytes(self, audio_bytes, sample_rate=None) -> str
+from voice_assistant.audio.tts import create_tts_provider, EdgeTTSProvider
+
+tts = create_tts_provider(config)
+mp3 = tts.synthesize_to_bytes("你好")
+for chunk in tts.synthesize_stream("你好世界，今天天气真好"):
+    play(chunk)
 ```
 
-从音频字节数据识别语音。
-
-**参数:**
-- `audio_bytes` (bytes): 音频数据（WAV格式或原始PCM）
-- `sample_rate` (int, optional): 采样率，默认从配置读取
-
-**返回:**
-- (str): 识别的文本，识别失败返回错误信息
-
-**示例:**
-```python
-with open("test.wav", "rb") as f:
-    audio_bytes = f.read()
-
-asr = CloudASR()
-result = asr.recognize_from_bytes(audio_bytes)
-print(result)  # "你好"
-```
-
----
-
-## voice_assistant.core.ai_client 模块
-
-### ask_ai_stream
+### `voice_assistant.core.model_manager`
 
 ```python
-from voice_assistant.core.ai_client import ask_ai_stream
+from voice_assistant.core.model_manager import model_manager
 
-for chunk in ask_ai_stream("你好", history):
-    print(chunk, end='')
+queue = model_manager.build_model_queue()
+current = model_manager.get_current_model()  # ModelConfig
+model_manager.switch_to_next_model()        # 故障切换
+model_manager.reset_to_primary()
+model_manager.switch_provider("openai", "gpt-4o")
 ```
 
-通过 litellm 按当前 Provider + 模型流式获取 AI 回复。
-
-**参数:**
-- `text` (str): 用户输入文本
-- `conversation_history` (list, optional): 对话历史列表
-
-**返回:**
-- (generator): 流式响应生成器
-
-**示例:**
-```python
-# 简单对话
-for response in ask_ai_stream("今天天气怎么样"):
-    print(response, flush=True)
-
-# 带历史记录
-history = []
-for response in ask_ai_stream("我叫小明", history):
-    pass
-
-for response in ask_ai_stream("我叫什么名字", history):
-    print(response, end='')
-```
-
----
-
+### `voice_assistant.config`
 
 ```python
+from voice_assistant.config import (
+    config,                       # 全局 AppConfig
+    save_custom_provider,
+    update_custom_provider,
+    delete_custom_provider,
+)
 
+config.llm.model        # 当前模型
+config.providers.providers  # dict[str, ProviderConfig]
+config.asr.hotwords.vocabulary_id
+
+save_custom_provider(
+    provider_id="my-llm",
+    name="My LLM",
+    base_url="https://api.example.com/v1",
+    api_key_env="MY_LLM_API_KEY",
+    litellm_prefix="openai",
+    models=["model-a"],
+)
 ```
 
-获取本地 LLM 客户端单例。
-
-**返回:**
-
----
-
+### `voice_assistant.db`
 
 ```python
+from voice_assistant.db import (
+    init_db,
+    create_conversation, save_message,
+    get_conversation_history, get_history,
+    delete_conversation, delete_conversations, clear_history,
+)
 
+init_db()
+conv_id = create_conversation(title="新对话")
+save_message(conv_id, role="user", content="你好")
+msgs = get_conversation_history(conv_id, limit=10)
+delete_conversations([conv1_id, conv2_id])
 ```
-
-关闭本地 LLM 客户端。
-
----
-
-## voice_assistant.audio.vad 模块
-
-### calculate_rms
-
-```python
-from voice_assistant.audio.vad import calculate_rms
-import numpy as np
-
-rms = calculate_rms(audio_data)
-```
-
-计算音频的 RMS 能量值。
-
-**参数:**
-- `audio_data` (np.ndarray): 音频数据数组
-
-**返回:**
-- (float): RMS 能量值
-
----
-
-### record_audio
-
-```python
-from voice_assistant.audio.vad import record_audio
-import numpy as np
-
-audio = record_audio(max_seconds=30)
-```
-
-使用 VAD 录制音频，说完自动停止。
-
-**参数:**
-- `max_seconds` (int): 最大录音时长，默认 30 秒
-
-**返回:**
-- (np.ndarray): 录制的音频数据
-
-**示例:**
-```python
-# 录音最多 10 秒
-audio = record_audio(max_seconds=10)
-print(f"录制了 {len(audio)} 个采样点")
-```
-
----
-
-## voice_assistant.audio.tts 模块
-
-### synthesize
-
-```python
-from voice_assistant.audio.tts import synthesize
-
-audio_data = synthesize("你好")
-```
-
-将文本转换为语音。
-
-**参数:**
-- `text` (str): 要转换的文本
-
-**返回:**
-- (bytes): MP3 格式的音频数据
-
-**示例:**
-```python
-from voice_assistant.audio.tts import synthesize
-from voice_assistant.audio.player import play_audio
-
-# 合成并播放
-audio = synthesize("你好，我是语音助手")
-play_audio(audio)
-```
-
----
-
-### preprocess_text
-
-```python
-from voice_assistant.audio.tts import preprocess_text
-
-text = preprocess_text("你好世界")
-```
-
-文本预处理，使 TTS 发音更自然。
-
-**参数:**
-- `text` (str): 原始文本
-
-**返回:**
-- (str): 处理后的文本
-
-**处理规则:**
-- 句号、感叹号、问号后添加空格
-- 逗号、分号、冒号后添加空格
-- 多余空格合并
-
----
-
-## voice_assistant.audio.player 模块
-
-### play_audio
-
-```python
-from voice_assistant.audio.player import play_audio
-
-play_audio(audio_data)
-```
-
-播放音频数据。
-
-**参数:**
-- `audio_data` (bytes): MP3 格式的音频数据
-
-**示例:**
-```python
-from voice_assistant.audio.tts import synthesize
-from voice_assistant.audio.player import play_audio
-
-# 合成并播放
-audio = synthesize("你好")
-play_audio(audio)
-print("播放完成")
-```
-
----
-
-## voice_assistant.security.validation 模块
-
-### RateLimiter 类
-
-```python
-from voice_assistant.security.validation import RateLimiter
-
-limiter = RateLimiter(max_requests=10, window_seconds=60)
-limiter.check()  # 超限抛出 RateLimitError
-```
-
-速率限制器。
-
-**参数:**
-- `max_requests` (int): 时间窗口内最大请求数
-- `window_seconds` (int): 时间窗口（秒）
-
----
-
-### validate_text_input
-
-```python
-from voice_assistant.security.validation import validate_text_input
-
-cleaned = validate_text_input(user_input)
-```
-
-验证文本输入。
-
-**参数:**
-- `text` (str): 输入文本
-
-**返回:**
-- (str): 验证后的文本
-
-**异常:**
-- `InputValidationError`: 输入验证失败
-
----
-
-### validate_audio_input
-
-```python
-from voice_assistant.security.validation import validate_audio_input
-
-cleaned = validate_audio_input(audio_bytes)
-```
-
-验证音频输入。
-
-**参数:**
-- `audio_bytes` (bytes): 音频数据
-
-**返回:**
-- (bytes): 验证后的音频数据
-
-**异常:**
-- `InputValidationError`: 输入验证失败
-
----
-
-## voice_assistant.core.asr_corrector 模块
-
-### correct_asr_result
-
-```python
-from voice_assistant.core.asr_corrector import correct_asr_result
-
-corrected = correct_asr_result("打开 open interpreter", history)
-```
-
-纠正 ASR 识别结果。
-
-**参数:**
-- `text` (str): ASR 原始结果
-- `conversation_history` (list, optional): 对话历史
-
-**返回:**
-- (str): 纠正后的文本
-
-**示例:**
-```python
-# 纠正音译错误
-result = correct_asr_result("打开 open interpreter")
-# 可能返回 "打开 Open Interpreter"
-```
-
----
-
-## voice_assistant.main 模块 (主程序)
-
-### toggle_llm_mode
-
-```python
-from voice_assistant.main import toggle_llm_mode
-
-success, mode_name = toggle_llm_mode()
-```
-
-切换本地/在线 LLM 模式。
-
-**返回:**
-- (tuple[bool, str]): (是否成功, 模式名称)
-
----
-
-### get_llm_mode
-
-```python
-from voice_assistant.main import get_llm_mode
-
-mode = get_llm_mode()  # "本地" 或 "在线"
-```
-
-获取当前 LLM 模式。
-
-**返回:**
-- (str): "本地" 或 "在线"
-
----
-
-## voice_assistant.config 模块 (配置)
-
-### config 对象
-
-```python
-from voice_assistant.config import config
-```
-
-通过 `config` 对象访问配置：
-
-```python
-config.asr.model              # ASR 模型
-config.asr.base_url           # ASR 服务地址
-config.asr.language_hints     # 语言提示
-config.llm.model              # AI 模型（在线）
-config.llm.local.model_path   # 本地模型路径
-config.llm.max_tokens         # 最大响应长度
-config.audio.sample_rate      # 采样率
-config.audio.edge_tts_voice   # TTS 音色
-config.vad.threshold          # 声音检测阈值
-config.interpreter.auto_run   # 自动执行代码
-```
-
----
-
-## 配置参考
-
-项目使用配置分离架构：
-
-| 文件 | 内容 |
-|------|------|
-| `.env` | API Key（敏感信息） |
-| `config.yaml` | 模型、参数等（非敏感配置） |
-
-### .env 配置
-
-| 变量 | 说明 |
-|------|------|
-| `ASR_API_KEY` | ASR 服务 API 密钥 |
-| `LLM_API_KEY` | LLM 服务 API 密钥 |
-
-详见 [CONFIG.md](CONFIG.md)。

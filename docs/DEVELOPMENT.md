@@ -46,7 +46,7 @@ voice-assistant/
 │   ├── db.py                       # SQLite
 │   ├── config/                     # 配置加载、custom_providers.yaml 读写
 │   ├── audio/                      # cloud_asr / funasr_asr / tts
-│   ├── core/                       # session / ai_client / model_manager
+│   ├── core/                       # session / model_manager / asr_corrector
 │   ├── agent/                      # orchestrator / llm_client
 │   ├── executors/                  # chat / computer / interpreter
 │   ├── tools/                      # registry + universal + platform_specific

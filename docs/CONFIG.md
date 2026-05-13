@@ -168,19 +168,6 @@ vad:
   - `1.5`: 默认值，自然对话停顿
   - `2.0`: 较长等待，允许思考停顿
 
-### Open Interpreter 配置
-
-```yaml
-interpreter:
-  auto_run: true
-  verbose: false
-```
-
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `auto_run` | 自动执行代码（无需确认） | true |
-| `verbose` | 详细日志输出 | false |
-
 ### 对话历史配置
 
 ```yaml
@@ -231,15 +218,13 @@ intent:
 ```yaml
 agent:
   max_iterations: 5          # Agent 循环最大迭代次数
-  confirmation_timeout: 60    # 确认等待超时（秒）
-  fallback_to_interpreter: true  # 无匹配 tool 时回退到 Open Interpreter
+  confirmation_timeout: 60   # 确认等待超时（秒）
 ```
 
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
 | `max_iterations` | Agent 循环最大迭代次数 | 5 |
 | `confirmation_timeout` | 用户确认等待超时时间（秒） | 60 |
-| `fallback_to_interpreter` | 无匹配 tool 时是否回退到 Open Interpreter | true |
 
 **安全等级**：
 
