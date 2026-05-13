@@ -19,7 +19,7 @@ try:
     import pyautogui
     pyautogui.FAILSAFE = True
     HAS_PYAUTOGUI = True
-except ImportError:
+except Exception:  # ImportError 或无头环境下的 KeyError('DISPLAY')
     HAS_PYAUTOGUI = False
 
 

@@ -62,3 +62,4 @@ model_weights/
 models/*
 !models/.gitkeep
 default.profraw
+.ruff_cache/

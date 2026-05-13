@@ -47,10 +47,12 @@ jobs:
 
       - name: Run tests
         run: |
-          # 跳过依赖真实 API/桌面 UI 的两类测试
+          # 跳过依赖真实 API/桌面 UI/真实 SQLite 状态的测试
           uv run pytest tests/ -v \
             --ignore=tests/test_platform \
             --deselect tests/test_system.py::TestLLMAPI::test_llm_api_endpoint \
+            --deselect tests/test_system.py::TestCloudASR::test_cloud_asr_recognize_silence \
+            --deselect tests/test_web_ui/test_config_api.py::TestConfigAPI::test_history_endpoint_exists \
             --deselect tests/test_audio/test_funasr_asr.py
 
   lint:
@@ -68,7 +70,7 @@ jobs:
         run: uv python install 3.12
 
       - name: Install ruff
-        run: uv pip install --system ruff
+        run: uv tool install ruff
 
       - name: Ruff check
-        run: ruff check src/ tests/ scripts/
+        run: uv tool run ruff check src/ tests/ scripts/

@@ -11,7 +11,7 @@ try:
     pyautogui.FAILSAFE = True
     pyautogui.PAUSE = 0.1
     HAS_PYAUTOGUI = True
-except ImportError:
+except Exception:  # ImportError 或无头环境下的 KeyError('DISPLAY')
     HAS_PYAUTOGUI = False
 
 
