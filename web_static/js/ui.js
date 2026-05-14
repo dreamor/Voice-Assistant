@@ -356,7 +356,11 @@ export function updateStreamingMessage(content) {
     }
 
     const textSpan = state.currentMessageDiv.querySelector('.streaming-text');
-    textSpan.innerHTML = formatMessageContent(content);
+    // 累加增量 token（后端每次只推送 delta，前端负责拼接）
+    const prev = textSpan.dataset.raw || '';
+    const next = prev + (content || '');
+    textSpan.dataset.raw = next;
+    textSpan.innerHTML = formatMessageContent(next);
     scrollToBottom();
 }
 
