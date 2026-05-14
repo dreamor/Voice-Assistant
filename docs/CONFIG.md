@@ -105,30 +105,19 @@ python scripts/register_hotwords.py
 
 ```yaml
 llm:
-  model: "kimi-k2.5"
-  base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
   max_tokens: 2000
   temperature: 0.7
-  local:
-    system_prompt: "你是一个友好的中文语音助手，回复要简洁口语化，适合语音播放。"
+# base_url / api_key 由当前 provider 提供
+# model 由当前 provider 的 models[0] 提供（用户可在 ⚙ 切换）
 ```
 
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
-| `model` | AI 模型（在线） | kimi-k2.5 |
-| `base_url` | LLM 服务地址 | https://dashscope.aliyuncs.com/compatible-mode/v1 |
 | `max_tokens` | 最大响应长度 | 2000 |
 | `temperature` | 创造性程度 | 0.7 |
-| `local.system_prompt` | 系统提示词 | 友好的中文语音助手 |
-| `local.use_multimodal_audio` | 多模态音频 | false |
 
-**推荐模型（在线）：**
-
-| 模型ID | 说明 |
-|--------|------|
-| `kimi-k2.5` | Kimi K2.5（推荐） |
-| `qwen-turbo` | Qwen Turbo |
-| `qwen-plus` | Qwen Plus |
+> 模型 / base_url / api_key 不再写在 `llm:` 段；它们由 `.env` 中
+> `LLM_API_KEY` 序号选定的 provider 提供（见下方 `providers:` 段）。
 
 **本地模型：**
 

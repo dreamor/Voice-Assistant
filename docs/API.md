@@ -14,9 +14,9 @@ Web UI 后端（FastAPI）+ Python 模块 API。
 
 ```json
 {
-  "llm": {"model": "...", "base_url": "...", "max_tokens": 2000, "temperature": 0.7},
+  "llm": {"provider": "dashscope", "model": "...", "base_url": "...", "max_tokens": 2000, "temperature": 0.7},
   "asr": {"use_local": false, "model": "..."},
-  "audio": {"sample_rate": 16000, "edge_tts_voice": "zh-CN-XiaoxiaoNeural"}
+  "audio": {"sample_rate": 16000, "tts_voice": "zh-CN-XiaoxiaoNeural"}
 }
 ```
 
@@ -26,8 +26,7 @@ Web UI 后端（FastAPI）+ Python 模块 API。
 
 ```json
 {
-  "llm": {"temperature": 0.5, "max_tokens": 1500},
-  "audio": {"edge_tts_voice": "zh-CN-YunyangNeural"}
+  "llm": {"temperature": 0.5, "max_tokens": 1500}
 }
 ```
 

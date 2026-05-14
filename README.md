@@ -85,7 +85,8 @@ python -m voice_assistant
 ```yaml
 # config.yaml 摘要
 llm:
-  model: "qwen-plus-latest"
+  max_tokens: 2000
+  temperature: 0.7
 asr:
   model: "paraformer-realtime-v2"
   use_local: false                 # 可切换到 FunASR
@@ -94,6 +95,7 @@ agent:
 providers:
   # 内置：dashscope / openai / anthropic / deepseek
   # 自定义 provider 写入 config/custom_providers.yaml
+# 当前 provider 由 .env 的 LLM_API_KEY 序号决定（1 = 第一个 provider）
 ```
 
 完整说明见 [CONFIG](docs/CONFIG.md)。
