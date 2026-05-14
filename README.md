@@ -32,7 +32,7 @@ start.bat
 ./start.sh --help
 ```
 
-首次运行会自动从 `.env.example` 复制出 `.env`，填入任一 Provider 的 API Key 后重启即可。浏览器打开 **http://127.0.0.1:8000**。
+首次运行会自动从 `.env.example` 复制出 `.env`，填入任一 Provider 的 API Key 后重启即可。浏览器打开 <http://127.0.0.1:8000>。
 
 ## 手动启动
 
