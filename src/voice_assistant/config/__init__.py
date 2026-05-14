@@ -49,10 +49,10 @@ class ASRConfig:
 
 @dataclass
 class LLMConfig:
-    """LLM 配置（base_url 与 api_key 由当前 provider 提供）"""
-    model: str
+    """LLM 配置（base_url / api_key 由当前 provider 提供；model 默认取 provider.models[0]）"""
     max_tokens: int
     temperature: float
+    model: str = ""  # 启动时为空，由 _resolve_default_model 填充
 
 
 @dataclass(frozen=True)
@@ -418,7 +418,6 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
             ),
         ),
         llm=LLMConfig(
-            model=cfg['llm']['model'],
             max_tokens=cfg['llm']['max_tokens'],
             temperature=cfg['llm']['temperature'],
         ),
@@ -457,6 +456,11 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         providers=merged_providers,
         provider=_resolve_active_provider(merged_providers),
     )
+
+    # 主模型默认取当前 provider 的第一个 model（用户可在 ⚙ 切换覆盖）
+    active_provider = app_config.providers.providers[app_config.provider]
+    if active_provider.models:
+        app_config.llm.model = active_provider.models[0].id
 
     # 配置校验
     validation_warnings = _validate_config(app_config)

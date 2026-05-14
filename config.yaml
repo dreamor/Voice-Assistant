@@ -29,9 +29,9 @@ asr:
     vocabulary_id: "vocab-vasr-5ec98e66ac6740459866804570d8929c"  # 165 词，含 Open Interpreter / Python / FastAPI / Vue.js 等
 
 # LLM 配置（AI 对话）
-# 当前活跃 provider 由 .env 中的 LLM_API_KEY 决定（值为下方 providers 的序号，从 1 开始）
+# 当前活跃 provider 由 .env 中 LLM_API_KEY 决定（值为下方 providers 的序号，从 1 开始）
+# 主模型默认取该 provider 的第一个 model（可在 ⚙ 配置页切换）
 llm:
-  model: "qwen3-coder-plus-2025-09-23"
   max_tokens: 2000
   temperature: 0.7
 
@@ -43,12 +43,8 @@ providers:
     base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
     api_key_env: "DASHSCOPE_API_KEY"
     models:
-      - id: "qwen3-coder-plus-2025-09-23"
-        name: "Qwen3 Coder Plus"
-      - id: "qwen-plus-latest"
-        name: "Qwen Plus"
-      - id: "qwen-turbo-latest"
-        name: "Qwen Turbo"
+      - id: "gui-plus-2026-02-26"
+        name: "gui-plus"
   openai:
     name: "OpenAI"
     litellm_prefix: "openai"

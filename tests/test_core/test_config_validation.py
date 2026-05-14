@@ -58,7 +58,6 @@ def _make_config(**overrides):
             local=LocalASRConfig(enabled=False, model_path=None, device="cpu", vad_threshold=0.5),
         ),
         llm=LLMConfig(
-            model="test-model",
             max_tokens=2000,
             temperature=0.7,
         ),
@@ -118,14 +117,14 @@ class TestValidateConfig:
 
     def test_temperature_out_of_range(self):
         config = _make_config(llm=LLMConfig(
-            model="test", max_tokens=2000, temperature=3.0,
+            max_tokens=2000, temperature=3.0,
         ))
         warnings = _validate_config(config)
         assert any("temperature" in w for w in warnings)
 
     def test_max_tokens_too_low(self):
         config = _make_config(llm=LLMConfig(
-            model="test", max_tokens=0, temperature=0.7,
+            max_tokens=0, temperature=0.7,
         ))
         with pytest.raises(ValueError, match="max_tokens"):
             _validate_config(config)
