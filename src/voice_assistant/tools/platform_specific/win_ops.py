@@ -163,6 +163,113 @@ def set_display_mode(mode: str) -> str:
         return f"设置显示模式失败: {e}"
 
 
+def toggle_bluetooth() -> str:
+    """切换蓝牙开关 - 通过 Disable/Enable 蓝牙设备类的所有设备实现"""
+    try:
+        # 检测蓝牙设备的状态：取第一个状态为 OK / Error 的判定
+        ps_query = (
+            "Get-PnpDevice -Class Bluetooth | "
+            "Where-Object { $_.Status -in 'OK','Error' } | "
+            "Select-Object -First 1 -ExpandProperty Status"
+        )
+        result = subprocess.run(
+            ["powershell", "-Command", ps_query],
+            capture_output=True, text=True, timeout=10,
+        )
+        status = (result.stdout or "").strip()
+        is_on = status.upper() == "OK"
+        action = "Disable-PnpDevice" if is_on else "Enable-PnpDevice"
+        ps_toggle = (
+            f"Get-PnpDevice -Class Bluetooth | "
+            f"ForEach-Object {{ {action} -InstanceId $_.InstanceId -Confirm:$false }}"
+        )
+        toggle = subprocess.run(
+            ["powershell", "-Command", ps_toggle],
+            capture_output=True, text=True, timeout=15,
+        )
+        if toggle.returncode != 0:
+            return f"切换蓝牙失败: {toggle.stderr.strip() or '需要管理员权限'}"
+        return f"蓝牙已{'关闭' if is_on else '打开'}"
+    except subprocess.TimeoutExpired:
+        return "切换蓝牙超时"
+    except Exception as e:
+        return f"切换蓝牙失败: {e}"
+
+
+def toggle_wifi() -> str:
+    """切换 Wi-Fi 开关 - 通过 netsh 启用/禁用 Wi-Fi 接口"""
+    try:
+        query = subprocess.run(
+            ["netsh", "interface", "show", "interface", "name=Wi-Fi"],
+            capture_output=True, text=True, timeout=10,
+        )
+        out = query.stdout or ""
+        is_enabled = "Enabled" in out or "已启用" in out
+        new_state = "disabled" if is_enabled else "enabled"
+        result = subprocess.run(
+            ["netsh", "interface", "set", "interface", "name=Wi-Fi", f"admin={new_state}"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode != 0:
+            return f"切换 Wi-Fi 失败: {result.stderr.strip() or '需要管理员权限'}"
+        return f"Wi-Fi 已{'关闭' if is_enabled else '打开'}"
+    except FileNotFoundError:
+        return "netsh.exe 不可用"
+    except subprocess.TimeoutExpired:
+        return "切换 Wi-Fi 超时"
+    except Exception as e:
+        return f"切换 Wi-Fi 失败: {e}"
+
+
+def empty_trash() -> str:
+    """清空回收站"""
+    try:
+        result = subprocess.run(
+            ["powershell", "-Command", "Clear-RecycleBin -Force -ErrorAction SilentlyContinue"],
+            capture_output=True, text=True, timeout=15,
+        )
+        if result.returncode != 0:
+            return f"清空回收站失败: {result.stderr.strip() or '未知错误'}"
+        return "回收站已清空"
+    except subprocess.TimeoutExpired:
+        return "清空回收站超时"
+    except Exception as e:
+        return f"清空回收站失败: {e}"
+
+
+def launch_application(app_name: str) -> str:
+    """启动应用程序（按可执行名称、Start Menu 应用名或路径）"""
+    if not app_name or not app_name.strip():
+        return "应用名称不能为空"
+    try:
+        # 用 cmd 的 start 内置：可识别 PATH 中可执行文件、URL、Start Menu 名
+        result = subprocess.run(
+            ["cmd", "/c", "start", "", app_name],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode != 0:
+            return f"启动失败: {result.stderr.strip() or app_name}"
+        return f"已启动: {app_name}"
+    except subprocess.TimeoutExpired:
+        return "启动超时"
+    except Exception as e:
+        return f"启动失败: {e}"
+
+
+def open_file(file_path: str) -> str:
+    """用默认应用打开文件"""
+    if not file_path or not file_path.strip():
+        return "文件路径不能为空"
+    try:
+        import os
+        os.startfile(file_path)  # type: ignore[attr-defined]
+        return f"已打开: {file_path}"
+    except FileNotFoundError:
+        return f"文件不存在: {file_path}"
+    except OSError as e:
+        return f"打开失败: {e}"
+
+
 def run_powershell_script(script: str) -> str:
     """执行 PowerShell 脚本（受限）"""
     for b in _BLOCKED_PS_COMMANDS:
@@ -182,6 +289,44 @@ def run_powershell_script(script: str) -> str:
         return "脚本执行超时（30秒）"
     except Exception as e:
         return f"执行失败: {e}"
+
+
+def quit_application(app_name: str) -> str:
+    """退出应用程序"""
+    if not app_name or not app_name.strip():
+        return "应用名称不能为空"
+    try:
+        result = subprocess.run(
+            ["taskkill", "/IM", app_name.strip(), "/F"],
+            capture_output=True, text=True, timeout=10
+        )
+        if result.returncode == 0:
+            return f"已退出应用: {app_name}"
+        if "not found" in result.stderr.lower() or "未找到" in result.stderr:
+            return f"应用未运行: {app_name}"
+        return f"退出应用失败: {result.stderr.strip()}"
+    except subprocess.TimeoutExpired:
+        return f"退出应用超时: {app_name}"
+    except Exception as e:
+        return f"退出应用失败: {e}"
+
+
+def is_application_running(app_name: str) -> str:
+    """检查应用是否正在运行"""
+    if not app_name or not app_name.strip():
+        return "应用名称不能为空"
+    try:
+        result = subprocess.run(
+            ["tasklist", "/FI", f"IMAGENAME eq {app_name.strip()}"],
+            capture_output=True, text=True, timeout=10
+        )
+        if app_name.strip().lower() in result.stdout.lower():
+            return f"{app_name} 正在运行"
+        return f"{app_name} 未运行"
+    except subprocess.TimeoutExpired:
+        return f"检查应用状态超时: {app_name}"
+    except Exception as e:
+        return f"检查应用状态失败: {e}"
 
 
 def get_win_tools() -> list[ToolDefinition]:
@@ -251,6 +396,58 @@ def get_win_tools() -> list[ToolDefinition]:
             platforms=["windows"],
         ),
         ToolDefinition(
+            name="toggle_bluetooth",
+            description="切换蓝牙开关（需要管理员权限）",
+            parameters={"type": "object", "properties": {}, "required": []},
+            handler=toggle_bluetooth,
+            security_level=SecurityLevel.WRITE,
+            platforms=["windows"],
+        ),
+        ToolDefinition(
+            name="toggle_wifi",
+            description="切换 Wi-Fi 开关（需要管理员权限）",
+            parameters={"type": "object", "properties": {}, "required": []},
+            handler=toggle_wifi,
+            security_level=SecurityLevel.WRITE,
+            platforms=["windows"],
+        ),
+        ToolDefinition(
+            name="empty_trash",
+            description="清空回收站",
+            parameters={"type": "object", "properties": {}, "required": []},
+            handler=empty_trash,
+            security_level=SecurityLevel.DANGEROUS,
+            platforms=["windows"],
+        ),
+        ToolDefinition(
+            name="launch_application",
+            description="启动应用程序（按可执行名、Start Menu 名或路径）",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "app_name": {"type": "string", "description": "应用名称或路径"},
+                },
+                "required": ["app_name"],
+            },
+            handler=launch_application,
+            security_level=SecurityLevel.WRITE,
+            platforms=["windows"],
+        ),
+        ToolDefinition(
+            name="open_file",
+            description="用默认应用打开文件",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "file_path": {"type": "string", "description": "文件绝对路径"},
+                },
+                "required": ["file_path"],
+            },
+            handler=open_file,
+            security_level=SecurityLevel.WRITE,
+            platforms=["windows"],
+        ),
+        ToolDefinition(
             name="set_display_mode",
             description="设置显示模式 (internal/external/extend/mirror)",
             parameters={
@@ -278,6 +475,30 @@ def get_win_tools() -> list[ToolDefinition]:
             },
             handler=run_powershell_script,
             security_level=SecurityLevel.DANGEROUS,
+            platforms=["windows"],
+        ),
+        ToolDefinition(
+            name="quit_application",
+            description="退出应用程序（强制结束进程）",
+            parameters={
+                "type": "object",
+                "properties": {"app_name": {"type": "string", "description": "应用进程名，如 chrome.exe、notepad.exe"}},
+                "required": ["app_name"],
+            },
+            handler=quit_application,
+            security_level=SecurityLevel.DANGEROUS,
+            platforms=["windows"],
+        ),
+        ToolDefinition(
+            name="is_application_running",
+            description="检查应用是否正在运行",
+            parameters={
+                "type": "object",
+                "properties": {"app_name": {"type": "string", "description": "应用进程名，如 chrome.exe"}},
+                "required": ["app_name"],
+            },
+            handler=is_application_running,
+            security_level=SecurityLevel.READ_ONLY,
             platforms=["windows"],
         ),
     ]

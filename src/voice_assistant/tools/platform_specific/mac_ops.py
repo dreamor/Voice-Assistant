@@ -210,6 +210,40 @@ def open_file(file_path: str) -> str:
         return f"打开失败: {e}"
 
 
+def quit_application(app_name: str) -> str:
+    """退出应用程序"""
+    escaped = app_name.replace('"', '\\"')
+    try:
+        result = subprocess.run(
+            ["osascript", "-e", f'quit application "{escaped}"'],
+            capture_output=True, text=True, timeout=10
+        )
+        if result.returncode == 0:
+            return f"已退出应用: {app_name}"
+        return f"退出应用失败: {result.stderr.strip() or '应用未运行'}"
+    except subprocess.TimeoutExpired:
+        return f"退出应用超时: {app_name}"
+    except Exception as e:
+        return f"退出应用失败: {e}"
+
+
+def is_application_running(app_name: str) -> str:
+    """检查应用是否正在运行"""
+    escaped = app_name.replace('"', '\\"')
+    try:
+        result = subprocess.run(
+            ["osascript", "-e", f'application "{escaped}" is running'],
+            capture_output=True, text=True, timeout=10
+        )
+        if "true" in (result.stdout or "").lower():
+            return f"{app_name} 正在运行"
+        return f"{app_name} 未运行"
+    except subprocess.TimeoutExpired:
+        return f"检查应用状态超时: {app_name}"
+    except Exception as e:
+        return f"检查应用状态失败: {e}"
+
+
 def get_mac_tools() -> list[ToolDefinition]:
     """返回 macOS 平台特定工具"""
     return [
@@ -334,6 +368,30 @@ def get_mac_tools() -> list[ToolDefinition]:
             },
             handler=run_shortcut,
             security_level=SecurityLevel.WRITE,
+            platforms=["mac"],
+        ),
+        ToolDefinition(
+            name="quit_application",
+            description="退出应用程序",
+            parameters={
+                "type": "object",
+                "properties": {"app_name": {"type": "string", "description": "应用名称，如 Safari、Chrome"}},
+                "required": ["app_name"],
+            },
+            handler=quit_application,
+            security_level=SecurityLevel.DANGEROUS,
+            platforms=["mac"],
+        ),
+        ToolDefinition(
+            name="is_application_running",
+            description="检查应用是否正在运行",
+            parameters={
+                "type": "object",
+                "properties": {"app_name": {"type": "string", "description": "应用名称"}},
+                "required": ["app_name"],
+            },
+            handler=is_application_running,
+            security_level=SecurityLevel.READ_ONLY,
             platforms=["mac"],
         ),
     ]
