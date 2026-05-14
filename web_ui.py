@@ -315,7 +315,7 @@ async def get_providers():
 
 @app.post("/api/providers/switch")
 async def switch_provider(request: dict):
-    """切换活跃 Provider 和模型"""
+    """切换活跃 Provider 和模型，并把序号持久化到 .env 的 LLM_API_KEY"""
     from voice_assistant.core.model_manager import model_manager
 
     provider_id = request.get("provider_id", "")
@@ -328,11 +328,41 @@ async def switch_provider(request: dict):
     if result is None:
         raise HTTPException(status_code=400, detail=f"无法切换到 Provider: {provider_id}")
 
+    # 把 provider 的序号（从 1 开始）持久化到 .env
+    provider_ids = list(config.providers.providers.keys())
+    provider_index: int | None = None
+    try:
+        provider_index = provider_ids.index(provider_id) + 1
+        _write_env_var("LLM_API_KEY", str(provider_index))
+    except ValueError:
+        logger.warning(f"[WebUI] provider {provider_id} 不在列表中，跳过 LLM_API_KEY 持久化")
+
     return {
         "success": True,
         "provider": provider_id,
+        "provider_index": provider_index,
         "model": result.name,
     }
+
+
+def _write_env_var(env_var: str, value: str) -> None:
+    """把 KEY=VALUE 写入 .env，存在则覆盖该行"""
+    env_path = Path(__file__).parent / ".env"
+    lines = []
+    found = False
+    if env_path.exists():
+        with open(env_path, encoding='utf-8') as f:
+            for line in f:
+                if line.startswith(f"{env_var}="):
+                    lines.append(f"{env_var}={value}\n")
+                    found = True
+                else:
+                    lines.append(line)
+    if not found:
+        lines.append(f"{env_var}={value}\n")
+    with open(env_path, 'w', encoding='utf-8') as f:
+        f.writelines(lines)
+    os.environ[env_var] = value
 
 
 @app.post("/api/providers/api-key")

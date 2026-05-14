@@ -24,6 +24,7 @@ jobs:
       CI: "true"
       DASHSCOPE_API_KEY: dummy
       ASR_API_KEY: dummy
+      LLM_API_KEY: "1"
 
     steps:
       - uses: actions/checkout@v4

@@ -176,7 +176,7 @@ class TestModelManager:
             name="DashScope",
             litellm_prefix="openai",
             base_url="https://example.com/v1",
-            api_key_env="LLM_API_KEY",
+            api_key_env="TEST_API_KEY",
             models=[
                 ProviderModelConfig(id="qwen-plus", name="Qwen Plus"),
                 ProviderModelConfig(id="qwen-max", name="Qwen Max"),
@@ -193,7 +193,7 @@ class TestModelManager:
         mm_module.config = mock_config
         try:
             import os
-            os.environ['LLM_API_KEY'] = 'test-key'
+            os.environ['TEST_API_KEY'] = 'test-key'
             manager = ModelManager()
             queue = manager.build_model_queue()
 
@@ -212,7 +212,7 @@ class TestModelManager:
             name="DashScope",
             litellm_prefix="openai",
             base_url="https://example.com/v1",
-            api_key_env="LLM_API_KEY",
+            api_key_env="TEST_API_KEY",
             models=[
                 ProviderModelConfig(id="qwen-plus", name="Qwen Plus"),
                 ProviderModelConfig(id="qwen-turbo", name="Qwen Turbo"),
@@ -228,7 +228,7 @@ class TestModelManager:
         mm_module.config = mock_config
         try:
             import os
-            os.environ['LLM_API_KEY'] = 'test-key'
+            os.environ['TEST_API_KEY'] = 'test-key'
             manager = ModelManager()
             queue = manager.build_model_queue()
 

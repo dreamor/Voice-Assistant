@@ -60,9 +60,8 @@
     "llm": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["provider", "model", "max_tokens", "temperature"],
+      "required": ["model", "max_tokens", "temperature"],
       "properties": {
-        "provider": { "type": "string", "description": "当前活跃 provider ID（与 providers 字段对应）" },
         "model": { "type": "string", "minLength": 1 },
         "max_tokens": { "type": "integer", "minimum": 100, "maximum": 32000 },
         "temperature": { "type": "number", "minimum": 0, "maximum": 2 }

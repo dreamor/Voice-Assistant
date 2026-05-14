@@ -18,6 +18,7 @@ from voice_assistant.config import (
     ToolsConfig,
     TTSConfig,
     VADConfig,
+    _resolve_active_provider,
     _validate_config,
 )
 
@@ -163,14 +164,39 @@ class TestValidateConfig:
         with pytest.raises(ValueError, match="max_turns"):
             _validate_config(config)
 
-    def test_missing_provider_raises(self):
-        """provider 字段为空时应抛错"""
-        config = _make_config(provider="")
-        with pytest.raises(ValueError, match="未配置 LLM provider"):
-            _validate_config(config)
 
-    def test_unknown_provider_raises(self):
-        """provider 不在 providers 列表里时应抛错"""
-        config = _make_config(provider="not-a-real-provider")
-        with pytest.raises(ValueError, match="未知的 LLM provider"):
-            _validate_config(config)
+class TestResolveActiveProvider:
+    """LLM_API_KEY 序号解析"""
+
+    def _providers(self, *ids: str) -> ProvidersConfig:
+        return ProvidersConfig(providers={
+            pid: ProviderConfig(
+                name=pid, litellm_prefix="openai", base_url=None,
+                api_key_env=f"{pid.upper()}_API_KEY", models=[],
+            ) for pid in ids
+        })
+
+    def test_default_index_1(self, monkeypatch):
+        """LLM_API_KEY 未设置时默认指向第 1 个"""
+        monkeypatch.delenv("LLM_API_KEY", raising=False)
+        result = _resolve_active_provider(self._providers("dashscope", "openai"))
+        assert result == "dashscope"
+
+    def test_explicit_index(self, monkeypatch):
+        monkeypatch.setenv("LLM_API_KEY", "2")
+        result = _resolve_active_provider(self._providers("dashscope", "openai", "anthropic"))
+        assert result == "openai"
+
+    def test_index_out_of_range(self, monkeypatch):
+        monkeypatch.setenv("LLM_API_KEY", "99")
+        with pytest.raises(ValueError, match="超出范围"):
+            _resolve_active_provider(self._providers("dashscope"))
+
+    def test_non_numeric(self, monkeypatch):
+        monkeypatch.setenv("LLM_API_KEY", "sk-abc")
+        with pytest.raises(ValueError, match="必须是 provider 序号"):
+            _resolve_active_provider(self._providers("dashscope"))
+
+    def test_empty_providers(self):
+        with pytest.raises(ValueError, match="没有配置任何 LLM provider"):
+            _resolve_active_provider(ProvidersConfig(providers={}))

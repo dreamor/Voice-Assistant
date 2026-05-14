@@ -22,12 +22,13 @@ cp .env.example .env
 
 | 变量名 | 必填 | 说明 |
 |--------|------|------|
+| `LLM_API_KEY` | ✅ | **序号**（1-N），指向 config.yaml 中 providers 的第几个 |
 | `ASR_API_KEY` | ✅ | 语音识别 API 密钥（DashScope Paraformer） |
-| `DASHSCOPE_API_KEY` | ✅ (默认 provider) | dashscope provider 的 LLM Key |
-| `OPENAI_API_KEY` | 可选 | 切到 openai provider 时使用 |
-| `ANTHROPIC_API_KEY` | 可选 | 切到 anthropic provider 时使用 |
-| `DEEPSEEK_API_KEY` | 可选 | 切到 deepseek provider 时使用 |
-| `{PROVIDER_ID}_API_KEY` | 可选 | 自定义 provider，按 ID 推导命名 |
+| `DASHSCOPE_API_KEY` | 用 dashscope 时 | dashscope provider 的 LLM Key |
+| `OPENAI_API_KEY` | 用 openai 时 | openai provider 的 Key |
+| `ANTHROPIC_API_KEY` | 用 anthropic 时 | anthropic provider 的 Key |
+| `DEEPSEEK_API_KEY` | 用 deepseek 时 | deepseek provider 的 Key |
+| `{PROVIDER_ID}_API_KEY` | 自定义 | 自定义 provider，按 ID 推导命名 |
 
 ### 获取 API Key
 
@@ -287,8 +288,12 @@ asr:
 ```env
 # 敏感配置 - 不要提交到版本控制
 ASR_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx
+
+# LLM_API_KEY = 序号，指向 config.yaml 中 providers 的第几个
+LLM_API_KEY=1
+
+# Provider Keys（用哪个就填哪个）
 DASHSCOPE_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx
-# 切到其他 provider 时再填对应 key：
 # OPENAI_API_KEY=sk-...
 # ANTHROPIC_API_KEY=sk-ant-...
 ```
@@ -313,10 +318,10 @@ asr:
     config_file: "config/hotwords.json"
 
 llm:
-  provider: "dashscope"
   model: "qwen3-coder-plus-2025-09-23"
   max_tokens: 2000
   temperature: 0.7
+# 当前活跃 provider 由 .env 中 LLM_API_KEY 决定（值为下方 providers 的序号）
 
 providers:
   dashscope:

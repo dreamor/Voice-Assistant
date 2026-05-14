@@ -323,18 +323,7 @@ def _validate_config(cfg: AppConfig) -> list[str]:
     if not cfg.asr.api_key and not cfg.asr.use_local:
         raise ValueError("ASR_API_KEY 环境变量未设置（或设置 asr.use_local: true）")
 
-    # Provider 必须配置
-    if not cfg.provider:
-        raise ValueError(
-            "未配置 LLM provider。请在 config.yaml 设置 llm.provider，例如 'dashscope' / 'openai' 等"
-        )
-    if cfg.provider not in cfg.providers.providers:
-        raise ValueError(
-            f"未知的 LLM provider: {cfg.provider}。"
-            f"可选: {list(cfg.providers.providers.keys())}"
-        )
-
-    # 当前 provider 的 API Key 必须存在
+    # provider 由 _resolve_active_provider 在加载阶段确定，这里只校验 key
     current_provider = cfg.providers.providers[cfg.provider]
     if not current_provider.api_key:
         raise ValueError(
@@ -401,8 +390,9 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
     with open(full_path, encoding='utf-8') as f:
         cfg = yaml.safe_load(f)
 
-    # 加载自定义 Provider
+    # 加载并合并 providers（内置 + 自定义）
     custom_providers = _load_custom_providers(project_root)
+    merged_providers = _merge_providers(_load_providers_config(cfg), custom_providers)
 
     app_config = AppConfig(
         name=cfg['app']['name'],
@@ -464,8 +454,8 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
                 for o in cfg.get('tools', {}).get('overrides', [])
             ),
         ),
-        providers=_merge_providers(_load_providers_config(cfg), custom_providers),
-        provider=cfg.get('llm', {}).get('provider', ''),
+        providers=merged_providers,
+        provider=_resolve_active_provider(merged_providers),
     )
 
     # 配置校验
@@ -474,6 +464,39 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         logger.warning(f"[Config] {w}")
 
     return app_config
+
+
+def _resolve_active_provider(providers: ProvidersConfig) -> str:
+    """根据 .env 中 LLM_API_KEY 序号解析当前活跃 provider ID。
+
+    LLM_API_KEY 是一个数字（默认 1），指向 providers 列表中第 N 个。
+    内置 provider 按 config.yaml 中出现顺序排号；自定义 provider 紧随其后。
+
+    Returns:
+        provider ID 字符串
+
+    Raises:
+        ValueError: LLM_API_KEY 非数字、超出范围、或 providers 为空
+    """
+    provider_ids = list(providers.providers.keys())
+    if not provider_ids:
+        raise ValueError("config.yaml 没有配置任何 LLM provider")
+
+    raw = os.getenv('LLM_API_KEY', '1').strip()
+    try:
+        idx = int(raw)
+    except ValueError as e:
+        raise ValueError(
+            f"LLM_API_KEY 必须是 provider 序号（数字 1-{len(provider_ids)}），实际收到: {raw!r}"
+        ) from e
+
+    if idx < 1 or idx > len(provider_ids):
+        raise ValueError(
+            f"LLM_API_KEY={idx} 超出范围 [1, {len(provider_ids)}]。"
+            f"当前 provider 列表: {[(i+1, pid) for i, pid in enumerate(provider_ids)]}"
+        )
+
+    return provider_ids[idx - 1]
 
 
 # 全局配置实例
