@@ -95,7 +95,7 @@ python -m voice_assistant --check    # 依赖检查
 
 ## 平台 (`platform/`)
 
-- `detect_platform()`: 返回 `"mac"` / `"windows"` / `"linux"`
+- `detect_platform()`: 返回 `"mac"` / `"windows"`（其它系统会在创建 adapter 时抛 RuntimeError）
 - `MacAdapter` / `WindowsAdapter`: 抽象统一的 `open_file` / `open_url` / `run_script` 等接口
 
 ## 数据库 (`db.py`)

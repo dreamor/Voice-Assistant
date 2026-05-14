@@ -17,11 +17,11 @@
 - **ASR** · DashScope Paraformer，或可选本地 FunASR Paraformer-zh 离线运行
 - **模型自动切换** · 主模型失败时在当前 Provider 的 models 内按顺序降级
 - **历史管理** · SQLite 持久化，支持批量选择 / 全选 / 删除
-- **平台工具** · macOS / Windows / Linux 自动加载对应原生操作
+- **平台工具** · macOS / Windows 自动加载对应原生操作
 ## 一键启动
 
 ```bash
-# macOS / Linux
+# macOS
 ./start.sh              # 自动装 uv / ffmpeg / 依赖，拉起 Web UI
 
 # Windows
@@ -38,7 +38,7 @@ start.bat
 
 ```bash
 # 1. 安装依赖
-brew install ffmpeg                                   # macOS (Linux: apt install ffmpeg)
+brew install ffmpeg                                   # macOS
 curl -LsSf https://astral.sh/uv/install.sh | sh
 uv venv --python 3.12 && source .venv/bin/activate
 uv pip install -e ".[dev]"

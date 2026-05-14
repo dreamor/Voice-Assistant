@@ -5,9 +5,8 @@
 ## 1. 环境准备
 
 ```bash
-# macOS / Linux: 安装 ffmpeg
-brew install ffmpeg            # macOS
-sudo apt install ffmpeg        # Linux
+# macOS: 安装 ffmpeg
+brew install ffmpeg
 ```
 
 ## 2. 安装 uv 与依赖

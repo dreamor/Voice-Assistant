@@ -68,7 +68,7 @@
 
 ### `voice_assistant.platform`
 
-- `__init__.py` — `detect_platform()`（mac / windows / linux）+ `MacAdapter / WindowsAdapter`
+- `__init__.py` — `detect_platform()`（mac / windows）+ `MacAdapter / WindowsAdapter`
 
 ### `voice_assistant.config`
 
