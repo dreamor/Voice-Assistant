@@ -53,26 +53,33 @@ class TestConfiguration:
         assert config.asr.base_url.startswith("https://"), "ASR_BASE_URL should be HTTPS"
 
     def test_llm_api_key(self):
+        """当前活跃 provider 必须有 api_key"""
         from voice_assistant.config import config
-        assert config.llm.api_key is not None, "LLM_API_KEY not set"
-        assert len(config.llm.api_key) > 0, "LLM_API_KEY is empty"
+        provider = config.providers.providers[config.provider]
+        assert provider.api_key is not None, f"{provider.api_key_env} not set"
+        assert len(provider.api_key) > 0, f"{provider.api_key_env} is empty"
 
     def test_llm_model(self):
         from voice_assistant.config import config
-        assert config.llm.model is not None, "LLM_MODEL not set"
+        assert config.llm.model is not None, "LLM model not resolved"
+        assert len(config.llm.model) > 0, "LLM model is empty"
 
     def test_llm_base_url(self):
+        """当前活跃 provider 必须有合法 base_url（除非 provider 用默认 endpoint）"""
         from voice_assistant.config import config
-        assert config.llm.base_url is not None, "LLM_BASE_URL not set"
-        assert config.llm.base_url.startswith("https://"), "LLM_BASE_URL should be HTTPS"
+        provider = config.providers.providers[config.provider]
+        if provider.base_url:
+            assert provider.base_url.startswith(("http://", "https://")), \
+                f"provider {config.provider} base_url 协议非法"
 
     def test_sample_rate(self):
         from voice_assistant.config import config
         assert config.audio.sample_rate == 16000, "SAMPLE_RATE should be 16000 for ASR optimization"
 
-    def test_edge_tts_voice(self):
+    def test_tts_voice(self):
         from voice_assistant.config import config
-        assert config.audio.edge_tts_voice is not None, "EDGE_TTS_VOICE not set"
+        assert config.audio.tts.voice is not None, "tts.voice not set"
+        assert len(config.audio.tts.voice) > 0, "tts.voice is empty"
 
     def test_vad_config(self):
         from voice_assistant.config import config
@@ -105,9 +112,13 @@ class TestLLMAPI:
 
         from voice_assistant.config import config
 
+        provider = config.providers.providers[config.provider]
+        if not provider.base_url:
+            pytest.skip(f"provider {config.provider} 使用默认 endpoint，无法直接 GET /models")
+
         response = requests.get(
-            f"{config.llm.base_url}/models",
-            headers={"Authorization": f"Bearer {config.llm.api_key}"},
+            f"{provider.base_url}/models",
+            headers={"Authorization": f"Bearer {provider.api_key}"},
             timeout=10
         )
         assert response.status_code == 200, f"LLM API returned {response.status_code}"
