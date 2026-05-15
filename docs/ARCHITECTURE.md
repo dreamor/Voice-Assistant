@@ -58,7 +58,7 @@
 ### `voice_assistant.tools`
 
 - `registry.py` — `@register_tool` 装饰器、`ToolResult`、参数校验、平台过滤
-- `universal/` — 通用工具：文件 / 剪贴板 / 屏幕 / 输入 / 系统 / 实用
+- `universal/` — 通用工具：文件 / 剪贴板 / 屏幕 / 输入 / 系统 / 实用 / 窗口 / 浏览器 / 媒体 / 网络 / 显示 / 通知 / 文件高级 / 快捷操作
 - `platform_specific/mac_ops.py` `win_ops.py` — 平台原生操作
 
 ### `voice_assistant.security`

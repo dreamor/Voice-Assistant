@@ -81,7 +81,7 @@ python -m voice_assistant --check    # 依赖检查
 ## 工具系统 (`tools/`)
 
 - `registry.py`: `@register_tool` 装饰器、`ToolResult` 数据类、参数校验、平台过滤
-- `universal/`: 文件、剪贴板、屏幕、键鼠输入、系统、计算、`run_python_code`（兜底任意 Python 任务，DANGEROUS 级别需二次确认）
+- `universal/`: 文件、剪贴板、屏幕、键鼠输入、系统、计算、窗口、浏览器、媒体、网络、显示、通知、文件高级、快捷操作，`run_python_code`（兜底任意 Python 任务，DANGEROUS 级别需二次确认）
 - `platform_specific/`: 按系统加载 `mac_ops.py` / `win_ops.py`
 
 工具自动注册到 `ToolRegistry`，通过 `get_openai_tools()` 暴露给 LLM 做 function calling。
