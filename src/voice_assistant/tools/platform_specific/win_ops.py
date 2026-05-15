@@ -34,7 +34,7 @@ def set_system_volume(level: int) -> str:
         return f"设置音量失败: {result.stderr}"
     except subprocess.TimeoutExpired:
         return "设置音量超时"
-    except Exception as e:
+    except (FileNotFoundError, OSError) as e:
         return f"设置音量失败: {e}"
 
 
@@ -62,7 +62,7 @@ def toggle_dark_mode() -> str:
             capture_output=True, text=True, timeout=10
         )
         return f"已切换为{'深色' if is_light else '浅色'}模式"
-    except Exception as e:
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
         return f"切换深色模式失败: {e}"
 
 
@@ -82,7 +82,7 @@ def set_wallpaper(path: str) -> str:
         if result.returncode == 0:
             return f"壁纸已设置: {path}"
         return f"设置壁纸失败: {result.stderr}"
-    except Exception as e:
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
         return f"设置壁纸失败: {e}"
 
 
@@ -97,7 +97,7 @@ def lock_screen() -> str:
             capture_output=True, text=True, timeout=5
         )
         return "已锁定屏幕"
-    except Exception as e:
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
         return f"锁定屏幕失败: {e}"
 
 
@@ -117,7 +117,7 @@ def get_battery() -> str:
         return f"电池: {battery.percent}% ({status}{remaining})"
     except ImportError:
         return "需要安装 psutil: pip install psutil"
-    except Exception as e:
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
         return f"获取电池信息失败: {e}"
 
 
@@ -136,7 +136,7 @@ def show_notification(title: str, message: str) -> str:
             capture_output=True, text=True, timeout=10
         )
         return f"通知已发送: {title}"
-    except Exception as e:
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
         return f"发送通知失败: {e}"
 
 
@@ -159,7 +159,7 @@ def set_display_mode(mode: str) -> str:
         return f"显示模式已设置为: {mode}"
     except FileNotFoundError:
         return "displayswitch.exe 不可用"
-    except Exception as e:
+    except (subprocess.TimeoutExpired, OSError) as e:
         return f"设置显示模式失败: {e}"
 
 
@@ -192,7 +192,7 @@ def toggle_bluetooth() -> str:
         return f"蓝牙已{'关闭' if is_on else '打开'}"
     except subprocess.TimeoutExpired:
         return "切换蓝牙超时"
-    except Exception as e:
+    except (FileNotFoundError, OSError) as e:
         return f"切换蓝牙失败: {e}"
 
 
@@ -217,7 +217,7 @@ def toggle_wifi() -> str:
         return "netsh.exe 不可用"
     except subprocess.TimeoutExpired:
         return "切换 Wi-Fi 超时"
-    except Exception as e:
+    except OSError as e:
         return f"切换 Wi-Fi 失败: {e}"
 
 
@@ -233,26 +233,31 @@ def empty_trash() -> str:
         return "回收站已清空"
     except subprocess.TimeoutExpired:
         return "清空回收站超时"
-    except Exception as e:
+    except (FileNotFoundError, OSError) as e:
         return f"清空回收站失败: {e}"
+
+
+_APP_NAME_BLOCKED_CHARS = ("&", "|", "<", ">", "^", "`", "\"", "'", "\n", "\r")
 
 
 def launch_application(app_name: str) -> str:
     """启动应用程序（按可执行名称、Start Menu 应用名或路径）"""
     if not app_name or not app_name.strip():
         return "应用名称不能为空"
+    app_name = app_name.strip()
+    if any(c in app_name for c in _APP_NAME_BLOCKED_CHARS):
+        return "应用名包含非法字符"
     try:
-        # 用 cmd 的 start 内置：可识别 PATH 中可执行文件、URL、Start Menu 名
-        result = subprocess.run(
-            ["cmd", "/c", "start", "", app_name],
-            capture_output=True, text=True, timeout=10,
-        )
-        if result.returncode != 0:
-            return f"启动失败: {result.stderr.strip() or app_name}"
+        import os
+        if os.path.exists(app_name):
+            os.startfile(app_name)  # type: ignore[attr-defined]
+            return f"已启动: {app_name}"
+        # 非路径：交给 Windows shell 解析（Start Menu 名、协议、PATH 可执行）
+        os.startfile(app_name)  # type: ignore[attr-defined]
         return f"已启动: {app_name}"
-    except subprocess.TimeoutExpired:
-        return "启动超时"
-    except Exception as e:
+    except FileNotFoundError:
+        return f"未找到应用: {app_name}"
+    except OSError as e:
         return f"启动失败: {e}"
 
 
@@ -287,7 +292,7 @@ def run_powershell_script(script: str) -> str:
         return output if output else "执行成功（无输出）"
     except subprocess.TimeoutExpired:
         return "脚本执行超时（30秒）"
-    except Exception as e:
+    except (FileNotFoundError, OSError) as e:
         return f"执行失败: {e}"
 
 
@@ -307,7 +312,7 @@ def quit_application(app_name: str) -> str:
         return f"退出应用失败: {result.stderr.strip()}"
     except subprocess.TimeoutExpired:
         return f"退出应用超时: {app_name}"
-    except Exception as e:
+    except (FileNotFoundError, OSError) as e:
         return f"退出应用失败: {e}"
 
 
@@ -325,7 +330,7 @@ def is_application_running(app_name: str) -> str:
         return f"{app_name} 未运行"
     except subprocess.TimeoutExpired:
         return f"检查应用状态超时: {app_name}"
-    except Exception as e:
+    except (FileNotFoundError, OSError) as e:
         return f"检查应用状态失败: {e}"
 
 

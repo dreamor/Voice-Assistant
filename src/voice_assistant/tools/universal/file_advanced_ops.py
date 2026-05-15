@@ -4,11 +4,11 @@
 """
 import logging
 import os
+import platform
+import re
 import shutil
 import subprocess
-import platform
 import zipfile
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -18,22 +18,32 @@ def _resolve_path(path: str) -> str:
     return os.path.abspath(os.path.expanduser(path))
 
 
+_PATTERN_MAX_LEN = 200
+_FILE_EXT_RE = re.compile(r"^[A-Za-z0-9_]+$")
+
+
 def search_in_files(pattern: str, directory: str = ".", file_ext: str = "") -> str:
-    """在文件内容中搜索关键词"""
+    """在文件内容中搜索关键词（字面量匹配，非正则）"""
+    if not pattern:
+        return "搜索关键词不能为空"
+    if len(pattern) > _PATTERN_MAX_LEN:
+        return f"搜索关键词过长（>{_PATTERN_MAX_LEN} 字符）"
+    if file_ext and not _FILE_EXT_RE.match(file_ext):
+        return "文件扩展名仅允许字母数字下划线"
+
     directory = _resolve_path(directory)
     if not os.path.isdir(directory):
         return f"目录不存在: {directory}"
 
     try:
         if platform.system() == "Windows":
-            cmd = ["findstr", "/s", "/i", "/n"]
-            if file_ext:
-                cmd.extend(["/m", f"*.{file_ext}"])
-            cmd.extend([pattern, os.path.join(directory, "*.*")])
+            cmd = ["findstr", "/s", "/i", "/n", "/l", "/c:" + pattern]
+            target = os.path.join(directory, f"*.{file_ext}" if file_ext else "*.*")
+            cmd.append(target)
         else:
-            cmd = ["grep", "-r", "-n", "-i"]
+            cmd = ["grep", "-r", "-n", "-i", "-F", "--"]
             if file_ext:
-                cmd.extend(["--include", f"*.{file_ext}"])
+                cmd[6:6] = ["--include", f"*.{file_ext}"]
             cmd.extend(["--max-count=50", pattern, directory])
 
         result = subprocess.run(
@@ -45,13 +55,13 @@ def search_in_files(pattern: str, directory: str = ".", file_ext: str = "") -> s
 
         lines = output.split("\n")[:50]
         if len(output.split("\n")) > 50:
-            lines.append(f"... (结果过多，仅显示前 50 行)")
+            lines.append("... (结果过多，仅显示前 50 行)")
         return "搜索结果:\n" + "\n".join(lines)
     except subprocess.TimeoutExpired:
         return "搜索超时"
     except FileNotFoundError:
-        return platform.system() == "Windows" and "findstr 不可用" or "grep 不可用"
-    except Exception as e:
+        return "findstr 不可用" if platform.system() == "Windows" else "grep 不可用"
+    except OSError as e:
         return f"搜索失败: {e}"
 
 
@@ -64,7 +74,7 @@ def move_file(source: str, destination: str) -> str:
     try:
         shutil.move(src, dst)
         return f"已移动: {source} → {destination}"
-    except Exception as e:
+    except (OSError, shutil.Error) as e:
         return f"移动失败: {e}"
 
 
@@ -81,7 +91,7 @@ def copy_file(source: str, destination: str) -> str:
             os.makedirs(os.path.dirname(dst), exist_ok=True)
             shutil.copy2(src, dst)
         return f"已复制: {source} → {destination}"
-    except Exception as e:
+    except (OSError, shutil.Error) as e:
         return f"复制失败: {e}"
 
 
@@ -107,7 +117,7 @@ def compress_files(source: str, output: str = "") -> str:
                 zf.write(src, os.path.basename(src))
         size_kb = os.path.getsize(output) / 1024
         return f"已压缩: {output} ({size_kb:.1f} KB)"
-    except Exception as e:
+    except (OSError, zipfile.BadZipFile) as e:
         return f"压缩失败: {e}"
 
 
@@ -118,7 +128,7 @@ def decompress_file(zip_path: str, output_dir: str = "") -> str:
         return f"文件不存在: {zip_path}"
     if not zipfile.is_zipfile(src):
         return f"不是有效的 zip 文件: {zip_path}"
-    if not output:
+    if not output_dir:
         output_dir = os.path.dirname(src)
     else:
         output_dir = _resolve_path(output_dir)
@@ -127,7 +137,7 @@ def decompress_file(zip_path: str, output_dir: str = "") -> str:
             zf.extractall(output_dir)
             count = len(zf.namelist())
         return f"已解压 {count} 个文件到: {output_dir}"
-    except Exception as e:
+    except (OSError, zipfile.BadZipFile) as e:
         return f"解压失败: {e}"
 
 
@@ -165,5 +175,5 @@ def get_file_info(path: str) -> str:
             if ext:
                 lines.append(f"扩展名: {ext}")
         return "\n".join(lines)
-    except Exception as e:
+    except OSError as e:
         return f"获取文件信息失败: {e}"

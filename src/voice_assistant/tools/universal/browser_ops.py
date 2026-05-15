@@ -19,7 +19,7 @@ def open_url(url: str) -> str:
     try:
         webbrowser.open(url)
         return f"已在浏览器中打开: {url}"
-    except Exception as e:
+    except (webbrowser.Error, OSError) as e:
         return f"打开 URL 失败: {e}"
 
 
@@ -42,5 +42,5 @@ def search_web(query: str, engine: str = "google") -> str:
     try:
         webbrowser.open(url)
         return f"已使用 {engine} 搜索: {query}"
-    except Exception as e:
+    except (webbrowser.Error, OSError) as e:
         return f"搜索失败: {e}"

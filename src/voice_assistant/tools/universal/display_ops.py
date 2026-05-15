@@ -38,21 +38,10 @@ def get_display_info() -> str:
             return "显示器信息:\n" + "\n".join(lines)
         except subprocess.TimeoutExpired:
             return "获取显示器信息超时"
-        except Exception as e:
+        except (FileNotFoundError, OSError) as e:
             return f"获取显示器信息失败: {e}"
     elif _is_win():
         try:
-            ps_cmd = (
-                "Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;"
-                "public class Display{[DllImport(\"user32.dll\")]"
-                "public static extern bool EnumDisplayMonitors(IntPtr hdc,IntPtr lprcClip,"
-                "MonitorEnumDelegate lpfnEnum,IntPtr dwData);"
-                "public delegate bool MonitorEnumDelegate(IntPtr hMonitor,IntPtr hdcMonitor,"
-                "ref RECT lprcMonitor,IntPtr dwData);"
-                "[StructLayout(LayoutKind.Sequential)]"
-                "public struct RECT{public int Left,Top,Right,Bottom;}}';"
-                "Write-Output '请使用 get_screen_size 获取分辨率'"
-            )
             result = subprocess.run(
                 ["powershell", "-Command",
                  "Get-WmiObject Win32_VideoController | "
@@ -64,14 +53,14 @@ def get_display_info() -> str:
             if output:
                 return "显示器信息:\n" + output
             return "未检测到显示器信息"
-        except Exception as e:
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
             return f"获取显示器信息失败: {e}"
 
     try:
         import pyautogui
         w, h = pyautogui.size()
         return f"显示器分辨率: {w}x{h}"
-    except Exception:
+    except (ImportError, OSError):
         return "当前平台不支持获取显示器信息"
 
 
@@ -93,7 +82,7 @@ def set_brightness(level: int) -> str:
             return f"亮度已设置为 {level}%"
         except FileNotFoundError:
             return "需要安装 brightness: brew install brightness"
-        except Exception as e:
+        except (subprocess.TimeoutExpired, OSError) as e:
             return f"设置亮度失败: {e}"
     elif _is_win():
         try:
@@ -108,7 +97,7 @@ def set_brightness(level: int) -> str:
                 capture_output=True, text=True, timeout=10
             )
             return f"亮度已设置为 {level}%"
-        except Exception as e:
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
             return f"设置亮度失败: {e}"
     return "当前平台不支持亮度调节"
 
@@ -129,7 +118,7 @@ def get_brightness() -> str:
             return result.stdout.strip() or "无法获取亮度"
         except FileNotFoundError:
             return "需要安装 brightness: brew install brightness"
-        except Exception as e:
+        except (subprocess.TimeoutExpired, OSError) as e:
             return f"获取亮度失败: {e}"
     elif _is_win():
         try:
@@ -143,6 +132,6 @@ def get_brightness() -> str:
             if output:
                 return "当前亮度:\n" + output
             return "无法获取亮度（可能需要管理员权限）"
-        except Exception as e:
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
             return f"获取亮度失败: {e}"
     return "当前平台不支持获取亮度"

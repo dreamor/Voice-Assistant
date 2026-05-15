@@ -4,6 +4,7 @@
 """
 import logging
 import platform
+import re
 import subprocess
 
 logger = logging.getLogger(__name__)
@@ -13,6 +14,8 @@ try:
     HAS_PSUTIL = True
 except ImportError:
     HAS_PSUTIL = False
+
+_HOST_RE = re.compile(r"^[A-Za-z0-9.\-:_]+$")
 
 
 def _is_mac() -> bool:
@@ -41,15 +44,14 @@ def get_network_info() -> str:
             lines.append(f"活跃接口: {', '.join(up_ifaces)}")
 
         try:
-            default_gw = psutil.net_if_stats()
             gateways = psutil.net_connections(kind="inet")
             established = sum(1 for c in gateways if c.status == "ESTABLISHED")
             lines.append(f"已建立连接数: {established}")
-        except (psutil.AccessDenied, Exception):
+        except (psutil.AccessDenied, PermissionError):
             pass
 
         return "网络信息:\n" + "\n".join(lines) if lines else "未检测到网络接口"
-    except Exception as e:
+    except (psutil.Error, OSError) as e:
         return f"获取网络信息失败: {e}"
 
 
@@ -69,7 +71,7 @@ def get_wifi_status() -> str:
             return output
         except subprocess.TimeoutExpired:
             return "获取 WiFi 状态超时"
-        except Exception as e:
+        except (FileNotFoundError, OSError) as e:
             return f"获取 WiFi 状态失败: {e}"
     elif _is_win():
         try:
@@ -87,7 +89,7 @@ def get_wifi_status() -> str:
             return "WiFi 信息:\n" + "\n".join(lines)
         except subprocess.TimeoutExpired:
             return "获取 WiFi 状态超时"
-        except Exception as e:
+        except (FileNotFoundError, OSError) as e:
             return f"获取 WiFi 状态失败: {e}"
     return "当前平台不支持 WiFi 状态查询"
 
@@ -96,9 +98,15 @@ def ping_host(host: str, count: int = 4) -> str:
     """ping 指定主机"""
     if not host or not host.strip():
         return "主机地址不能为空"
+    host = host.strip()
+    if not _HOST_RE.match(host) or len(host) > 253:
+        return "主机地址包含非法字符"
     count = max(1, min(count, 10))
     try:
-        cmd = ["ping", "-c", str(count), host] if not _is_win() else ["ping", "-n", str(count), host]
+        if _is_win():
+            cmd = ["ping", "-n", str(count), host]
+        else:
+            cmd = ["ping", "-c", str(count), "--", host]
         result = subprocess.run(
             cmd, capture_output=True, text=True, timeout=count * 5 + 5
         )
@@ -111,5 +119,5 @@ def ping_host(host: str, count: int = 4) -> str:
         return output
     except subprocess.TimeoutExpired:
         return f"ping {host} 超时"
-    except Exception as e:
+    except (FileNotFoundError, OSError) as e:
         return f"ping 失败: {e}"

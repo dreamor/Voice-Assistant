@@ -13,7 +13,7 @@ try:
     import pyautogui
     pyautogui.FAILSAFE = True
     HAS_PYAUTOGUI = True
-except Exception:
+except ImportError:
     HAS_PYAUTOGUI = False
 
 
@@ -27,7 +27,7 @@ def _media_key(key: str) -> str:
         try:
             pyautogui.press(key)
             return ""
-        except Exception:
+        except (OSError, RuntimeError):
             pass
     if _is_mac():
         key_map = {
@@ -47,7 +47,7 @@ def _media_key(key: str) -> str:
                 capture_output=True, text=True, timeout=5
             )
             return ""
-        except Exception as e:
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
             return str(e)
     return "需要安装 pyautogui: pip install pyautogui"
 

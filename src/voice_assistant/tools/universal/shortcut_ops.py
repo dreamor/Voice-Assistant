@@ -8,6 +8,8 @@ import subprocess
 
 logger = logging.getLogger(__name__)
 
+_SHUTDOWN_DELAY_SEC = 60
+
 
 def _is_mac() -> bool:
     return platform.system() == "Darwin"
@@ -23,7 +25,7 @@ def sleep_display() -> str:
         try:
             subprocess.run(["pmset", "displaysleepnow"], capture_output=True, timeout=5)
             return "显示器已休眠"
-        except Exception as e:
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
             return f"显示器休眠失败: {e}"
     elif _is_win():
         try:
@@ -38,53 +40,55 @@ def sleep_display() -> str:
                 capture_output=True, text=True, timeout=10
             )
             return "显示器已休眠"
-        except Exception as e:
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
             return f"显示器休眠失败: {e}"
     return "当前平台不支持显示器休眠操作"
 
 
 def restart_computer() -> str:
-    """重启电脑"""
+    """重启电脑（60 秒延迟，可用 `sudo killall shutdown` 或 `shutdown /a` 取消）"""
+    delay_min = max(1, _SHUTDOWN_DELAY_SEC // 60)
     if _is_mac():
         try:
             subprocess.run(
-                ["osascript", "-e", 'tell application "System Events" to restart'],
-                capture_output=True, text=True, timeout=10
+                ["sudo", "-n", "shutdown", "-r", f"+{delay_min}"],
+                capture_output=True, text=True, timeout=10,
             )
-            return "正在重启..."
-        except Exception as e:
+            return f"将在 {delay_min} 分钟后重启（取消: sudo killall shutdown）"
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
             return f"重启失败: {e}"
     elif _is_win():
         try:
             subprocess.run(
-                ["shutdown", "/r", "/t", "0"],
-                capture_output=True, text=True, timeout=10
+                ["shutdown", "/r", "/t", str(_SHUTDOWN_DELAY_SEC)],
+                capture_output=True, text=True, timeout=10,
             )
-            return "正在重启..."
-        except Exception as e:
+            return f"将在 {_SHUTDOWN_DELAY_SEC} 秒后重启（取消: shutdown /a）"
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
             return f"重启失败: {e}"
     return "当前平台不支持重启操作"
 
 
 def shutdown_computer() -> str:
-    """关闭电脑"""
+    """关闭电脑（60 秒延迟，可用 `sudo killall shutdown` 或 `shutdown /a` 取消）"""
+    delay_min = max(1, _SHUTDOWN_DELAY_SEC // 60)
     if _is_mac():
         try:
             subprocess.run(
-                ["osascript", "-e", 'tell application "System Events" to shut down'],
-                capture_output=True, text=True, timeout=10
+                ["sudo", "-n", "shutdown", "-h", f"+{delay_min}"],
+                capture_output=True, text=True, timeout=10,
             )
-            return "正在关机..."
-        except Exception as e:
+            return f"将在 {delay_min} 分钟后关机（取消: sudo killall shutdown）"
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
             return f"关机失败: {e}"
     elif _is_win():
         try:
             subprocess.run(
-                ["shutdown", "/s", "/t", "0"],
-                capture_output=True, text=True, timeout=10
+                ["shutdown", "/s", "/t", str(_SHUTDOWN_DELAY_SEC)],
+                capture_output=True, text=True, timeout=10,
             )
-            return "正在关机..."
-        except Exception as e:
+            return f"将在 {_SHUTDOWN_DELAY_SEC} 秒后关机（取消: shutdown /a）"
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
             return f"关机失败: {e}"
     return "当前平台不支持关机操作"
 
@@ -99,7 +103,7 @@ def take_screenshot_to_clipboard() -> str:
                 capture_output=True, text=True, timeout=10
             )
             return "截图已复制到剪贴板"
-        except Exception as e:
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
             return f"截图到剪贴板失败: {e}"
     elif _is_win():
         try:
@@ -112,7 +116,7 @@ def take_screenshot_to_clipboard() -> str:
                 capture_output=True, text=True, timeout=10
             )
             return "截图已复制到剪贴板"
-        except Exception as e:
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
             return f"截图到剪贴板失败: {e}"
     return "当前平台不支持截图到剪贴板"
 
@@ -127,7 +131,7 @@ def open_spotlight() -> str:
                 capture_output=True, text=True, timeout=5
             )
             return "已打开 Spotlight"
-        except Exception as e:
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
             return f"打开 Spotlight 失败: {e}"
     elif _is_win():
         try:
@@ -140,6 +144,6 @@ def open_spotlight() -> str:
                 capture_output=True, text=True, timeout=5
             )
             return "已打开搜索"
-        except Exception as e:
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
             return f"打开搜索失败: {e}"
     return "当前平台不支持打开搜索操作"
