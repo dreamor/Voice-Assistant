@@ -60,7 +60,7 @@ def get_display_info() -> str:
         import pyautogui
         w, h = pyautogui.size()
         return f"显示器分辨率: {w}x{h}"
-    except (ImportError, OSError):
+    except Exception:  # ImportError 或无头环境 KeyError('DISPLAY')
         return "当前平台不支持获取显示器信息"
 
 
