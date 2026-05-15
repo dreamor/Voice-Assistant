@@ -25,7 +25,7 @@ def set_system_volume(level: int) -> str:
         return f"设置音量失败: {result.stderr}"
     except subprocess.TimeoutExpired:
         return "设置音量超时"
-    except Exception as e:
+    except (FileNotFoundError, OSError) as e:
         return f"设置音量失败: {e}"
 
 
@@ -40,7 +40,7 @@ def toggle_dark_mode() -> str:
         if result.returncode == 0:
             return "已切换深色/浅色模式"
         return f"切换失败: {result.stderr}"
-    except Exception as e:
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
         return f"切换深色模式失败: {e}"
 
 
@@ -54,7 +54,7 @@ def toggle_bluetooth() -> str:
             capture_output=True, text=True, timeout=10
         )
         return "已请求切换蓝牙（请手动确认）"
-    except Exception as e:
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
         return f"切换蓝牙失败: {e}"
 
 
@@ -72,7 +72,7 @@ def toggle_wifi() -> str:
             capture_output=True, text=True, timeout=10
         )
         return f"Wi-Fi 已{'关闭' if is_on else '开启'}"
-    except Exception as e:
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
         return f"切换 Wi-Fi 失败: {e}"
 
 
@@ -88,7 +88,7 @@ def empty_trash() -> str:
         return f"清空回收站失败: {result.stderr}"
     except subprocess.TimeoutExpired:
         return "清空回收站超时"
-    except Exception as e:
+    except (FileNotFoundError, OSError) as e:
         return f"清空回收站失败: {e}"
 
 
@@ -103,7 +103,7 @@ def set_wallpaper(path: str) -> str:
         if result.returncode == 0:
             return f"壁纸已设置: {path}"
         return f"设置壁纸失败: {result.stderr}"
-    except Exception as e:
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
         return f"设置壁纸失败: {e}"
 
 
@@ -116,7 +116,7 @@ def lock_screen() -> str:
             capture_output=True, text=True, timeout=5
         )
         return "已锁定屏幕"
-    except Exception as e:
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
         return f"锁定屏幕失败: {e}"
 
 
@@ -136,7 +136,7 @@ def get_battery() -> str:
         return f"电池: {battery.percent}% ({status}{remaining})"
     except ImportError:
         return "需要安装 psutil: pip install psutil"
-    except Exception as e:
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
         return f"获取电池信息失败: {e}"
 
 
@@ -153,7 +153,7 @@ def show_notification(title: str, message: str) -> str:
         if result.returncode == 0:
             return f"通知已发送: {title}"
         return f"发送通知失败: {result.stderr}"
-    except Exception as e:
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
         return f"发送通知失败: {e}"
 
 
@@ -171,7 +171,7 @@ def run_shortcut(name: str) -> str:
         return f"快捷指令 '{name}' 执行超时"
     except FileNotFoundError:
         return "快捷指令不可用（需要 macOS 12+）"
-    except Exception as e:
+    except OSError as e:
         return f"执行快捷指令失败: {e}"
 
 
@@ -187,7 +187,7 @@ def launch_application(app_name: str) -> str:
         return f"启动应用失败: {result.stderr.strip() or '未找到该应用'}"
     except subprocess.TimeoutExpired:
         return f"启动应用超时: {app_name}"
-    except Exception as e:
+    except (FileNotFoundError, OSError) as e:
         return f"启动应用失败: {e}"
 
 
@@ -206,8 +206,42 @@ def open_file(file_path: str) -> str:
         return f"打开失败: {result.stderr.strip()}"
     except subprocess.TimeoutExpired:
         return f"打开超时: {file_path}"
-    except Exception as e:
+    except (FileNotFoundError, OSError) as e:
         return f"打开失败: {e}"
+
+
+def quit_application(app_name: str) -> str:
+    """退出应用程序"""
+    escaped = app_name.replace('"', '\\"')
+    try:
+        result = subprocess.run(
+            ["osascript", "-e", f'quit application "{escaped}"'],
+            capture_output=True, text=True, timeout=10
+        )
+        if result.returncode == 0:
+            return f"已退出应用: {app_name}"
+        return f"退出应用失败: {result.stderr.strip() or '应用未运行'}"
+    except subprocess.TimeoutExpired:
+        return f"退出应用超时: {app_name}"
+    except (FileNotFoundError, OSError) as e:
+        return f"退出应用失败: {e}"
+
+
+def is_application_running(app_name: str) -> str:
+    """检查应用是否正在运行"""
+    escaped = app_name.replace('"', '\\"')
+    try:
+        result = subprocess.run(
+            ["osascript", "-e", f'application "{escaped}" is running'],
+            capture_output=True, text=True, timeout=10
+        )
+        if "true" in (result.stdout or "").lower():
+            return f"{app_name} 正在运行"
+        return f"{app_name} 未运行"
+    except subprocess.TimeoutExpired:
+        return f"检查应用状态超时: {app_name}"
+    except (FileNotFoundError, OSError) as e:
+        return f"检查应用状态失败: {e}"
 
 
 def get_mac_tools() -> list[ToolDefinition]:
@@ -334,6 +368,30 @@ def get_mac_tools() -> list[ToolDefinition]:
             },
             handler=run_shortcut,
             security_level=SecurityLevel.WRITE,
+            platforms=["mac"],
+        ),
+        ToolDefinition(
+            name="quit_application",
+            description="退出应用程序",
+            parameters={
+                "type": "object",
+                "properties": {"app_name": {"type": "string", "description": "应用名称，如 Safari、Chrome"}},
+                "required": ["app_name"],
+            },
+            handler=quit_application,
+            security_level=SecurityLevel.DANGEROUS,
+            platforms=["mac"],
+        ),
+        ToolDefinition(
+            name="is_application_running",
+            description="检查应用是否正在运行",
+            parameters={
+                "type": "object",
+                "properties": {"app_name": {"type": "string", "description": "应用名称"}},
+                "required": ["app_name"],
+            },
+            handler=is_application_running,
+            security_level=SecurityLevel.READ_ONLY,
             platforms=["mac"],
         ),
     ]
