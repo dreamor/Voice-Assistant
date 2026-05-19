@@ -58,6 +58,7 @@ class AgentOrchestrator:
         self,
         user_text: str,
         conversation_history: list | None = None,
+        extra_system: str = "",
     ) -> AgentResult:
         """执行 Agent 循环
 
@@ -85,6 +86,7 @@ class AgentOrchestrator:
                 user_text=user_text if iteration == 1 else "继续",
                 tools=tools,
                 conversation_history=messages,
+                extra_system=extra_system,
             )
 
             # LLM 返回纯文本
@@ -227,6 +229,7 @@ class AgentOrchestrator:
         self,
         user_text: str,
         conversation_history: list | None = None,
+        extra_system: str = "",
     ) -> Generator[AgentEvent, None, None]:
         """流式执行 Agent 循环
 
@@ -263,6 +266,7 @@ class AgentOrchestrator:
                 user_text=user_text if iteration == 1 else "继续",
                 tools=tools,
                 conversation_history=messages,
+                extra_system=extra_system,
             ):
                 if event.type == "token" and event.content:
                     accumulated_content += event.content

@@ -100,8 +100,15 @@ AGENT_SYSTEM_PROMPT = f"""你是一个智能电脑助手（Jarvis），你可以
 """
 
 
-def _build_messages(user_text: str, conversation_history: list | None = None) -> list:
-    messages = [{"role": "system", "content": AGENT_SYSTEM_PROMPT}]
+def _build_messages(
+    user_text: str,
+    conversation_history: list | None = None,
+    extra_system: str = "",
+) -> list:
+    system_content = AGENT_SYSTEM_PROMPT
+    if extra_system:
+        system_content = system_content + "\n\n" + extra_system
+    messages = [{"role": "system", "content": system_content}]
     if conversation_history:
         messages.extend(conversation_history)
     messages.append({"role": "user", "content": user_text})
@@ -112,6 +119,7 @@ def call_llm_with_tools(
     user_text: str,
     tools: list[dict],
     conversation_history: list | None = None,
+    extra_system: str = "",
 ) -> dict:
     """单次 LLM function calling 调用
 
@@ -133,7 +141,7 @@ def call_llm_with_tools(
     except RateLimitError as e:
         return {"finish_reason": "error", "content": f"请求过于频繁: {e}", "tool_calls": None}
 
-    messages = _build_messages(cleaned, conversation_history)
+    messages = _build_messages(cleaned, conversation_history, extra_system)
 
     # 确保模型队列已构建
     if model_manager.get_queue() is None:
@@ -228,6 +236,7 @@ def call_llm_with_tools_stream(
     user_text: str,
     tools: list[dict],
     conversation_history: list | None = None,
+    extra_system: str = "",
 ) -> Generator[StreamEvent, None, None]:
     """流式 LLM function calling 调用
 
@@ -249,7 +258,7 @@ def call_llm_with_tools_stream(
         yield StreamEvent(type="error", content=f"请求过于频繁: {e}")
         return
 
-    messages = _build_messages(cleaned, conversation_history)
+    messages = _build_messages(cleaned, conversation_history, extra_system)
 
     if model_manager.get_queue() is None:
         model_manager.build_model_queue()

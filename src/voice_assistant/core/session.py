@@ -116,6 +116,17 @@ def get_skill_manager():
     return _skill_manager
 
 
+def _build_skill_addendum(user_text: str) -> str:
+    """每次 LLM 调用前生成 system prompt 补丁。manager 未启用时返回 ''。"""
+    if _skill_manager is None:
+        return ""
+    try:
+        return _skill_manager.build_addendum_for_message(user_text)
+    except Exception:
+        logger.exception("[VoiceSession] build_skill_addendum 失败")
+        return ""
+
+
 def shutdown_mcp() -> None:
     """供应用退出钩子调用"""
     global _mcp_manager
@@ -231,6 +242,7 @@ class VoiceSession:
             agent_result = self._orchestrator.run(
                 user_text=user_text,
                 conversation_history=context_history,
+                extra_system=_build_skill_addendum(user_text),
             )
 
             response = agent_result.response or "(无回复)"
@@ -279,7 +291,9 @@ class VoiceSession:
         try:
             self._orchestrator._confirm_callback = self._confirm_callback
             for event in self._orchestrator.run_stream(
-                user_text, conversation_history=context_history
+                user_text,
+                conversation_history=context_history,
+                extra_system=_build_skill_addendum(user_text),
             ):
                 if event.type == "complete" and event.result:
                     response = event.result.response or "(无回复)"

@@ -7,6 +7,7 @@ from voice_assistant.skills.deps import check_skill
 from voice_assistant.skills.loader import scan_skills
 from voice_assistant.skills.models import DependencyCheck, Skill
 from voice_assistant.skills.selector import (
+    build_addendum_for_message,
     build_system_prompt_addendum,
     select_for_message,
 )
@@ -58,3 +59,7 @@ class SkillManager:
 
     def build_system_prompt_addendum(self) -> str:
         return build_system_prompt_addendum(self._skills.values())
+
+    def build_addendum_for_message(self, user_message: str) -> str:
+        """每次 LLM 调用前注入：always skill + 命中关键词的 skill"""
+        return build_addendum_for_message(self._skills.values(), user_message)
