@@ -17,6 +17,9 @@ from voice_assistant.core.asr_corrector import correct_asr_result
 logger = logging.getLogger(__name__)
 
 
+_mcp_manager = None  # 全局 MCPManager 单例，由首个 registry 触发懒加载
+
+
 def _build_tool_registry():
     """根据配置构建 ToolRegistry（延迟导入避免循环依赖）"""
     from voice_assistant.platform import detect_platform
@@ -42,10 +45,58 @@ def _build_tool_registry():
     registry = ToolRegistry(current_platform=platform, safe_guard=guard)
     registry.register_all(get_universal_tools())
     registry.register_all(get_platform_tools(platform))
+
+    # 在 MCP server 启动前先注册 meta tools，确保「list_mcp_servers」始终可用
+    from voice_assistant.tools.mcp import get_mcp_meta_tools
+    registry.register_all(get_mcp_meta_tools())
+
+    _start_mcp(registry)
+
     logger.info(
         f"[VoiceSession] 注册 {len(registry.list_tools())} 个工具 (platform={platform})"
     )
     return registry
+
+
+def _start_mcp(registry) -> None:
+    """启动 MCP server 并把工具桥接到 registry。失败不影响主流程。"""
+    global _mcp_manager
+    if _mcp_manager is not None:
+        return
+    try:
+        from pathlib import Path
+
+        from voice_assistant.tools.mcp import MCPManager, load_servers
+
+        cfg_dir = Path("config")
+        servers = load_servers(
+            cfg_dir / "mcp_servers.yaml",
+            secrets_path=cfg_dir / "secrets.yaml",
+        )
+        if not servers:
+            return
+        mgr = MCPManager(registry)
+        mgr.start(servers)
+        _mcp_manager = mgr
+    except Exception:
+        logger.exception("[VoiceSession] MCP 启动失败，已忽略")
+
+
+def get_mcp_manager():
+    """供 Web UI / LLM tool 获取当前 MCP manager"""
+    return _mcp_manager
+
+
+def shutdown_mcp() -> None:
+    """供应用退出钩子调用"""
+    global _mcp_manager
+    if _mcp_manager is not None:
+        try:
+            _mcp_manager.shutdown()
+        except Exception:
+            logger.exception("[VoiceSession] MCP 关闭失败")
+        finally:
+            _mcp_manager = None
 
 
 @dataclass

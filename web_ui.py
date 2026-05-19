@@ -178,6 +178,12 @@ async def lifespan(app: FastAPI):
     # 清理所有会话
     for client_id in list(sessions.keys()):
         cleanup_session(client_id)
+    # 关闭 MCP server 子进程 / 连接
+    try:
+        from voice_assistant.core.session import shutdown_mcp
+        shutdown_mcp()
+    except Exception:
+        logger.exception("[WebUI] MCP 关闭失败")
     logger.info("[WebUI] 服务关闭")
 
 

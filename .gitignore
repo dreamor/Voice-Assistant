@@ -41,6 +41,7 @@ ENV/
 
 # User runtime data (written by Web UI)
 config/custom_providers.yaml
+config/secrets.yaml
 data/*.db
 
 # OS
