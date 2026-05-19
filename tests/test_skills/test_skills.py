@@ -189,3 +189,40 @@ def test_manager_set_enabled(tmp_path: Path):
     assert mgr.set_enabled("x", False) is True
     assert mgr.get("x").enabled is False
     assert mgr.set_enabled("nope", False) is False
+
+
+# ----- addendum for message -----
+
+@pytest.mark.unit
+def test_build_addendum_for_message_combines_always_and_hit(tmp_path: Path):
+    from voice_assistant.skills.selector import build_addendum_for_message
+
+    always = _mk_skill("always_one", trigger="always")
+    hit = _mk_skill("kw_one", trigger="keywords", keywords=("foo",))
+    miss = _mk_skill("kw_two", trigger="keywords", keywords=("bar",))
+    out = build_addendum_for_message([always, hit, miss], "this contains foo")
+    assert "always_one" in out
+    assert "body of always_one" in out
+    assert "kw_one" in out
+    assert "body of kw_one" in out
+    assert "kw_two" not in out
+
+
+@pytest.mark.unit
+def test_build_addendum_for_message_empty_when_no_skill():
+    from voice_assistant.skills.selector import build_addendum_for_message
+
+    assert build_addendum_for_message([], "anything") == ""
+
+
+@pytest.mark.unit
+def test_manager_build_addendum_for_message(tmp_path: Path):
+    (tmp_path / "a").mkdir()
+    (tmp_path / "a" / "SKILL.md").write_text(
+        "---\nname: echo\ntrigger: keywords\nkeywords: [echo]\n---\n\nuse echo tool"
+    )
+    mgr = SkillManager(tmp_path)
+    mgr.reload()
+    out = mgr.build_addendum_for_message("please echo something")
+    assert "use echo tool" in out
+    assert mgr.build_addendum_for_message("no match here") == ""

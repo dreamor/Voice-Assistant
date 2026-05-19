@@ -55,3 +55,44 @@ def build_system_prompt_addendum(skills: Iterable[Skill]) -> str:
             parts.append(f"- **{s.name}** ({trig}): {s.description}")
 
     return "\n".join(parts).strip()
+
+
+def build_addendum_for_message(
+    skills: Iterable[Skill], user_message: str
+) -> str:
+    """组合 always-skill prompt + 命中 keyword 的 skill body
+
+    输出格式：
+        ## 始终启用的 Skill
+        ### name
+        body
+        ...
+
+        ## 触发的 Skill（基于用户消息）
+        ### name
+        body
+
+    用于 VoiceSession 在每次 LLM 调用前注入 system prompt 末尾。
+    """
+    enabled = [s for s in skills if s.enabled]
+    if not enabled:
+        return ""
+
+    parts: list[str] = []
+
+    always = [s for s in enabled if s.trigger == "always"]
+    if always:
+        parts.append("## 始终启用的 Skill")
+        for s in always:
+            parts.append(f"### {s.name}\n{s.body}")
+
+    hit = [
+        s for s in enabled
+        if s.trigger == "keywords" and s.matches_keyword(user_message)
+    ]
+    if hit:
+        parts.append("## 触发的 Skill（基于用户消息）")
+        for s in hit:
+            parts.append(f"### {s.name}\n{s.body}")
+
+    return "\n\n".join(parts).strip()
