@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 _mcp_manager = None  # 全局 MCPManager 单例，由首个 registry 触发懒加载
+_skill_manager = None  # 全局 SkillManager 单例
 
 
 def _build_tool_registry():
@@ -52,6 +53,11 @@ def _build_tool_registry():
 
     _start_mcp(registry)
 
+    # Skill 系统：注册 meta tools + 加载磁盘上的 skill 定义
+    from voice_assistant.skills.meta_tools import get_skill_meta_tools
+    registry.register_all(get_skill_meta_tools())
+    _start_skills()
+
     logger.info(
         f"[VoiceSession] 注册 {len(registry.list_tools())} 个工具 (platform={platform})"
     )
@@ -85,6 +91,29 @@ def _start_mcp(registry) -> None:
 def get_mcp_manager():
     """供 Web UI / LLM tool 获取当前 MCP manager"""
     return _mcp_manager
+
+
+def _start_skills() -> None:
+    """加载 skills/ 目录下的 SKILL.md。失败不影响主流程。"""
+    global _skill_manager
+    if _skill_manager is not None:
+        return
+    try:
+        from pathlib import Path
+
+        from voice_assistant.skills import SkillManager
+
+        root = Path("skills")
+        mgr = SkillManager(root)
+        mgr.reload()
+        _skill_manager = mgr
+    except Exception:
+        logger.exception("[VoiceSession] Skill 加载失败，已忽略")
+
+
+def get_skill_manager():
+    """供 LLM meta tool / Web UI 获取当前 SkillManager"""
+    return _skill_manager
 
 
 def shutdown_mcp() -> None:
