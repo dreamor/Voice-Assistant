@@ -83,8 +83,27 @@ python -m voice_assistant --check    # 依赖检查
 - `registry.py`: `@register_tool` 装饰器、`ToolResult` 数据类、参数校验、平台过滤
 - `universal/`: 文件、剪贴板、屏幕、键鼠输入、系统、计算、窗口、浏览器、媒体、网络、显示、通知、文件高级、快捷操作，`run_python_code`（兜底任意 Python 任务，DANGEROUS 级别需二次确认）
 - `platform_specific/`: 按系统加载 `mac_ops.py` / `win_ops.py`
+- `mcp/`: 接入 Model Context Protocol，外部 server 暴露的工具会以 `mcp__<server>__<tool>` 命名注册到 ToolRegistry，支持 stdio/sse/streamable_http 三种 transport。配置 `config/mcp_servers.yaml`，secrets 走 `config/secrets.yaml`（gitignored）。
 
 工具自动注册到 `ToolRegistry`，通过 `get_openai_tools()` 暴露给 LLM 做 function calling。
+
+## Skill 系统 (`skills/`)
+
+`SKILL.md` 风格的可复用知识/能力包。每次 LLM 调用前自动注入 system prompt：
+- `trigger: always` 全文常驻
+- `trigger: keywords` 命中关键词时注入 body
+- `trigger: manual` 用户显式触发
+
+`SkillManager` 加载 `skills/**/SKILL.md`，frontmatter 声明 `required_mcp_servers / required_python / required_brew / required_env`。
+内置 LLM meta tools: `list_skills` / `check_skill_deps` / `enable_skill` / `disable_skill`。
+
+## Web UI 配置 (`web_ui.py` + `web_static/`)
+
+配置页（⚙️）除 Provider 外，新增：
+- **MCP Servers**: 状态、暴露的工具列表（只读，编辑 yaml 后重启）
+- **Skills**: 启停开关 / 重新扫描 / 依赖检查（运行时切换，不写回磁盘）
+
+REST: `GET /api/mcp/servers`, `GET /api/skills`, `POST /api/skills/{name}/{enable|disable|reload}`
 
 ## 安全 (`security/`)
 
