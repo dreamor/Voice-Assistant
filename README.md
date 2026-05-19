@@ -13,6 +13,7 @@
 - **多 Provider** · DashScope / OpenAI / Anthropic / DeepSeek，Web 界面一键添加自定义 OpenAI 兼容端点
 - **流式输出** · LLM token 级流式 + 分句 TTS，边生成边播放
 - **Agent Loop** · function calling + tool 注册表 + 分级安全守卫（auto / confirm / double-confirm / blocked）
+- **MCP & Skill** · 外部 MCP server（stdio/sse/http）接入 ToolRegistry；SKILL.md 风格能力包按关键词触发，详见 [MCP_SKILL](docs/MCP_SKILL.md)
 - **Python 代码兜底** · 内置 `run_python_code` tool，LLM 可在没有专用工具时执行短脚本（受确认与超时保护）
 - **ASR** · DashScope Paraformer，或可选本地 FunASR Paraformer-zh 离线运行
 - **模型自动切换** · 主模型失败时在当前 Provider 的 models 内按顺序降级
@@ -120,6 +121,7 @@ python scripts/check_env.py  # 环境自检（Python / 依赖 / .env / 麦克风
 - [MODULES](docs/MODULES.md) · 模块详解
 - [CONFIG](docs/CONFIG.md) · 配置参数
 - [API](docs/API.md) · REST + WebSocket
+- [MCP & Skill](docs/MCP_SKILL.md) · 接入外部 MCP server 与编写 Skill
 - [DEVELOPMENT](docs/DEVELOPMENT.md) · 贡献指南
 
 ## License
