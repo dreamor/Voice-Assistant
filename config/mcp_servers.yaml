@@ -1,0 +1,30 @@
+# MCP (Model Context Protocol) server 配置
+#
+# 引用 secrets 用 ${secrets.path.to.key}（值在 config/secrets.yaml）。
+# transport 取值: stdio | sse | http  (MVP 仅实现 stdio)
+# security_default 取值: read_only | write | dangerous
+
+servers:
+  # 示例 1：本地文件系统服务器（stdio）
+  # - id: filesystem
+  #   transport: stdio
+  #   enabled: false
+  #   command: ["npx", "-y", "@modelcontextprotocol/server-filesystem", "/Users/me/Documents"]
+  #   security_default: read_only
+
+  # 示例 2：GitHub 服务器（stdio）
+  # - id: github
+  #   transport: stdio
+  #   enabled: false
+  #   command: ["npx", "-y", "@modelcontextprotocol/server-github"]
+  #   env:
+  #     GITHUB_PERSONAL_ACCESS_TOKEN: ${secrets.mcp.github.token}
+  #   security_default: write
+
+  # vertical-slice 自检：使用仓库自带的 echo demo（无外部依赖）
+  # 用 sys.executable，避免 PATH 中没有 `python` 时失败
+  - id: echo
+    transport: stdio
+    enabled: true
+    command: ["python3", "-m", "voice_assistant.tools.mcp.echo_server"]
+    security_default: read_only

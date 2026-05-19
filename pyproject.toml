@@ -33,6 +33,8 @@ dependencies = [
     "pyautogui>=0.9.54,<1.0.0",
     "psutil>=5.9.0,<7.0.0",
     "Pillow>=10.0.0,<12.0.0",
+    # MCP (Model Context Protocol)
+    "mcp>=1.0.0,<2.0.0",
 ]
 
 [project.optional-dependencies]
