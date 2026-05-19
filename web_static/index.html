@@ -147,6 +147,24 @@
                 <div class="add-provider-form-container"></div>
             </div>
 
+            <div class="config-section">
+                <div class="section-header">
+                    <h3>MCP Servers</h3>
+                    <button class="btn-sm" id="btn-refresh-mcp">刷新</button>
+                </div>
+                <div class="mcp-server-list"></div>
+                <div class="config-hint">编辑 <code>config/mcp_servers.yaml</code> 后重启服务生效。secrets 放到 <code>config/secrets.yaml</code>。</div>
+            </div>
+
+            <div class="config-section">
+                <div class="section-header">
+                    <h3>Skills</h3>
+                    <button class="btn-sm" id="btn-reload-skills">重新扫描</button>
+                </div>
+                <div class="skill-list"></div>
+                <div class="config-hint">在 <code>skills/</code> 目录放置 <code>SKILL.md</code>，点击「重新扫描」加载。</div>
+            </div>
+
             <div class="config-section general-settings"></div>
         </div>
     </div>

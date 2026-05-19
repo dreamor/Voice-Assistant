@@ -1580,3 +1580,56 @@ html, body {
     padding: var(--space-lg);
     font-size: 0.875rem;
 }
+
+/* ===== MCP / Skill ===== */
+.mcp-row,
+.skill-row {
+    padding: var(--space-md);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    margin-bottom: var(--space-sm);
+    background: var(--color-surface);
+}
+.mcp-row-header,
+.skill-row-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-size: 0.95rem;
+}
+.mcp-ok { color: #16a34a; font-weight: bold; }
+.mcp-fail { color: #dc2626; font-weight: bold; }
+.mcp-transport,
+.skill-trigger {
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+}
+.mcp-disabled { color: var(--color-text-muted); font-size: 0.85rem; }
+.mcp-tools, .mcp-error {
+    margin-top: var(--space-xs);
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    word-break: break-word;
+}
+.mcp-error { color: #dc2626; }
+.mcp-tools-empty { font-style: italic; }
+.skill-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    cursor: pointer;
+}
+.skill-description { margin-top: var(--space-xs); color: var(--color-text); }
+.skill-meta { margin-top: var(--space-xs); font-size: 0.85rem; color: var(--color-text-muted); }
+.skill-deps-ok { color: #16a34a; }
+.skill-deps-missing { color: #d97706; }
+.config-hint {
+    margin-top: var(--space-sm);
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+}
+.config-hint code {
+    background: var(--color-bg);
+    padding: 0 4px;
+    border-radius: 3px;
+}

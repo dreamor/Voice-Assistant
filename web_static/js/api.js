@@ -302,3 +302,46 @@ export async function fetchProviderModels(providerId) {
         throw error;
     }
 }
+
+
+// ===== MCP / Skill =====
+
+/**
+ * @returns {Promise<{servers: Array<{id:string,transport:string,enabled:boolean,ready:boolean,error:?string,tools:string[]}>}>}
+ */
+export async function fetchMcpServers() {
+    const response = await fetch('/api/mcp/servers');
+    if (!response.ok) throw new Error('获取 MCP server 失败');
+    return await response.json();
+}
+
+/**
+ * @returns {Promise<{skills: Array<Object>}>}
+ */
+export async function fetchSkills() {
+    const response = await fetch('/api/skills');
+    if (!response.ok) throw new Error('获取 skill 列表失败');
+    return await response.json();
+}
+
+/**
+ * @param {string} name
+ * @param {boolean} enabled
+ */
+export async function toggleSkill(name, enabled) {
+    const action = enabled ? 'enable' : 'disable';
+    const response = await fetch(`/api/skills/${encodeURIComponent(name)}/${action}`, {
+        method: 'POST',
+    });
+    if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.detail || '切换 skill 失败');
+    }
+    return await response.json();
+}
+
+export async function reloadSkills() {
+    const response = await fetch('/api/skills/reload', { method: 'POST' });
+    if (!response.ok) throw new Error('重新加载 skill 失败');
+    return await response.json();
+}

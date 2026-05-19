@@ -5,6 +5,7 @@
 
 import { state, elements, logger, vadConfig } from './state.js';
 import * as api from './api.js';
+import { renderMcpSkillSections, initMcpSkillUi } from './mcp_skill.js';
 
 let selectedProviderId = null;
 let addProviderFormVisible = false;
@@ -552,6 +553,7 @@ export function showConfigPage() {
         selectedProviderId = state.activeProvider;
         addProviderFormVisible = false;
         renderConfigPage();
+        renderMcpSkillSections();
     }
 }
 
@@ -588,4 +590,6 @@ export function initConfigPage() {
             renderConfigPage();
         });
     }
+
+    initMcpSkillUi();
 }
