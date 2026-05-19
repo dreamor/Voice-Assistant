@@ -110,4 +110,6 @@ asr:
 - [架构](ARCHITECTURE.md)
 - [模块](MODULES.md)
 - [配置](CONFIG.md)
+- [MCP & Skill](MCP_SKILL.md) — 接入外部 MCP server / 编写 SKILL.md 知识包
+- [API](API.md) — REST + WebSocket
 - [开发](DEVELOPMENT.md)

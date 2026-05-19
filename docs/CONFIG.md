@@ -268,6 +268,33 @@ asr:
 - 启动后在 Web UI 配置页切换 Provider 与模型
 - 自定义 Provider 通过「添加 Provider」写入 `config/custom_providers.yaml`
 
+## MCP server 配置（可选）
+
+接入 Model Context Protocol，让 LLM 调用外部 server 暴露的工具。
+
+| 文件 | 说明 |
+|------|------|
+| `config/mcp_servers.yaml` | server 列表 + transport（stdio/sse/http） |
+| `config/secrets.yaml` | token 类敏感值（gitignored，从 `secrets.example.yaml` 复制） |
+| `config/secrets.example.yaml` | 模板 |
+
+`mcp_servers.yaml` 里用 `${secrets.path.to.key}` 引用 `secrets.yaml` 中的字段。改动后**重启服务**生效。Web UI ⚙️ → MCP Servers 区块可查看连接状态。
+
+完整字段说明与示例见 [MCP_SKILL](MCP_SKILL.md#1-mcpmodel-context-protocol)。
+
+## Skill 配置（可选）
+
+SKILL.md 风格的能力包。
+
+| 路径 | 说明 |
+|------|------|
+| `skills/built-in/*/SKILL.md` | 仓库自带（git 跟踪） |
+| `skills/user/*/SKILL.md` | 用户自建（建议 gitignore） |
+
+`SKILL.md` frontmatter 字段：`name` / `description` / `trigger` (`keywords` / `always` / `manual`) / `keywords` / `required_mcp_servers` / `required_python` / `required_brew` / `required_env`。
+
+Web UI ⚙️ → Skills 区块可启停、重新扫描；运行时启停不写回磁盘。详见 [MCP_SKILL](MCP_SKILL.md#2-skill)。
+
 ---
 
 ## 完整配置示例

@@ -60,6 +60,17 @@
 - `registry.py` — `@register_tool` 装饰器、`ToolResult`、参数校验、平台过滤
 - `universal/` — 通用工具：文件 / 剪贴板 / 屏幕 / 输入 / 系统 / 实用 / 窗口 / 浏览器 / 媒体 / 网络 / 显示 / 通知 / 文件高级 / 快捷操作
 - `platform_specific/mac_ops.py` `win_ops.py` — 平台原生操作
+- `mcp/` — MCP (Model Context Protocol) 集成；`MCPManager` 在独立 asyncio 线程维持每 server 一个长驻 task，外部工具以 `mcp__<server>__<tool>` 注册到 `ToolRegistry`，支持 stdio / sse / streamable_http
+
+### `voice_assistant.skills`
+
+- `loader.py` — 扫描 `skills/**/SKILL.md`，解析 frontmatter (YAML) + body
+- `selector.py` — `always` 全文 + `keywords` 命中 body 拼接 system prompt addendum
+- `deps.py` — 检查 `required_mcp_servers / required_python / required_brew / required_env`
+- `manager.py` — `SkillManager` 同步外观（reload / set_enabled / check）
+- `meta_tools.py` — LLM 工具：`list_skills` / `check_skill_deps` / `enable_skill` / `disable_skill`
+
+`VoiceSession.process_text*` 每次调 LLM 前先调 `skill_manager.build_addendum_for_message(user_text)`，通过 `extra_system` 透传到 `_build_messages` 拼到 `AGENT_SYSTEM_PROMPT` 末尾。
 
 ### `voice_assistant.security`
 

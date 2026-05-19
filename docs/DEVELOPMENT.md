@@ -92,6 +92,12 @@ def my_tool(arg1: str) -> ToolResult:
 
 会自动出现在 LLM 的 function calling 工具列表中。
 
+> 如果工具来自外部服务（GitHub / 文件系统 / 自建 server），优先考虑接入 MCP server 而不是写新 Python tool，详见 [MCP_SKILL](MCP_SKILL.md)。
+
+## 添加 Skill（提示包）
+
+在 `skills/` 下放一个目录加 `SKILL.md`，frontmatter 声明触发方式与依赖。LLM 调用前会自动注入。详见 [MCP_SKILL §2](MCP_SKILL.md#2-skill)。
+
 ## 添加新 Provider
 
 **首选**：Web UI 配置页 → 「添加 Provider」即可，无需写代码。
