@@ -140,3 +140,116 @@ def test_stringify_mcp_result_marks_error():
 @pytest.mark.unit
 def test_stringify_mcp_result_none():
     assert _stringify_mcp_result(None) == ""
+
+
+# ----- bridge.make_tool_definition handler 行为 -----
+
+@pytest.mark.unit
+def test_make_tool_definition_handler_success():
+    """handler 阻塞调度异步 call_tool，返回 stringify 结果"""
+    import asyncio
+    import threading
+
+    from voice_assistant.tools.mcp.bridge import make_tool_definition
+
+    loop = asyncio.new_event_loop()
+    thread = threading.Thread(target=loop.run_forever, daemon=True)
+    thread.start()
+    try:
+        async def fake_call_tool(name, args):
+            return _FakeResult([_FakeContent(f"called:{name}:{args.get('x')}")])
+
+        td = make_tool_definition(
+            server_id="srv",
+            mcp_tool_name="op",
+            description="desc",
+            input_schema={"type": "object"},
+            call_tool=fake_call_tool,
+            loop=loop,
+            security_default="read_only",
+        )
+        assert td.name == "mcp__srv__op"
+
+        from voice_assistant.security.safe_guard import SecurityLevel
+        assert td.security_level == SecurityLevel.READ_ONLY
+
+        result = td.handler(x="hi")
+        assert result == "called:op:hi"
+    finally:
+        loop.call_soon_threadsafe(loop.stop)
+        thread.join(timeout=2)
+
+
+@pytest.mark.unit
+def test_make_tool_definition_handler_propagates_async_exception():
+    import asyncio
+    import threading
+
+    from voice_assistant.tools.mcp.bridge import make_tool_definition
+
+    loop = asyncio.new_event_loop()
+    thread = threading.Thread(target=loop.run_forever, daemon=True)
+    thread.start()
+    try:
+        async def boom(_name, _args):
+            raise RuntimeError("inner failure")
+
+        td = make_tool_definition(
+            server_id="srv",
+            mcp_tool_name="boom",
+            description="",
+            input_schema={"type": "object", "properties": {}},
+            call_tool=boom,
+            loop=loop,
+        )
+        result = td.handler()
+        assert "调用失败" in result
+        assert "inner failure" in result
+    finally:
+        loop.call_soon_threadsafe(loop.stop)
+        thread.join(timeout=2)
+
+
+@pytest.mark.unit
+def test_make_tool_definition_default_security_level_write():
+    import asyncio
+
+    from voice_assistant.security.safe_guard import SecurityLevel
+    from voice_assistant.tools.mcp.bridge import make_tool_definition
+
+    loop = asyncio.new_event_loop()
+    try:
+        td = make_tool_definition(
+            server_id="srv",
+            mcp_tool_name="op",
+            description="",
+            input_schema={},
+            call_tool=lambda *a: None,
+            loop=loop,
+            security_default="invalid_level_falls_back",
+        )
+        # 非法 level 回落到 WRITE
+        assert td.security_level == SecurityLevel.WRITE
+    finally:
+        loop.close()
+
+
+@pytest.mark.unit
+def test_stringify_mcp_result_string_fallback():
+    """没有 content 属性时返回 str(result)"""
+    assert _stringify_mcp_result("plain string") == "plain string"
+
+
+@pytest.mark.unit
+def test_stringify_mcp_result_mixed_content():
+    """content list 混合文本和未识别项"""
+    class _ImageContent:
+        type = "image"
+
+        def __str__(self):
+            return "<image>"
+
+    result = _FakeResult([_FakeContent("text-a"), _ImageContent()])
+    out = _stringify_mcp_result(result)
+    assert "text-a" in out
+    assert "<image>" in out

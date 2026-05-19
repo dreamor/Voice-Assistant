@@ -83,6 +83,70 @@ def test_scan_skills_missing_root(tmp_path: Path):
     assert scan_skills(tmp_path / "nope") == []
 
 
+@pytest.mark.unit
+def test_parse_skill_md_missing_name_returns_none(tmp_path: Path):
+    text = "---\ndescription: hi\n---\nbody"
+    assert parse_skill_md(text, tmp_path / "SKILL.md") is None
+
+
+@pytest.mark.unit
+def test_parse_skill_md_bad_yaml_returns_none(tmp_path: Path):
+    text = "---\nname: x\nkeywords: [unclosed\n---\nbody"
+    assert parse_skill_md(text, tmp_path / "SKILL.md") is None
+
+
+@pytest.mark.unit
+def test_parse_skill_md_meta_not_dict_returns_none(tmp_path: Path):
+    text = "---\n- 1\n- 2\n---\nbody"
+    assert parse_skill_md(text, tmp_path / "SKILL.md") is None
+
+
+@pytest.mark.unit
+def test_parse_skill_md_keywords_string_to_tuple(tmp_path: Path):
+    text = "---\nname: x\ntrigger: keywords\nkeywords: solo\n---\nbody"
+    s = parse_skill_md(text, tmp_path / "SKILL.md")
+    assert s is not None
+    assert s.keywords == ("solo",)
+
+
+@pytest.mark.unit
+def test_parse_skill_md_empty_body(tmp_path: Path):
+    text = "---\nname: x\n---\n"
+    s = parse_skill_md(text, tmp_path / "SKILL.md")
+    assert s is not None
+    assert s.body == ""
+
+
+@pytest.mark.unit
+def test_scan_skills_duplicate_name_last_wins(tmp_path: Path, caplog):
+    (tmp_path / "a").mkdir()
+    (tmp_path / "a" / "SKILL.md").write_text(
+        "---\nname: dup\ndescription: first\n---\nbody-a"
+    )
+    (tmp_path / "b").mkdir()
+    (tmp_path / "b" / "SKILL.md").write_text(
+        "---\nname: dup\ndescription: second\n---\nbody-b"
+    )
+    skills = scan_skills(tmp_path)
+    assert len(skills) == 1
+    # 后扫描覆盖前者；两个候选只剩一个，且与目录顺序无关只验证最终唯一
+    assert skills[0].description in {"first", "second"}
+
+
+@pytest.mark.unit
+def test_skill_matches_keyword_case_insensitive():
+    skill = _mk_skill("s", trigger="keywords", keywords=("Hello", "WORLD"))
+    assert skill.matches_keyword("say hello there") is True
+    assert skill.matches_keyword("hello WoRlD") is True
+    assert skill.matches_keyword("nothing matches") is False
+
+
+@pytest.mark.unit
+def test_skill_matches_keyword_returns_false_for_non_keywords_trigger():
+    skill = _mk_skill("always", trigger="always", keywords=("hello",))
+    assert skill.matches_keyword("hello there") is False
+
+
 # ----- selector -----
 
 def _mk_skill(
