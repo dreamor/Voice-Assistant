@@ -4,8 +4,6 @@
 """
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from voice_assistant.core.session import VoiceSession, _build_tool_group_hint
 
 

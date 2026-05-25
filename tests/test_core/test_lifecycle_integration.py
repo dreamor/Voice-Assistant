@@ -1,7 +1,6 @@
 """AppLifecycle 集成测试"""
-import pytest
 
-from voice_assistant.core.lifecycle import AppLifecycle, get_lifecycle, shutdown_lifecycle
+from voice_assistant.core.lifecycle import get_lifecycle, shutdown_lifecycle
 
 
 class TestAppLifecycleSingleton:

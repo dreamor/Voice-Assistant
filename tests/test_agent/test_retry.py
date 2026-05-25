@@ -1,6 +1,5 @@
 """LLM 重试模块测试"""
 import litellm
-import pytest
 
 from voice_assistant.agent.retry import (
     ErrorClass,

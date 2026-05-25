@@ -1,5 +1,4 @@
 """每工具速率限制测试"""
-import time
 
 from voice_assistant.security.validation import (
     TOOL_RATE_LIMITS,

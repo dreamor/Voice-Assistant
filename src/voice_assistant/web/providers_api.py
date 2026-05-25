@@ -125,6 +125,7 @@ async def set_provider_api_key(request: dict):
 async def create_provider(request: dict):
     """创建自定义 Provider"""
     import re
+
     from voice_assistant.config import save_custom_provider
 
     provider_id = request.get("id", "").strip()

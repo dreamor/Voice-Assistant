@@ -1,9 +1,8 @@
 """工具分组与按需加载测试"""
-import pytest
 
 from voice_assistant.tools.tool_groups import (
-    TOOL_GROUPS,
     GROUP_DESCRIPTIONS,
+    TOOL_GROUPS,
     get_all_group_names,
     get_group_summary,
     get_tool_group,

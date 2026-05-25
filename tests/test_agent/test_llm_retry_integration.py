@@ -6,7 +6,6 @@
 from unittest.mock import MagicMock, patch
 
 import litellm
-import pytest
 
 from voice_assistant.agent.llm_client import call_llm_with_tools, call_llm_with_tools_stream
 
@@ -221,7 +220,6 @@ class TestStreamRetry:
 
         events = list(call_llm_with_tools_stream("hello", []))
         token_events = [e for e in events if e.type == "token"]
-        done_events = [e for e in events if e.type == "done"]
         assert len(token_events) == 1
         assert token_events[0].content == "recovered"
         assert mock_completion.call_count == 2

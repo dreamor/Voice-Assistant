@@ -2,7 +2,6 @@
 import asyncio
 import base64
 import logging
-from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import WebSocket, WebSocketDisconnect
@@ -282,7 +281,7 @@ async def process_llm_response(client_id: str, conversation_id: str, user_text: 
 
         if use_stream:
             import queue
-            from voice_assistant.agent.orchestrator import AgentEvent
+
 
             event_queue: queue.Queue = queue.Queue()
             stream_error = [None]

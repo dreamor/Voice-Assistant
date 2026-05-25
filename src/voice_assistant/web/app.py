@@ -5,14 +5,15 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from voice_assistant.db import init_db
 from voice_assistant.core.lifecycle import get_lifecycle, shutdown_lifecycle
+from voice_assistant.db import init_db
 from voice_assistant.web.config_api import router as config_router
 from voice_assistant.web.history_api import router as history_router
 from voice_assistant.web.mcp_skill_api import router as mcp_skill_router
 from voice_assistant.web.providers_api import router as providers_router
-from voice_assistant.web.routes import STATIC_DIR, router as static_router
-from voice_assistant.web.ws import cleanup_session, manager, sessions
+from voice_assistant.web.routes import STATIC_DIR
+from voice_assistant.web.routes import router as static_router
+from voice_assistant.web.ws import cleanup_session, sessions
 
 logger = logging.getLogger(__name__)
 

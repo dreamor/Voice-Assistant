@@ -1,7 +1,6 @@
 """音频格式转换工具"""
 import io
 import logging
-import struct
 import wave
 
 import numpy as np

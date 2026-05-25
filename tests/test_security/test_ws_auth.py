@@ -1,6 +1,4 @@
 """WebSocket 认证模块测试"""
-import time
-
 from voice_assistant.security.ws_auth import (
     TOKEN_TTL,
     generate_token,
@@ -21,8 +19,7 @@ class TestGenerateAndVerifyToken:
     def test_token_expired(self):
         # 生成令牌后篡改时间戳使其过期
         token = generate_token("client-1")
-        ts_str, sig = token.split(".", 1)
-        expired_ts = str(int(time.time()) - TOKEN_TTL - 10)
+        ts_str, _sig = token.split(".", 1)
         # 使用过期时间戳 + 重新签名无法匹配密钥，直接用过期时间戳构造
         # 更简单的方式：直接验证过期时间戳
         from voice_assistant.security import ws_auth
@@ -72,6 +69,7 @@ class TestIsAuthRequired:
             os.environ["WS_AUTH_ENABLED"] = "true"
             # 重新加载模块级变量
             import importlib
+
             from voice_assistant.security import ws_auth
 
             importlib.reload(ws_auth)

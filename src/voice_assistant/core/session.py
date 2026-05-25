@@ -6,7 +6,6 @@ ASR + Agent Loop（LLM + function calling + tool 执行）+ TTS + 历史
 import logging
 import os
 import tempfile
-import warnings
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -14,7 +13,7 @@ from voice_assistant.audio.asr_provider import ASRProvider, create_asr_provider
 from voice_assistant.audio.tts import TTSProvider, create_tts_provider
 from voice_assistant.config import config
 from voice_assistant.core.asr_corrector import correct_asr_result
-from voice_assistant.core.lifecycle import AppLifecycle, get_lifecycle
+from voice_assistant.core.lifecycle import get_lifecycle
 
 logger = logging.getLogger(__name__)
 

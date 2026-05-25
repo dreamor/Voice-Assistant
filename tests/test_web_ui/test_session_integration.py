@@ -76,8 +76,6 @@ class TestWebUISessionDelegation:
 
     def test_web_ui_uses_voice_session_for_tts(self):
         """验证 Web UI 使用 VoiceSession 进行 TTS"""
-        from voice_assistant.web.ws import generate_and_send_tts_stream
 
     def test_web_ui_session_lifecycle(self):
         """验证 Web UI 管理 Session 生命周期"""
-        from voice_assistant.web.ws import sessions
