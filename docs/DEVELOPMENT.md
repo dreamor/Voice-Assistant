@@ -28,7 +28,7 @@ python -m voice_assistant --check
 
 ```
 voice-assistant/
-├── web_ui.py                       # FastAPI 应用 + WebSocket
+├── web_ui.py                       # 薄入口：from voice_assistant.web import create_app
 ├── web_static/
 │   ├── index.html
 │   ├── style.css
@@ -46,22 +46,45 @@ voice-assistant/
 │   ├── db.py                       # SQLite
 │   ├── config/                     # 配置加载、custom_providers.yaml 读写
 │   ├── audio/                      # cloud_asr / funasr_asr / tts
-│   ├── core/                       # session / model_manager / asr_corrector
-│   ├── agent/                      # orchestrator / llm_client (Agent Loop)
-│   ├── tools/                      # registry + universal + platform_specific
-│   ├── security/                   # validation + safe_guard
+│   ├── core/                       # session / lifecycle / model_manager / asr_corrector
+│   ├── agent/                      # orchestrator / llm_client / retry (Agent Loop)
+│   ├── tools/                      # registry + tool_groups + universal + platform_specific + mcp
+│   ├── skills/                     # SKILL.md 加载 + selector + meta_tools
+│   ├── security/                   # validation + safe_guard + ws_auth
+│   ├── web/                        # FastAPI Web 包（10 模块）
+│   │   ├── app.py                  # 应用工厂 + lifespan
+│   │   ├── ws.py                   # WebSocket 端点 + 流式推送
+│   │   ├── routes.py               # 静态路由
+│   │   ├── config_api.py           # /api/config /api/models /api/ws-token
+│   │   ├── providers_api.py        # /api/providers/*
+│   │   ├── history_api.py          # /api/history/*
+│   │   ├── mcp_skill_api.py        # /api/mcp /api/skills/*
+│   │   ├── audio.py                # 音频格式转换
+│   │   └── middleware.py           # HTTP 中间件 + RateLimiter
 │   └── platform/                   # 平台检测
 ├── tests/
+│   ├── test_agent/                 # orchestrator / llm_client / retry / skill_injection
+│   ├── test_audio/                 # cloud_asr / tts
+│   ├── test_core/                  # session / lifecycle / session_history
+│   ├── test_security/              # safe_guard / ws_auth / tool_rate_limit
+│   ├── test_skills/                # meta_tools
+│   ├── test_tools/                 # registry / mcp / tool_groups
+│   └── test_web_ui/               # config_api / websocket / audio / mcp_skill
 └── docs/
 ```
 
 ## 测试
 
 ```bash
-pytest tests/ -v
+pytest tests/ -v                                    # 全部测试
+pytest tests/test_core/ -v                          # 核心模块测试
+pytest tests/test_agent/ -v                         # Agent 测试
+pytest tests/test_web_ui/ -v                        # Web UI 测试
 pytest tests/test_audio/test_cloud_asr_callback.py -v   # 单文件
 pytest --cov=voice_assistant tests/                     # 覆盖率
 ```
+
+当前测试统计：**512 passed**, 3 skipped（156 个集成/单元测试覆盖 Phase 1-4 优化）。
 
 新增功能必须配套测试，目标覆盖率 ≥ 80%。
 

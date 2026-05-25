@@ -104,7 +104,7 @@ providers:
 ## 开发
 
 ```bash
-pytest tests/ -v             # 测试（~340 用例）
+pytest tests/ -v             # 测试（512 用例）
 ruff check src/ tests/       # lint
 pyright src/                 # type check
 python scripts/check_env.py  # 环境自检（Python / 依赖 / .env / 麦克风）

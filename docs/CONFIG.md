@@ -184,11 +184,15 @@ vad:
 ```yaml
 history:
   max_turns: 20
+  max_context_tokens: 6000
 ```
 
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
 | `max_turns` | 最大对话轮数 | 20 |
+| `max_context_tokens` | 对话历史 token 预算上限（超出时自动裁剪最早的消息） | 6000 |
+
+> `max_context_tokens` 在 `session.py` 中通过 `_estimate_tokens()` 估算每条消息的 token 数，双重重叠裁剪确保不超过预算。
 
 ### 日志配置
 
@@ -295,6 +299,40 @@ SKILL.md 风格的能力包。
 
 Web UI ⚙️ → Skills 区块可启停、重新扫描；运行时启停不写回磁盘。详见 [MCP_SKILL](MCP_SKILL.md#2-skill)。
 
+### 工具速率限制
+
+工具调用按分组限流，防止短时间内高频调用。配置在 `security/validation.py` 中，非 config.yaml 项：
+
+| 分组 | 速率限制 | 涵盖工具前缀 |
+|------|---------|-------------|
+| `file_ops` | 10 次/分钟 | `open_`, `read_`, `write_`, `delete_`, `find_`, `copy_`, `move_`, `create_file` |
+| `system_ops` | 10 次/分钟 | `launch_`, `kill_`, `shutdown`, `get_running_`, `get_system_`, `screenshot` |
+| `network_ops` | 15 次/分钟 | `web_search`, `http_`, `browse` |
+| `default` | 30 次/分钟 | 其他所有工具 |
+
+全局速率限制：
+
+| 限制项 | 值 |
+|--------|-----|
+| 文本输入最大长度 | 1000 字符 |
+| 音频文件最大大小 | 10 MB |
+| ASR 调用 | 30 次/分钟 |
+| LLM 调用 | 20 次/分钟 |
+
+### WebSocket 认证
+
+WebSocket 认证通过环境变量控制，非 config.yaml 项：
+
+| 环境变量 | 说明 | 默认值 |
+|---------|------|--------|
+| `WS_AUTH_ENABLED` | 设为 `1`/`true`/`yes` 强制所有连接认证（含 localhost） | 未设置（localhost 免认证） |
+| `WS_AUTH_SECRET` | HMAC 签名密钥；未设置则每次启动随机生成 | 随机 32 字节 hex |
+
+认证流程：
+1. 非本地访问需先调用 `GET /api/ws-token` 获取 HMAC 令牌（5 分钟有效）
+2. 连接 WebSocket 时附加 `?token=<HMAC_TOKEN>`
+3. 本地访问（localhost/127.0.0.1）默认跳过认证
+
 ---
 
 ## 完整配置示例
@@ -367,6 +405,7 @@ vad:
 
 history:
   max_turns: 20
+  max_context_tokens: 6000
 
 logging:
   level: "INFO"
