@@ -62,9 +62,9 @@ class TestAppLifecycleBuildToolRegistry:
         tools = registry.list_tools()
         # 调试：如果工具列表为空，检查各个工具源
         if len(tools) == 0:
-            from voice_assistant.tools.universal import get_universal_tools
-            from voice_assistant.tools.platform_specific import get_platform_tools
             from voice_assistant.platform import detect_platform
+            from voice_assistant.tools.platform_specific import get_platform_tools
+            from voice_assistant.tools.universal import get_universal_tools
 
             platform = detect_platform()
             universal = get_universal_tools()
