@@ -60,7 +60,18 @@ class TestAppLifecycleBuildToolRegistry:
         lc = get_lifecycle()
         registry = lc.build_tool_registry()
         tools = registry.list_tools()
-        assert len(tools) > 0
+        # 调试：如果工具列表为空，检查各个工具源
+        if len(tools) == 0:
+            from voice_assistant.tools.universal import get_universal_tools
+            from voice_assistant.tools.platform_specific import get_platform_tools
+            from voice_assistant.platform import detect_platform
+
+            platform = detect_platform()
+            universal = get_universal_tools()
+            platform_tools = get_platform_tools(platform)
+            assert len(universal) > 0, f"universal tools empty (platform={platform})"
+            assert len(platform_tools) >= 0, f"platform tools error (platform={platform})"
+        assert len(tools) > 0, f"no tools registered (platform={platform})"
 
     def test_shutdown_clears_tool_registry(self):
         lc = get_lifecycle()
