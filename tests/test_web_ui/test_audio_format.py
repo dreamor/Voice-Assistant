@@ -24,8 +24,8 @@ class TestConvertAudioToWav:
 
     @pytest.fixture(autouse=True)
     def _import_func(self):
-        from web_ui import _convert_audio_to_wav
-        self.convert = _convert_audio_to_wav
+        from voice_assistant.web.audio import convert_audio_to_wav
+        self.convert = convert_audio_to_wav
 
     def test_wav_passthrough(self):
         """WAV 格式直接返回有效 WAV"""

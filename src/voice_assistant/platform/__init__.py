@@ -1,9 +1,12 @@
 """
 跨平台适配层 - 统一 Mac/Windows 系统操作接口
 """
+import logging
 import platform
 import subprocess
 from abc import ABC, abstractmethod
+
+logger = logging.getLogger(__name__)
 
 
 class PlatformAdapter(ABC):
@@ -68,7 +71,7 @@ class MacAdapter(PlatformAdapter):
             if result.returncode == 0 and result.stdout.strip():
                 return result.stdout.strip()
         except Exception:
-            pass
+            logger.debug(f"[MacAdapter] 获取扩展名 {ext} 的默认应用失败")
         return "未知应用"
 
     def open_url(self, url: str, browser: str = None) -> str:
@@ -130,7 +133,7 @@ class WindowsAdapter(PlatformAdapter):
             if result.returncode == 0 and result.stdout.strip():
                 return result.stdout.strip()
         except Exception:
-            pass
+            logger.debug(f"[WindowsAdapter] 获取扩展名 {ext} 的默认应用失败")
         return "未知应用"
 
     def open_url(self, url: str, browser: str = None) -> str:

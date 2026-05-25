@@ -76,15 +76,8 @@ class TestWebUISessionDelegation:
 
     def test_web_ui_uses_voice_session_for_tts(self):
         """验证 Web UI 使用 VoiceSession 进行 TTS"""
-        # 验证 web_ui.py 中调用 session.synthesize_stream
-        import web_ui
-
-        # 检查 generate_and_send_tts_stream 函数存在
-        assert hasattr(web_ui, 'generate_and_send_tts_stream')
+        from voice_assistant.web.ws import generate_and_send_tts_stream
 
     def test_web_ui_session_lifecycle(self):
         """验证 Web UI 管理 Session 生命周期"""
-        import web_ui
-
-        # 验证会话管理字典存在 (命名为 sessions)
-        assert hasattr(web_ui, 'sessions')
+        from voice_assistant.web.ws import sessions

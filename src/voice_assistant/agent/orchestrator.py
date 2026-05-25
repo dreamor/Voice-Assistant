@@ -54,6 +54,105 @@ class AgentOrchestrator:
         self._max_iterations = max_iterations
         self._confirm_callback = confirm_callback  # 异步回调: (tool_name, args, guard) -> approved
 
+    def _prepare_messages(
+        self,
+        conversation_history: list | None,
+        user_text: str,
+    ) -> list:
+        """准备消息列表，复制历史并追加用户输入。"""
+        messages = list(conversation_history) if conversation_history else []
+        messages.append({"role": "user", "content": user_text})
+        return messages
+
+    def _execute_tool_call(
+        self,
+        tc: dict,
+        messages: list,
+        tool_calls_made: list[str],
+        confirmations_needed: list[GuardResult],
+    ) -> AgentResult | None:
+        """执行单个工具调用，处理确认流程。
+
+        Args:
+            tc: 工具调用字典 {"name", "arguments", "id"}
+            messages: 消息列表（会被修改）
+            tool_calls_made: 已执行工具名列表（会被修改）
+            confirmations_needed: 需确认列表（会被修改）
+
+        Returns:
+            如果需要用户确认且未获批准，返回 AgentResult（表示应终止循环）。
+            否则返回 None，表示工具已执行完成，应继续循环。
+        """
+        tool_name = tc["name"]
+        arguments = tc.get("arguments", {})
+
+        exec_result = self._registry.execute(tool_name, arguments)
+
+        if exec_result.get("needs_confirmation"):
+            guard = exec_result.get("guard_result")
+            confirmations_needed.append(guard)
+
+            approved = False
+            if self._confirm_callback:
+                approved = self._confirm_callback(tool_name, arguments, guard)
+
+            if not approved:
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc.get("id", ""),
+                    "name": tool_name,
+                    "content": f"操作需要用户确认: {guard.message}",
+                })
+                return AgentResult(
+                    success=True,
+                    response=f"{guard.message}\n请在页面上确认此操作。",
+                    tool_calls_made=tool_calls_made,
+                    confirmations_needed=confirmations_needed,
+                )
+
+            exec_result = self._registry.execute_confirmed(tool_name, arguments)
+
+        tool_calls_made.append(tool_name)
+
+        tool_content = exec_result.get("result", "")
+        if not exec_result.get("success"):
+            tool_content = f"错误: {tool_content}"
+
+        messages.append({
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [{
+                "id": tc.get("id", ""),
+                "type": "function",
+                "function": {"name": tool_name, "arguments": json.dumps(arguments, ensure_ascii=False)}
+            }]
+        })
+        messages.append({
+            "role": "tool",
+            "tool_call_id": tc.get("id", ""),
+            "name": tool_name,
+            "content": tool_content,
+        })
+
+        return None
+
+    def _build_final_result(
+        self,
+        response: str,
+        tool_calls_made: list[str],
+        confirmations_needed: list[GuardResult],
+        iteration: int,
+        success: bool = True,
+    ) -> AgentResult:
+        """构建最终结果。"""
+        return AgentResult(
+            success=success,
+            response=response,
+            tool_calls_made=tool_calls_made,
+            confirmations_needed=confirmations_needed,
+            iterations=iteration,
+        )
+
     def run(
         self,
         user_text: str,
@@ -69,12 +168,9 @@ class AgentOrchestrator:
         Returns:
             AgentResult
         """
-        history = list(conversation_history) if conversation_history else []
-        messages = list(history)  # 内部消息
-        messages.append({"role": "user", "content": user_text})
-
-        tool_calls_made = []
-        confirmations_needed = []
+        messages = self._prepare_messages(conversation_history, user_text)
+        tool_calls_made: list[str] = []
+        confirmations_needed: list[GuardResult] = []
         iteration = 0
         tools = self._registry.get_openai_tools()
 
@@ -92,98 +188,37 @@ class AgentOrchestrator:
             # LLM 返回纯文本
             if response["finish_reason"] == "stop" and response["content"]:
                 messages.append({"role": "assistant", "content": response["content"]})
-                return AgentResult(
-                    success=True,
-                    response=response["content"],
-                    tool_calls_made=tool_calls_made,
-                    confirmations_needed=confirmations_needed,
-                    iterations=iteration,
+                return self._build_final_result(
+                    response["content"], tool_calls_made, confirmations_needed, iteration,
                 )
 
             # 错误
             if response["finish_reason"] == "error":
-                return AgentResult(
-                    success=False,
-                    response=response.get("content", "处理失败"),
-                    tool_calls_made=tool_calls_made,
-                    iterations=iteration,
+                return self._build_final_result(
+                    response.get("content", "处理失败"),
+                    tool_calls_made, confirmations_needed, iteration, success=False,
                 )
 
             # Tool calls
             tool_calls = response.get("tool_calls") or []
             if not tool_calls:
                 logger.info("[AgentOrchestrator] 无 tool call，结束")
-                return AgentResult(
-                    success=True,
-                    response=response.get("content", "任务完成"),
-                    tool_calls_made=tool_calls_made,
-                    iterations=iteration,
+                return self._build_final_result(
+                    response.get("content", "任务完成"),
+                    tool_calls_made, confirmations_needed, iteration,
                 )
 
             for tc in tool_calls:
-                tool_name = tc["name"]
-                arguments = tc.get("arguments", {})
-                logger.info(f"[AgentOrchestrator] Tool call: {tool_name}({arguments})")
-
-                # 执行检查
-                exec_result = self._registry.execute(tool_name, arguments)
-
-                if exec_result.get("needs_confirmation"):
-                    guard = exec_result.get("guard_result")
-                    confirmations_needed.append(guard)
-
-                    # 尝试回调确认
-                    approved = False
-                    if self._confirm_callback:
-                        approved = self._confirm_callback(tool_name, arguments, guard)
-
-                    if not approved:
-                        messages.append({
-                            "role": "tool",
-                            "tool_call_id": tc.get("id", ""),
-                            "name": tool_name,
-                            "content": f"操作需要用户确认: {guard.message}",
-                        })
-                        return AgentResult(
-                            success=True,
-                            response=f"{guard.message}\n请在页面上确认此操作。",
-                            tool_calls_made=tool_calls_made,
-                            confirmations_needed=confirmations_needed,
-                            iterations=iteration,
-                        )
-
-                    exec_result = self._registry.execute_confirmed(tool_name, arguments)
-
-                tool_calls_made.append(tool_name)
-
-                # 将 tool 结果喂回 LLM
-                tool_content = exec_result.get("result", "")
-                if not exec_result.get("success"):
-                    tool_content = f"错误: {tool_content}"
-
-                messages.append({
-                    "role": "assistant",
-                    "content": None,
-                    "tool_calls": [{
-                        "id": tc.get("id", ""),
-                        "type": "function",
-                        "function": {"name": tool_name, "arguments": json.dumps(arguments, ensure_ascii=False)}
-                    }]
-                })
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tc.get("id", ""),
-                    "name": tool_name,
-                    "content": tool_content,
-                })
+                logger.info(f"[AgentOrchestrator] Tool call: {tc['name']}({tc.get('arguments', {})})")
+                result = self._execute_tool_call(tc, messages, tool_calls_made, confirmations_needed)
+                if result is not None:
+                    result.iterations = iteration
+                    return result
 
         # 达到最大迭代次数
-        return AgentResult(
-            success=True,
-            response="任务部分完成，部分操作可能需要额外步骤。",
-            tool_calls_made=tool_calls_made,
-            confirmations_needed=confirmations_needed,
-            iterations=iteration,
+        return self._build_final_result(
+            "任务部分完成，部分操作可能需要额外步骤。",
+            tool_calls_made, confirmations_needed, iteration,
         )
 
     def run_with_confirm(
@@ -244,10 +279,7 @@ class AgentOrchestrator:
             user_text: 用户输入
             conversation_history: 对话上下文
         """
-        history = list(conversation_history) if conversation_history else []
-        messages = list(history)
-        messages.append({"role": "user", "content": user_text})
-
+        messages = self._prepare_messages(conversation_history, user_text)
         tool_calls_made: list[str] = []
         confirmations_needed: list[GuardResult] = []
         iteration = 0
@@ -297,12 +329,8 @@ class AgentOrchestrator:
             # LLM 返回纯文本
             if finish_reason == "stop" and accumulated_content:
                 messages.append({"role": "assistant", "content": accumulated_content})
-                yield AgentEvent(type="complete", result=AgentResult(
-                    success=True,
-                    response=accumulated_content,
-                    tool_calls_made=tool_calls_made,
-                    confirmations_needed=confirmations_needed,
-                    iterations=iteration,
+                yield AgentEvent(type="complete", result=self._build_final_result(
+                    accumulated_content, tool_calls_made, confirmations_needed, iteration,
                 ))
                 return
 
@@ -312,11 +340,8 @@ class AgentOrchestrator:
                 response_text = accumulated_content or "任务完成"
                 if accumulated_content:
                     messages.append({"role": "assistant", "content": accumulated_content})
-                yield AgentEvent(type="complete", result=AgentResult(
-                    success=True,
-                    response=response_text,
-                    tool_calls_made=tool_calls_made,
-                    iterations=iteration,
+                yield AgentEvent(type="complete", result=self._build_final_result(
+                    response_text, tool_calls_made, confirmations_needed, iteration,
                 ))
                 return
 
@@ -327,69 +352,30 @@ class AgentOrchestrator:
 
                 yield AgentEvent(type="tool_start", tool_name=tool_name, tool_arguments=arguments)
 
-                exec_result = self._registry.execute(tool_name, arguments)
+                # 执行工具（含确认流程）
+                result = self._execute_tool_call(tc, messages, tool_calls_made, confirmations_needed)
+                if result is not None:
+                    result.iterations = iteration
+                    yield AgentEvent(type="complete", result=result)
+                    return
 
-                if exec_result.get("needs_confirmation"):
-                    guard = exec_result.get("guard_result")
-                    confirmations_needed.append(guard)
+                # 从 messages 中提取 _execute_tool_call 写入的工具结果
+                last_tool_content = ""
+                for msg in reversed(messages):
+                    if msg.get("role") == "tool" and msg.get("name") == tool_name:
+                        last_tool_content = msg.get("content", "")
+                        break
 
-                    approved = False
-                    if self._confirm_callback:
-                        approved = self._confirm_callback(tool_name, arguments, guard)
-
-                    if not approved:
-                        messages.append({
-                            "role": "tool",
-                            "tool_call_id": tc.get("id", ""),
-                            "name": tool_name,
-                            "content": f"操作需要用户确认: {guard.message}",
-                        })
-                        yield AgentEvent(type="complete", result=AgentResult(
-                            success=True,
-                            response=f"{guard.message}\n请在页面上确认此操作。",
-                            tool_calls_made=tool_calls_made,
-                            confirmations_needed=confirmations_needed,
-                            iterations=iteration,
-                        ))
-                        return
-
-                    exec_result = self._registry.execute_confirmed(tool_name, arguments)
-
-                tool_calls_made.append(tool_name)
-
-                tool_content = exec_result.get("result", "")
-                tool_success = exec_result.get("success", True)
-                if not tool_success:
-                    tool_content = f"错误: {tool_content}"
-
+                tool_success = not last_tool_content.startswith("错误:")
                 yield AgentEvent(
                     type="tool_result",
                     tool_name=tool_name,
-                    tool_result=tool_content,
+                    tool_result=last_tool_content,
                     success=tool_success,
                 )
 
-                messages.append({
-                    "role": "assistant",
-                    "content": None,
-                    "tool_calls": [{
-                        "id": tc.get("id", ""),
-                        "type": "function",
-                        "function": {"name": tool_name, "arguments": json.dumps(arguments, ensure_ascii=False)}
-                    }]
-                })
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tc.get("id", ""),
-                    "name": tool_name,
-                    "content": tool_content,
-                })
-
         # 达到最大迭代次数
-        yield AgentEvent(type="complete", result=AgentResult(
-            success=True,
-            response="任务部分完成，部分操作可能需要额外步骤。",
-            tool_calls_made=tool_calls_made,
-            confirmations_needed=confirmations_needed,
-            iterations=iteration,
+        yield AgentEvent(type="complete", result=self._build_final_result(
+            "任务部分完成，部分操作可能需要额外步骤。",
+            tool_calls_made, confirmations_needed, iteration,
         ))

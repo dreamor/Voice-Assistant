@@ -6,11 +6,20 @@ import json
 import logging
 import os
 import platform
+import time
 from collections.abc import Generator
 from dataclasses import dataclass
 
 import litellm
 
+from voice_assistant.agent.retry import (
+    DEFAULT_RETRY_POLICY,
+    ErrorClass,
+    classify_error,
+    compute_delay,
+    get_retry_after,
+    should_retry,
+)
 from voice_assistant.core.model_manager import model_manager
 from voice_assistant.security.validation import RateLimitError, llm_limiter, validate_text_input
 
@@ -157,77 +166,89 @@ def call_llm_with_tools(
         if not current:
             break
 
-        try:
-            kwargs = {
-                "model": current.litellm_model,
-                "messages": messages,
-                "api_key": current.api_key,
-                "api_base": current.base_url if current.base_url else None,
-                "max_tokens": 2048,
-                "temperature": 0.1,
-                "timeout": 120,
-            }
-            if tools:
-                kwargs["tools"] = tools
-                kwargs["tool_choice"] = "auto"
+        retry_count = 0
+        while retry_count <= DEFAULT_RETRY_POLICY.max_retries:
+            try:
+                kwargs = {
+                    "model": current.litellm_model,
+                    "messages": messages,
+                    "api_key": current.api_key,
+                    "api_base": current.base_url if current.base_url else None,
+                    "max_tokens": 2048,
+                    "temperature": 0.1,
+                    "timeout": 120,
+                }
+                if tools:
+                    kwargs["tools"] = tools
+                    kwargs["tool_choice"] = "auto"
 
-            response = litellm.completion(**kwargs)
+                response = litellm.completion(**kwargs)
 
-            choice = response.choices[0]
-            finish_reason = choice.finish_reason or "stop"
-            message = choice.message
+                choice = response.choices[0]
+                finish_reason = choice.finish_reason or "stop"
+                message = choice.message
 
-            # 成功后重置到主模型
-            model_manager.reset_to_primary()
+                # 成功后重置到主模型
+                model_manager.reset_to_primary()
 
-            if finish_reason == "tool_calls" or (hasattr(message, 'tool_calls') and message.tool_calls):
-                raw_tool_calls = message.tool_calls
-                tool_calls = []
-                for tc in raw_tool_calls:
-                    func = tc.function
-                    try:
-                        args = json.loads(func.arguments or "{}")
-                    except json.JSONDecodeError:
-                        args = {}
-                    tool_calls.append({
-                        "id": tc.id or "",
-                        "name": func.name or "",
-                        "arguments": args,
-                    })
+                if finish_reason == "tool_calls" or (hasattr(message, 'tool_calls') and message.tool_calls):
+                    raw_tool_calls = message.tool_calls
+                    tool_calls = []
+                    for tc in raw_tool_calls:
+                        func = tc.function
+                        try:
+                            args = json.loads(func.arguments or "{}")
+                        except json.JSONDecodeError:
+                            args = {}
+                        tool_calls.append({
+                            "id": tc.id or "",
+                            "name": func.name or "",
+                            "arguments": args,
+                        })
+                    return {
+                        "finish_reason": "tool_calls",
+                        "content": None,
+                        "tool_calls": tool_calls,
+                    }
+
                 return {
-                    "finish_reason": "tool_calls",
-                    "content": None,
-                    "tool_calls": tool_calls,
+                    "finish_reason": "stop",
+                    "content": message.content or "",
+                    "tool_calls": None,
                 }
 
-            return {
-                "finish_reason": "stop",
-                "content": message.content or "",
-                "tool_calls": None,
-            }
+            except Exception as e:
+                error_class = classify_error(e)
 
-        except litellm.Timeout:
-            if model_manager.get_queue() and model_manager.get_queue().has_fallback():
-                model_manager.switch_to_next_model()
-                continue
-            return {"finish_reason": "error", "content": "AI 响应超时", "tool_calls": None}
+                if should_retry(error_class) and retry_count < DEFAULT_RETRY_POLICY.max_retries:
+                    retry_after = get_retry_after(e)
+                    delay = compute_delay(retry_count, DEFAULT_RETRY_POLICY, error_class, retry_after)
+                    retry_count += 1
+                    logger.warning(
+                        f"[AgentLLM] 模型 {current.name} {error_class.value} 错误，"
+                        f"重试 {retry_count}/{DEFAULT_RETRY_POLICY.max_retries}，等待 {delay:.1f}s"
+                    )
+                    time.sleep(delay)
+                    continue
 
-        except litellm.APIConnectionError:
-            if model_manager.get_queue() and model_manager.get_queue().has_fallback():
-                model_manager.switch_to_next_model()
-                continue
-            return {"finish_reason": "error", "content": "网络连接失败", "tool_calls": None}
+                # 不可重试或重试耗尽，尝试回退到下一个模型
+                if model_manager.get_queue() and model_manager.get_queue().has_fallback():
+                    logger.warning(f"[AgentLLM] 模型 {current.name} 失败({error_class.value})，切换备用模型")
+                    model_manager.switch_to_next_model()
+                    break  # 跳出 retry while，进入外层 for 尝试下一个模型
 
-        except litellm.APIError as e:
-            logger.warning(f"[AgentLLM] 模型 {current.name} 失败: {e}")
-            if model_manager.get_queue() and model_manager.get_queue().has_fallback():
-                model_manager.switch_to_next_model()
-                continue
-            return {"finish_reason": "error", "content": f"AI 服务不可用: {e}", "tool_calls": None}
-
-        except Exception as e:
-            logger.error(f"[AgentLLM] 请求异常: {e}")
-            return {"finish_reason": "error", "content": f"AI 调用失败: {e}", "tool_calls": None}
+                # 没有备用模型，返回错误
+                error_msgs = {
+                    ErrorClass.TIMEOUT: "AI 响应超时",
+                    ErrorClass.CONNECTION: "网络连接失败",
+                    ErrorClass.RATE_LIMIT: "请求过于频繁，请稍后再试",
+                    ErrorClass.SERVER_ERROR: f"AI 服务不可用: {e}",
+                }
+                return {
+                    "finish_reason": "error",
+                    "content": error_msgs.get(error_class, f"AI 调用失败: {e}"),
+                    "tool_calls": None,
+                }
 
     return {"finish_reason": "error", "content": "所有模型均不可用", "tool_calls": None}
 
@@ -273,100 +294,105 @@ def call_llm_with_tools_stream(
         if not current:
             break
 
-        try:
-            kwargs = {
-                "model": current.litellm_model,
-                "messages": messages,
-                "api_key": current.api_key,
-                "api_base": current.base_url if current.base_url else None,
-                "max_tokens": 2048,
-                "temperature": 0.1,
-                "stream": True,
-                "timeout": 120,
-            }
-            if tools:
-                kwargs["tools"] = tools
-                kwargs["tool_choice"] = "auto"
+        retry_count = 0
+        while retry_count <= DEFAULT_RETRY_POLICY.max_retries:
+            try:
+                kwargs = {
+                    "model": current.litellm_model,
+                    "messages": messages,
+                    "api_key": current.api_key,
+                    "api_base": current.base_url if current.base_url else None,
+                    "max_tokens": 2048,
+                    "temperature": 0.1,
+                    "stream": True,
+                    "timeout": 120,
+                }
+                if tools:
+                    kwargs["tools"] = tools
+                    kwargs["tool_choice"] = "auto"
 
-            response = litellm.completion(**kwargs)
+                response = litellm.completion(**kwargs)
 
-            # 解析流式响应
-            tool_calls_accumulated: list = []
-            finish_reason = None
+                # 解析流式响应
+                tool_calls_accumulated: list = []
+                finish_reason = None
 
-            for chunk in response:
-                if not chunk.choices:
+                for chunk in response:
+                    if not chunk.choices:
+                        continue
+
+                    delta = chunk.choices[0].delta
+                    finish_reason = chunk.choices[0].finish_reason or finish_reason
+
+                    # 文本内容增量
+                    content_delta = delta.content or ""
+                    if content_delta:
+                        yield StreamEvent(type="token", content=content_delta)
+
+                    # tool_calls 增量
+                    tc_deltas = getattr(delta, 'tool_calls', None)
+                    if tc_deltas:
+                        for tc_delta in tc_deltas:
+                            _merge_tool_call_deltas(tool_calls_accumulated, tc_delta)
+
+                # 流结束，处理结果
+                model_manager.reset_to_primary()
+
+                if tool_calls_accumulated:
+                    # 组装最终 tool_calls
+                    parsed_calls = []
+                    for tc in tool_calls_accumulated:
+                        try:
+                            args = json.loads(tc["arguments"]) if tc["arguments"] else {}
+                        except json.JSONDecodeError:
+                            args = {}
+                        parsed_calls.append({
+                            "id": tc["id"],
+                            "name": tc["name"],
+                            "arguments": args,
+                        })
+                    yield StreamEvent(
+                        type="tool_calls",
+                        tool_calls=parsed_calls,
+                        finish_reason="tool_calls",
+                    )
+                elif finish_reason == "stop":
+                    pass  # token 事件已经逐个 yield
+
+                yield StreamEvent(type="done", finish_reason=finish_reason or "stop")
+                return
+
+            except Exception as e:
+                error_class = classify_error(e)
+
+                if should_retry(error_class) and retry_count < DEFAULT_RETRY_POLICY.max_retries:
+                    retry_after = get_retry_after(e)
+                    delay = compute_delay(retry_count, DEFAULT_RETRY_POLICY, error_class, retry_after)
+                    retry_count += 1
+                    logger.warning(
+                        f"[AgentLLM] 流式请求模型 {current.name} {error_class.value} 错误，"
+                        f"重试 {retry_count}/{DEFAULT_RETRY_POLICY.max_retries}，等待 {delay:.1f}s"
+                    )
+                    time.sleep(delay)
                     continue
 
-                delta = chunk.choices[0].delta
-                finish_reason = chunk.choices[0].finish_reason or finish_reason
+                # 不可重试或重试耗尽，尝试回退到下一个模型
+                if model_manager.get_queue() and model_manager.get_queue().has_fallback():
+                    logger.warning(f"[AgentLLM] 流式请求模型 {current.name} 失败({error_class.value})，切换备用模型")
+                    model_manager.switch_to_next_model()
+                    break  # 跳出 retry while，进入外层 for 尝试下一个模型
 
-                # 文本内容增量
-                content_delta = delta.content or ""
-                if content_delta:
-                    yield StreamEvent(type="token", content=content_delta)
-
-                # tool_calls 增量
-                tc_deltas = getattr(delta, 'tool_calls', None)
-                if tc_deltas:
-                    for tc_delta in tc_deltas:
-                        _merge_tool_call_deltas(tool_calls_accumulated, tc_delta)
-
-            # 流结束，处理结果
-            model_manager.reset_to_primary()
-
-            if tool_calls_accumulated:
-                # 组装最终 tool_calls
-                parsed_calls = []
-                for tc in tool_calls_accumulated:
-                    try:
-                        args = json.loads(tc["arguments"]) if tc["arguments"] else {}
-                    except json.JSONDecodeError:
-                        args = {}
-                    parsed_calls.append({
-                        "id": tc["id"],
-                        "name": tc["name"],
-                        "arguments": args,
-                    })
+                # 没有备用模型，返回错误
+                error_msgs = {
+                    ErrorClass.TIMEOUT: "AI 响应超时",
+                    ErrorClass.CONNECTION: "网络连接失败",
+                    ErrorClass.RATE_LIMIT: "请求过于频繁，请稍后再试",
+                    ErrorClass.SERVER_ERROR: f"AI 服务不可用: {e}",
+                }
                 yield StreamEvent(
-                    type="tool_calls",
-                    tool_calls=parsed_calls,
-                    finish_reason="tool_calls",
+                    type="error",
+                    content=error_msgs.get(error_class, f"AI 调用失败: {e}"),
                 )
-            elif finish_reason == "stop":
-                pass  # token 事件已经逐个 yield
-
-            yield StreamEvent(type="done", finish_reason=finish_reason or "stop")
-            return
-
-        except litellm.Timeout:
-            if model_manager.get_queue() and model_manager.get_queue().has_fallback():
-                model_manager.switch_to_next_model()
-                continue
-            yield StreamEvent(type="error", content="AI 响应超时")
-            return
-
-        except litellm.APIConnectionError:
-            if model_manager.get_queue() and model_manager.get_queue().has_fallback():
-                model_manager.switch_to_next_model()
-                continue
-            yield StreamEvent(type="error", content="网络连接失败")
-            return
-
-        except litellm.APIError as e:
-            logger.warning(f"[AgentLLM] 流式请求模型 {current.name} 失败: {e}")
-            if model_manager.get_queue() and model_manager.get_queue().has_fallback():
-                model_manager.switch_to_next_model()
-                continue
-            yield StreamEvent(type="error", content=f"AI 服务不可用: {e}")
-            return
-
-        except Exception as e:
-            logger.error(f"[AgentLLM] 流式请求异常: {e}")
-            if model_manager.get_queue() and model_manager.get_queue().has_fallback():
-                model_manager.switch_to_next_model()
-                continue
-            yield StreamEvent(type="error", content=f"AI 调用失败: {e}")
-            return
+                return
 
     yield StreamEvent(type="error", content="所有模型均不可用")

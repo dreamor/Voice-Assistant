@@ -173,7 +173,7 @@ class FunASREngine:
             try:
                 Path(tmp_path).unlink(missing_ok=True)
             except OSError:
-                pass
+                logger.debug("[FunASR] 临时文件清理失败（可忽略）")
 
     def close(self):
         """关闭引擎，释放资源"""

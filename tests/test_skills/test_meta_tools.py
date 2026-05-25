@@ -7,7 +7,7 @@ from voice_assistant.skills.meta_tools import get_skill_meta_tools
 
 @pytest.fixture
 def loaded_manager(tmp_path, monkeypatch) -> SkillManager:
-    """注入一个真实 SkillManager 到 session 模块，模拟启动后状态"""
+    """注入一个真实 SkillManager 到 AppLifecycle，模拟启动后状态"""
     (tmp_path / "alpha").mkdir()
     (tmp_path / "alpha" / "SKILL.md").write_text(
         "---\nname: alpha\ntrigger: keywords\nkeywords: [a]\n"
@@ -21,9 +21,10 @@ def loaded_manager(tmp_path, monkeypatch) -> SkillManager:
     mgr = SkillManager(tmp_path)
     mgr.reload()
 
-    from voice_assistant.core import session as session_mod
-    monkeypatch.setattr(session_mod, "_skill_manager", mgr)
-    monkeypatch.setattr(session_mod, "_mcp_manager", None)
+    from voice_assistant.core.lifecycle import get_lifecycle
+    lc = get_lifecycle()
+    monkeypatch.setattr(lc, "_skill_manager", mgr)
+    monkeypatch.setattr(lc, "_mcp_manager", None)
     return mgr
 
 
@@ -36,9 +37,10 @@ def _by_name(name: str):
 
 @pytest.mark.unit
 def test_list_skills_no_manager(monkeypatch):
-    from voice_assistant.core import session as session_mod
+    from voice_assistant.core.lifecycle import get_lifecycle
+    lc = get_lifecycle()
+    monkeypatch.setattr(lc, "_skill_manager", None)
 
-    monkeypatch.setattr(session_mod, "_skill_manager", None)
     out = _by_name("list_skills").handler()
     assert "未启用" in out
 
@@ -109,8 +111,9 @@ def test_meta_tools_have_correct_security_levels():
 
 @pytest.mark.unit
 def test_check_deps_when_no_manager(monkeypatch):
-    from voice_assistant.core import session as session_mod
+    from voice_assistant.core.lifecycle import get_lifecycle
+    lc = get_lifecycle()
+    monkeypatch.setattr(lc, "_skill_manager", None)
 
-    monkeypatch.setattr(session_mod, "_skill_manager", None)
     out = _by_name("check_skill_deps").handler(name="anything")
     assert "未启用" in out

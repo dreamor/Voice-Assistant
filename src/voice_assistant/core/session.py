@@ -6,6 +6,7 @@ ASR + Agent Loop（LLM + function calling + tool 执行）+ TTS + 历史
 import logging
 import os
 import tempfile
+import warnings
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -13,130 +14,41 @@ from voice_assistant.audio.asr_provider import ASRProvider, create_asr_provider
 from voice_assistant.audio.tts import TTSProvider, create_tts_provider
 from voice_assistant.config import config
 from voice_assistant.core.asr_corrector import correct_asr_result
+from voice_assistant.core.lifecycle import AppLifecycle, get_lifecycle
 
 logger = logging.getLogger(__name__)
 
 
-_mcp_manager = None  # 全局 MCPManager 单例，由首个 registry 触发懒加载
-_skill_manager = None  # 全局 SkillManager 单例
-
-
 def _build_tool_registry():
-    """根据配置构建 ToolRegistry（延迟导入避免循环依赖）"""
-    from voice_assistant.platform import detect_platform
-    from voice_assistant.security.safe_guard import SafeGuard, SecurityLevel, ToolPolicy
-    from voice_assistant.tools.platform_specific import get_platform_tools
-    from voice_assistant.tools.registry import ToolRegistry
-    from voice_assistant.tools.universal import get_universal_tools
-
-    guard = SafeGuard(
-        policies=[
-            ToolPolicy(tool_name=name, blocked=True)
-            for name in config.tools.blocked
-        ]
-        + [
-            ToolPolicy(
-                tool_name=ov.name,
-                override_level=SecurityLevel(ov.level),
-            )
-            for ov in config.tools.overrides
-        ]
-    )
-    platform = detect_platform()
-    registry = ToolRegistry(current_platform=platform, safe_guard=guard)
-    registry.register_all(get_universal_tools())
-    registry.register_all(get_platform_tools(platform))
-
-    # 在 MCP server 启动前先注册 meta tools，确保「list_mcp_servers」始终可用
-    from voice_assistant.tools.mcp import get_mcp_meta_tools
-    registry.register_all(get_mcp_meta_tools())
-
-    _start_mcp(registry)
-
-    # Skill 系统：注册 meta tools + 加载磁盘上的 skill 定义
-    from voice_assistant.skills.meta_tools import get_skill_meta_tools
-    registry.register_all(get_skill_meta_tools())
-    _start_skills()
-
-    logger.info(
-        f"[VoiceSession] 注册 {len(registry.list_tools())} 个工具 (platform={platform})"
-    )
-    return registry
-
-
-def _start_mcp(registry) -> None:
-    """启动 MCP server 并把工具桥接到 registry。失败不影响主流程。"""
-    global _mcp_manager
-    if _mcp_manager is not None:
-        return
-    try:
-        from pathlib import Path
-
-        from voice_assistant.tools.mcp import MCPManager, load_servers
-
-        cfg_dir = Path("config")
-        servers = load_servers(
-            cfg_dir / "mcp_servers.yaml",
-            secrets_path=cfg_dir / "secrets.yaml",
-        )
-        if not servers:
-            return
-        mgr = MCPManager(registry)
-        mgr.start(servers)
-        _mcp_manager = mgr
-    except Exception:
-        logger.exception("[VoiceSession] MCP 启动失败，已忽略")
+    """根据配置构建 ToolRegistry（委托给 AppLifecycle）"""
+    return get_lifecycle().build_tool_registry()
 
 
 def get_mcp_manager():
-    """供 Web UI / LLM tool 获取当前 MCP manager"""
-    return _mcp_manager
-
-
-def _start_skills() -> None:
-    """加载 skills/ 目录下的 SKILL.md。失败不影响主流程。"""
-    global _skill_manager
-    if _skill_manager is not None:
-        return
-    try:
-        from pathlib import Path
-
-        from voice_assistant.skills import SkillManager
-
-        root = Path("skills")
-        mgr = SkillManager(root)
-        mgr.reload()
-        _skill_manager = mgr
-    except Exception:
-        logger.exception("[VoiceSession] Skill 加载失败，已忽略")
+    """供 Web UI / LLM tool 获取当前 MCP manager（向后兼容）"""
+    return get_lifecycle().mcp_manager
 
 
 def get_skill_manager():
-    """供 LLM meta tool / Web UI 获取当前 SkillManager"""
-    return _skill_manager
+    """供 LLM meta tool / Web UI 获取当前 SkillManager（向后兼容）"""
+    return get_lifecycle().skill_manager
 
 
 def _build_skill_addendum(user_text: str) -> str:
-    """每次 LLM 调用前生成 system prompt 补丁。manager 未启用时返回 ''。"""
-    if _skill_manager is None:
-        return ""
-    try:
-        return _skill_manager.build_addendum_for_message(user_text)
-    except Exception:
-        logger.exception("[VoiceSession] build_skill_addendum 失败")
-        return ""
+    """每次 LLM 调用前生成 system prompt 补丁"""
+    return get_lifecycle().build_skill_addendum(user_text)
+
+
+def _build_tool_group_hint() -> str:
+    """生成工具分组提示，告知 LLM 可按需请求加载额外工具组"""
+    from voice_assistant.tools.tool_groups import get_group_summary
+    return get_group_summary()
 
 
 def shutdown_mcp() -> None:
-    """供应用退出钩子调用"""
-    global _mcp_manager
-    if _mcp_manager is not None:
-        try:
-            _mcp_manager.shutdown()
-        except Exception:
-            logger.exception("[VoiceSession] MCP 关闭失败")
-        finally:
-            _mcp_manager = None
+    """供应用退出钩子调用（向后兼容）"""
+    from voice_assistant.core.lifecycle import shutdown_lifecycle
+    shutdown_lifecycle()
 
 
 @dataclass
@@ -178,6 +90,7 @@ class VoiceSession:
         self._orchestrator = None  # AgentOrchestrator
         self._history: list = []
         self._max_history_turns = max(2, getattr(config.history, "max_turns", 20))
+        self._max_context_tokens = getattr(config.history, "max_context_tokens", 6000)
         self._initialized = False
 
     def initialize(self) -> bool:
@@ -239,10 +152,14 @@ class VoiceSession:
             self._on_execution_start()
         try:
             self._orchestrator._confirm_callback = self._confirm_callback
+            extra_system = _build_skill_addendum(user_text)
+            tool_group_hint = _build_tool_group_hint()
+            if tool_group_hint:
+                extra_system = f"{extra_system}\n\n{tool_group_hint}" if extra_system else tool_group_hint
             agent_result = self._orchestrator.run(
                 user_text=user_text,
                 conversation_history=context_history,
-                extra_system=_build_skill_addendum(user_text),
+                extra_system=extra_system,
             )
 
             response = agent_result.response or "(无回复)"
@@ -290,10 +207,14 @@ class VoiceSession:
             self._on_execution_start()
         try:
             self._orchestrator._confirm_callback = self._confirm_callback
+            extra_system = _build_skill_addendum(user_text)
+            tool_group_hint = _build_tool_group_hint()
+            if tool_group_hint:
+                extra_system = f"{extra_system}\n\n{tool_group_hint}" if extra_system else tool_group_hint
             for event in self._orchestrator.run_stream(
                 user_text,
                 conversation_history=context_history,
-                extra_system=_build_skill_addendum(user_text),
+                extra_system=extra_system,
             ):
                 if event.type == "complete" and event.result:
                     response = event.result.response or "(无回复)"
@@ -356,7 +277,7 @@ class VoiceSession:
             try:
                 os.unlink(tmp_path)
             except OSError:
-                pass
+                logger.debug("[VoiceSession] 临时文件清理失败（可忽略）")
 
     def synthesize_stream(self, text: str):
         """流式语音合成：逐句 yield 音频数据"""
@@ -393,9 +314,45 @@ class VoiceSession:
         self._history.append({"role": "assistant", "content": response})
         self._trim_history()
 
+    def _estimate_tokens(self, messages: list) -> int:
+        """粗略估算消息列表的 token 数。
+
+        中文约 1.5 字符/token，英文约 4 字符/token。
+        取较保守的估算（偏向更早裁剪）以避免超出上下文窗口。
+        每条消息额外计入 4 token 的角色/格式开销。
+        """
+        total = 0
+        for msg in messages:
+            content = msg.get("content", "")
+            if content is None:
+                content = ""
+            # 中文按 1.5 字符/token，其余按 4 字符/token
+            zh_chars = sum(1 for c in content if "一" <= c <= "鿿")
+            other_chars = len(content) - zh_chars
+            total += int(zh_chars / 1.5) + int(other_chars / 4) + 4
+        return total
+
     def _trim_history(self):
+        """按 token 数和轮次双重上限裁剪历史，保留系统消息。"""
+        # 1. 轮次上限裁剪
         if len(self._history) > self._max_history_turns:
             self._history = self._history[-self._max_history_turns:]
+
+        # 2. token 上限裁剪：从最旧的消息开始移除
+        if self._estimate_tokens(self._history) > self._max_context_tokens:
+            # 保留系统消息（如果有）
+            system_msgs = [m for m in self._history if m.get("role") == "system"]
+            non_system = [m for m in self._history if m.get("role") != "system"]
+
+            while non_system and self._estimate_tokens(system_msgs + non_system) > self._max_context_tokens:
+                non_system.pop(0)
+
+            self._history = system_msgs + non_system
+            if non_system:
+                logger.debug(
+                    f"[VoiceSession] 历史裁剪至 {len(self._history)} 条消息, "
+                    f"约 {self._estimate_tokens(self._history)} tokens"
+                )
 
     def toggle_asr_mode(self) -> tuple[bool, str]:
         """切换本地/云端 ASR 模式"""
@@ -413,8 +370,8 @@ class VoiceSession:
                 from voice_assistant.audio.cloud_asr import CloudASR
 
                 self._asr = CloudASR(api_key=config.asr.api_key, model=config.asr.model)
-            except Exception:
-                pass
+            except Exception as fallback_err:
+                logger.error(f"[VoiceSession] ASR 回退到云端也失败: {fallback_err}")
             return False, "云端"
 
     def get_asr_mode(self) -> str:

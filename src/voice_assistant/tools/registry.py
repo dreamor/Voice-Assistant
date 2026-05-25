@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from voice_assistant.security.safe_guard import GuardResult, SafeGuard, SecurityLevel
+from voice_assistant.security.validation import tool_limiter
+from voice_assistant.tools.tool_groups import get_tools_for_groups
 
 logger = logging.getLogger(__name__)
 
@@ -117,12 +119,23 @@ class ToolRegistry:
     def has_tool(self, name: str) -> bool:
         return name in self._tools
 
-    def get_openai_tools(self) -> list[dict]:
-        """导出为 OpenAI function calling tools 列表"""
-        return [t.to_openai_function() for t in self._tools.values()]
+    def get_openai_tools(self, groups: list[str] | None = None) -> list[dict]:
+        """导出为 OpenAI function calling tools 列表
+
+        Args:
+            groups: 工具分组名列表。None 表示返回所有工具（向后兼容）。
+        """
+        allowed = get_tools_for_groups(groups)
+        if allowed is None:
+            return [t.to_openai_function() for t in self._tools.values()]
+        return [
+            t.to_openai_function()
+            for name, t in self._tools.items()
+            if name in allowed
+        ]
 
     def execute(self, tool_name: str, arguments: dict) -> dict[str, Any]:
-        """执行工具（含安全检查和参数校验）
+        """执行工具（含速率限制、安全检查和参数校验）
 
         Returns:
             {"success": bool, "result": str, "needs_confirmation": bool, "guard_result": ...}
@@ -132,6 +145,11 @@ class ToolRegistry:
             return ToolResult(
                 success=False, output=f"未知工具: {tool_name}"
             ).to_dict()
+
+        # 速率限制检查
+        allowed, rate_msg = tool_limiter.check(tool_name)
+        if not allowed:
+            return ToolResult(success=False, output=rate_msg).to_dict()
 
         # 参数校验
         validation_errors = _validate_arguments(tool.parameters, arguments)

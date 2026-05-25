@@ -105,10 +105,11 @@ servers:
 @pytest.mark.unit
 def test_meta_tool_lists_servers_when_no_manager(monkeypatch):
     """list_mcp_servers 在无 manager 时给出友好提示"""
-    from voice_assistant.core import session as session_mod
+    from voice_assistant.core.lifecycle import get_lifecycle
     from voice_assistant.tools.mcp import get_mcp_meta_tools
 
-    monkeypatch.setattr(session_mod, "_mcp_manager", None)
+    lc = get_lifecycle()
+    monkeypatch.setattr(lc, "_mcp_manager", None)
     tools = get_mcp_meta_tools()
     tool = next(t for t in tools if t.name == "list_mcp_servers")
     assert "MCP 未启用" in tool.handler()

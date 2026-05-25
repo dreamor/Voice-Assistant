@@ -27,7 +27,7 @@ class _FakeMcpMgr:
 def app_client(tmp_path: Path, monkeypatch):
     """提供一个带 fake MCP/Skill manager 的 TestClient，不启动 lifespan"""
     import web_ui as web_ui_mod
-    from voice_assistant.core import session as session_mod
+    from voice_assistant.core.lifecycle import get_lifecycle
 
     (tmp_path / "alpha").mkdir()
     (tmp_path / "alpha" / "SKILL.md").write_text(
@@ -37,12 +37,10 @@ def app_client(tmp_path: Path, monkeypatch):
     mgr = SkillManager(tmp_path)
     mgr.reload()
 
-    monkeypatch.setattr(session_mod, "_mcp_manager", _FakeMcpMgr())
-    monkeypatch.setattr(session_mod, "_skill_manager", mgr)
+    lc = get_lifecycle()
+    monkeypatch.setattr(lc, "_mcp_manager", _FakeMcpMgr())
+    monkeypatch.setattr(lc, "_skill_manager", mgr)
 
-    # 用 raise_server_exceptions=False 跳过 lifespan
-    # TestClient 默认会触发 lifespan, 包含 init_db / 注册 ToolRegistry，
-    # 不便于纯路由测试。这里我们直接 raw_app=web_ui_mod.app + lifespan="off"
     with TestClient(web_ui_mod.app) as client:
         yield client
 
@@ -100,12 +98,12 @@ def test_reload_skills_endpoint(app_client: TestClient):
 def test_skill_endpoints_503_when_manager_absent(monkeypatch):
     """没有 Skill manager 时返回 503"""
     import web_ui as web_ui_mod
-    from voice_assistant.core import session as session_mod
+    from voice_assistant.core.lifecycle import get_lifecycle
 
     with TestClient(web_ui_mod.app) as client:
-        # lifespan 启动后再 patch（覆盖 lifespan 主动构建的 manager）
-        monkeypatch.setattr(session_mod, "_skill_manager", None)
-        monkeypatch.setattr(session_mod, "_mcp_manager", None)
+        lc = get_lifecycle()
+        monkeypatch.setattr(lc, "_skill_manager", None)
+        monkeypatch.setattr(lc, "_mcp_manager", None)
 
         # GET 仍然返回 200（空列表），仅 POST 启停操作要求 manager 存在
         r = client.get("/api/skills")
@@ -125,10 +123,11 @@ def test_skill_endpoints_503_when_manager_absent(monkeypatch):
 @pytest.mark.unit
 def test_mcp_servers_empty_when_manager_absent(monkeypatch):
     import web_ui as web_ui_mod
-    from voice_assistant.core import session as session_mod
+    from voice_assistant.core.lifecycle import get_lifecycle
 
     with TestClient(web_ui_mod.app) as client:
-        monkeypatch.setattr(session_mod, "_mcp_manager", None)
+        lc = get_lifecycle()
+        monkeypatch.setattr(lc, "_mcp_manager", None)
 
         r = client.get("/api/mcp/servers")
         assert r.status_code == 200

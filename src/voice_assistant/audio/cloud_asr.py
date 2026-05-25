@@ -314,7 +314,7 @@ class CloudASR:
                 try:
                     os.unlink(tmp_path)
                 except OSError:
-                    pass
+                    logger.debug("[CloudASR] 临时文件清理失败（可忽略）")
 
         except (RateLimitError, InputValidationError):
             raise

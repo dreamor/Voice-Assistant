@@ -181,7 +181,7 @@ def get_installed_version(package_name: str, version_attr: str = "__version__") 
         pkg_name = package_name_map.get(package_name, package_name.replace("_", "-"))
         return importlib.metadata.version(pkg_name)
     except Exception:
-        pass
+        logger.debug(f"[Dependencies] importlib.metadata 查询 {package_name} 版本失败")
 
     # 然后尝试从模块属性获取
     try:
@@ -198,7 +198,7 @@ def get_installed_version(package_name: str, version_attr: str = "__version__") 
                 if any(c.isdigit() for c in v_str):
                     return v_str
     except ImportError:
-        pass
+        logger.debug(f"[Dependencies] 模块 {package_name} 未安装")
 
     return None
 

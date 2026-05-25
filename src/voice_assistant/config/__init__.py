@@ -85,6 +85,7 @@ class VADConfig:
 class HistoryConfig:
     """对话历史配置"""
     max_turns: int
+    max_context_tokens: int = 6000
 
 
 @dataclass(frozen=True)
@@ -437,7 +438,10 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
             wait_timeout=cfg['vad']['wait_timeout'],
             max_recording=cfg['vad']['max_recording'],
         ),
-        history=HistoryConfig(max_turns=cfg['history']['max_turns']),
+        history=HistoryConfig(
+            max_turns=cfg['history']['max_turns'],
+            max_context_tokens=cfg['history'].get('max_context_tokens', 6000),
+        ),
         logging=LoggingConfig(
             level=cfg['logging']['level'],
             format=cfg['logging']['format'],
