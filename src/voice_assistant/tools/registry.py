@@ -77,7 +77,7 @@ class ToolDefinition:
     parameters: dict  # JSON Schema
     handler: Callable
     security_level: SecurityLevel = SecurityLevel.WRITE
-    platforms: list[str] = field(default_factory=lambda: ["mac", "windows"])
+    platforms: list[str] = field(default_factory=lambda: ["mac", "windows", "linux"])
 
     def to_openai_function(self) -> dict:
         """转为 OpenAI function calling 格式"""
