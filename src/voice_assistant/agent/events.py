@@ -4,7 +4,6 @@
 借鉴 pi 的分层事件模型，提供比旧 AgentEvent 更丰富的事件类型，
 使前端能精确感知 agent 处于哪个阶段，并携带完整的工具执行数据。
 """
-import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum

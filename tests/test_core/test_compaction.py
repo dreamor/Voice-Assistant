@@ -2,8 +2,6 @@
 from unittest.mock import patch
 
 from voice_assistant.core.compaction import (
-    COMPACT_PROMPT,
-    CompactionResult,
     compact,
     estimate_tokens,
     should_compact,

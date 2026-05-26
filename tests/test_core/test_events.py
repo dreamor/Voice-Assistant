@@ -60,7 +60,8 @@ class TestEventBus:
     def test_off_removes_handler(self):
         bus = EventBus()
         results = []
-        handler = lambda e: results.append("called")
+        def handler(e):
+            results.append("called")
         bus.on(EventName.ERROR, handler)
         bus.emit(Event(name=EventName.ERROR))
         assert results == ["called"]
