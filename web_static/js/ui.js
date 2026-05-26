@@ -503,6 +503,126 @@ export function scrollToBottom() {
 }
 
 /**
+ * 显示工具调用信息
+ * @param {string} toolName - 工具名称
+ * @param {Object} arguments - 工具参数
+ * @param {string} callId - 调用 ID
+ */
+export function showToolCall(toolName, args, callId) {
+    const callDiv = document.createElement('div');
+    callDiv.className = 'message assistant tool-call-msg';
+    callDiv.dataset.callId = callId || '';
+
+    const argsText = args && Object.keys(args).length > 0
+        ? Object.entries(args).map(([k, v]) => `${k}: ${typeof v === 'string' ? v : JSON.stringify(v)}`).join(', ')
+        : '';
+
+    callDiv.innerHTML = `
+        <div class="message-avatar">🔧</div>
+        <div class="message-content">
+            <div class="tool-call-header">
+                <span class="tool-call-name">${escapeHtml(toolName)}</span>
+                <span class="tool-call-status">执行中...</span>
+            </div>
+            ${argsText ? `<div class="tool-call-args">${escapeHtml(argsText)}</div>` : ''}
+        </div>
+    `;
+
+    elements.messages.appendChild(callDiv);
+    scrollToBottom();
+}
+
+/**
+ * 显示工具执行结果
+ * @param {Object} data - 工具结果数据
+ * @param {string} data.toolName - 工具名称
+ * @param {string} data.toolCallId - 调用 ID
+ * @param {boolean} data.success - 是否成功
+ * @param {string} data.message - 结果消息
+ * @param {Object} data.data - 结构化数据
+ * @param {string} data.displayHint - 渲染提示
+ * @param {number} data.durationMs - 执行耗时
+ */
+export function showToolResult(data) {
+    const { toolName, toolCallId, success, message, displayHint, durationMs } = data;
+
+    // 尝试匹配已有的 tool-call 消息并更新
+    const callDiv = toolCallId
+        ? document.querySelector(`.tool-call-msg[data-call-id="${toolCallId}"]`)
+        : null;
+
+    if (callDiv) {
+        const statusEl = callDiv.querySelector('.tool-call-status');
+        if (statusEl) {
+            statusEl.textContent = success ? '✓ 完成' : '✗ 失败';
+            statusEl.className = `tool-call-status ${success ? 'tool-status-ok' : 'tool-status-err'}`;
+        }
+        if (durationMs != null) {
+            const durEl = document.createElement('span');
+            durEl.className = 'tool-call-duration';
+            durEl.textContent = `${durationMs}ms`;
+            callDiv.querySelector('.tool-call-header').appendChild(durEl);
+        }
+        const resultEl = document.createElement('div');
+        resultEl.className = `tool-result ${success ? 'tool-result-ok' : 'tool-result-err'}`;
+        resultEl.innerHTML = renderToolContent(message, data.data, displayHint);
+        callDiv.querySelector('.message-content').appendChild(resultEl);
+        return;
+    }
+
+    // 没有匹配的 tool-call，独立显示结果
+    const resultDiv = document.createElement('div');
+    resultDiv.className = `message assistant tool-result-msg ${success ? 'tool-result-ok' : 'tool-result-err'}`;
+    resultDiv.innerHTML = `
+        <div class="message-avatar">${success ? '✓' : '✗'}</div>
+        <div class="message-content">
+            <div class="tool-result-header">${escapeHtml(toolName || '工具')}</div>
+            <div class="tool-result-body">${renderToolContent(message, data.data, displayHint)}</div>
+        </div>
+    `;
+    elements.messages.appendChild(resultDiv);
+    scrollToBottom();
+}
+
+/**
+ * 根据 displayHint 渲染工具结果内容
+ * @param {string} message - 结果文本
+ * @param {Object} data - 结构化数据
+ * @param {string} hint - 渲染提示
+ * @returns {string} HTML 内容
+ */
+function renderToolContent(message, data, hint) {
+    if (!hint || hint === 'text') {
+        return `<p>${escapeHtml(message || '')}</p>`;
+    }
+    if (hint === 'code') {
+        const lang = data?.language || '';
+        return `<pre><code class="language-${lang}">${escapeHtml(message || '')}</code></pre>`;
+    }
+    if (hint === 'table' && data?.headers && data?.rows) {
+        const hdr = data.headers.map(h => `<th>${escapeHtml(h)}</th>`).join('');
+        const rows = data.rows.map(r =>
+            `<tr>${r.map(c => `<td>${escapeHtml(String(c))}</td>`).join('')}</tr>`
+        ).join('');
+        return `<table class="tool-result-table"><thead><tr>${hdr}</tr></thead><tbody>${rows}</tbody></table>`;
+    }
+    if (hint === 'image' && data?.url) {
+        return `<img src="${escapeHtml(data.url)}" class="tool-result-image" alt="tool result" />`;
+    }
+    if (hint === 'markdown') {
+        return formatMessageContent(message || '');
+    }
+    if (hint === 'link' && data?.url) {
+        return `<a href="${escapeHtml(data.url)}" target="_blank" rel="noopener">${escapeHtml(message || data.url)}</a>`;
+    }
+    if (hint === 'error') {
+        return `<div class="tool-result-error">${escapeHtml(message || '执行失败')}</div>`;
+    }
+    // 降级为纯文本
+    return `<p>${escapeHtml(message || '')}</p>`;
+}
+
+/**
  * 显示确认弹窗
  * @param {Object} data - 确认数据
  */

@@ -4,7 +4,7 @@
 """
 from unittest.mock import MagicMock
 
-from voice_assistant.agent.orchestrator import AgentEvent, AgentResult
+from voice_assistant.agent.events import AgentEvent, AgentResult, EventType
 from voice_assistant.core.session import VoiceSession
 
 
@@ -18,22 +18,23 @@ def _make_session(mock_orchestrator):
 
 
 class TestProcessTextStream:
-    def test_empty_input_yields_complete(self):
+    def test_empty_input_yields_agent_end(self):
         session = _make_session(MagicMock())
         events = list(session.process_text_stream("  "))
 
         assert len(events) == 1
-        assert events[0].type == "complete"
+        assert events[0].type == EventType.AGENT_END
         assert events[0].result.intent_type == "unknown"
 
     def test_orchestrator_events_passthrough(self):
         mock_orch = MagicMock()
         mock_orch.run_stream.return_value = iter([
-            AgentEvent(type="llm_token", content="正在"),
-            AgentEvent(type="llm_token", content="打开"),
-            AgentEvent(type="tool_start", tool_name="open_file", tool_arguments={"file": "a.py"}),
-            AgentEvent(type="tool_result", tool_name="open_file", tool_result="ok", success=True),
-            AgentEvent(type="complete", result=AgentResult(
+            AgentEvent(type=EventType.MESSAGE_DELTA, content="正在"),
+            AgentEvent(type=EventType.MESSAGE_DELTA, content="打开"),
+            AgentEvent(type=EventType.TOOL_CALL, tool_name="open_file", tool_arguments={"file": "a.py"}),
+            AgentEvent(type=EventType.TOOL_EXECUTION_START, tool_name="open_file", tool_call_id="call_1"),
+            AgentEvent(type=EventType.TOOL_EXECUTION_END, tool_name="open_file", tool_call_id="call_1", tool_result="ok", tool_success=True),
+            AgentEvent(type=EventType.AGENT_END, result=AgentResult(
                 success=True, response="已打开文件", tool_calls_made=["open_file"],
             )),
         ])
@@ -41,25 +42,27 @@ class TestProcessTextStream:
 
         events = list(session.process_text_stream("打开文件"))
 
-        token_events = [e for e in events if e.type == "llm_token"]
-        start_events = [e for e in events if e.type == "tool_start"]
-        result_events = [e for e in events if e.type == "tool_result"]
-        complete_events = [e for e in events if e.type == "complete"]
+        delta_events = [e for e in events if e.type == EventType.MESSAGE_DELTA]
+        call_events = [e for e in events if e.type == EventType.TOOL_CALL]
+        exec_start_events = [e for e in events if e.type == EventType.TOOL_EXECUTION_START]
+        exec_end_events = [e for e in events if e.type == EventType.TOOL_EXECUTION_END]
+        end_events = [e for e in events if e.type == EventType.AGENT_END]
 
-        assert len(token_events) == 2
-        assert token_events[0].content == "正在"
-        assert len(start_events) == 1
-        assert start_events[0].tool_name == "open_file"
-        assert len(result_events) == 1
-        assert len(complete_events) == 1
-        assert complete_events[0].result.intent_type == "agent"
-        assert complete_events[0].result.history_updated is True
-        assert complete_events[0].result.execution_output == "open_file"
+        assert len(delta_events) == 2
+        assert delta_events[0].content == "正在"
+        assert len(call_events) == 1
+        assert call_events[0].tool_name == "open_file"
+        assert len(exec_start_events) == 1
+        assert len(exec_end_events) == 1
+        assert len(end_events) == 1
+        assert end_events[0].result.intent_type == "agent"
+        assert end_events[0].result.history_updated is True
+        assert end_events[0].result.execution_output == "open_file"
 
     def test_history_updated_after_complete(self):
         mock_orch = MagicMock()
         mock_orch.run_stream.return_value = iter([
-            AgentEvent(type="complete", result=AgentResult(
+            AgentEvent(type=EventType.AGENT_END, result=AgentResult(
                 success=True, response="你好！", tool_calls_made=[],
             )),
         ])
@@ -78,14 +81,14 @@ class TestProcessTextStream:
 
         events = list(session.process_text_stream("打开文件"))
 
-        error_events = [e for e in events if e.type == "error"]
+        error_events = [e for e in events if e.type == EventType.ERROR]
         assert len(error_events) == 1
         assert "LLM 超时" in error_events[0].content
 
     def test_execution_callbacks_fire(self):
         mock_orch = MagicMock()
         mock_orch.run_stream.return_value = iter([
-            AgentEvent(type="complete", result=AgentResult(success=True, response="ok")),
+            AgentEvent(type=EventType.AGENT_END, result=AgentResult(success=True, response="ok")),
         ])
         starts, ends = [], []
         session = _make_session(mock_orch)

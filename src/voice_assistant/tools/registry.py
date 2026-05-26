@@ -7,7 +7,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from voice_assistant.security.safe_guard import GuardResult, SafeGuard, SecurityLevel
-from voice_assistant.security.validation import tool_limiter
 from voice_assistant.tools.tool_groups import get_tools_for_groups
 
 logger = logging.getLogger(__name__)
@@ -21,6 +20,7 @@ class ToolResult:
     data: dict[str, Any] = field(default_factory=dict)
     needs_confirmation: bool = False
     guard_result: GuardResult | None = None
+    display_hint: str = "text"
 
     def to_dict(self) -> dict[str, Any]:
         """转换为字典（向后兼容）"""
@@ -31,6 +31,10 @@ class ToolResult:
         }
         if self.guard_result is not None:
             result["guard_result"] = self.guard_result
+        if self.data:
+            result["data"] = self.data
+        if self.display_hint != "text":
+            result["display_hint"] = self.display_hint
         result.update(self.data)
         return result
 
@@ -98,6 +102,21 @@ class ToolRegistry:
         self._tools: dict[str, ToolDefinition] = {}
         self._platform = current_platform
         self._guard = safe_guard or SafeGuard()
+        self._hook_chain: Any = None  # HookChain, 延迟初始化避免循环导入
+
+    def _ensure_hooks(self) -> None:
+        """延迟初始化 hook 链"""
+        if self._hook_chain is not None:
+            return
+        from voice_assistant.agent.hooks.chain import HookChain
+        from voice_assistant.agent.hooks.guard import SafeGuardHook
+        from voice_assistant.agent.hooks.rate_limit import RateLimitHook
+        from voice_assistant.agent.hooks.validation import ValidationHook
+
+        self._hook_chain = HookChain()
+        self._hook_chain.add(RateLimitHook())
+        self._hook_chain.add(ValidationHook())
+        self._hook_chain.add(SafeGuardHook(self._guard))
 
     def register(self, tool: ToolDefinition):
         """注册工具"""
@@ -135,7 +154,7 @@ class ToolRegistry:
         ]
 
     def execute(self, tool_name: str, arguments: dict) -> dict[str, Any]:
-        """执行工具（含速率限制、安全检查和参数校验）
+        """执行工具（通过 hook 链进行速率限制、参数校验和安全检查）
 
         Returns:
             {"success": bool, "result": str, "needs_confirmation": bool, "guard_result": ...}
@@ -146,39 +165,38 @@ class ToolRegistry:
                 success=False, output=f"未知工具: {tool_name}"
             ).to_dict()
 
-        # 速率限制检查
-        allowed, rate_msg = tool_limiter.check(tool_name)
-        if not allowed:
-            return ToolResult(success=False, output=rate_msg).to_dict()
+        self._ensure_hooks()
+        from voice_assistant.agent.hooks.chain import HookContext
 
-        # 参数校验
-        validation_errors = _validate_arguments(tool.parameters, arguments)
-        if validation_errors:
-            return ToolResult(
-                success=False, output=f"参数校验失败: {'; '.join(validation_errors)}"
+        ctx = HookContext(
+            tool_name=tool_name,
+            arguments=arguments,
+            metadata={"security_level": tool.security_level, "parameters": tool.parameters},
+        )
+
+        before_result = self._hook_chain.run_before(ctx)
+        if not before_result.proceed:
+            return before_result.modified_result or ToolResult(
+                success=False, output=before_result.reason or "操作被阻止"
             ).to_dict()
 
-        # 安全检查
-        guard = self._guard.check(tool_name, arguments, tool.security_level)
-        from voice_assistant.security.safe_guard import GuardAction
-
-        if guard.action == GuardAction.BLOCKED:
-            return ToolResult(
-                success=False, output=f"操作被阻止: {guard.message}"
-            ).to_dict()
-
-        if guard.action in (GuardAction.CONFIRM_NEEDED, GuardAction.DOUBLE_CONFIRM):
-            return ToolResult(
-                success=True, output=guard.message,
-                needs_confirmation=True, guard_result=guard
-            ).to_dict()
-
-        # 自动执行 (READ_ONLY)
+        # 自动执行
         return self._execute_internal(tool_name, arguments)
 
     def execute_confirmed(self, tool_name: str, arguments: dict) -> dict[str, Any]:
         """用户确认后的执行（跳过安全检查）"""
         return self._execute_internal(tool_name, arguments)
+
+    def add_hook(self, hook: Any) -> None:
+        """添加自定义 hook 到链末尾"""
+        self._ensure_hooks()
+        self._hook_chain.add(hook)
+
+    @property
+    def hook_chain(self) -> Any:
+        """访问 hook 链（用于高级配置）"""
+        self._ensure_hooks()
+        return self._hook_chain
 
     def _execute_internal(self, tool_name: str, arguments: dict) -> dict[str, Any]:
         """内部执行"""
@@ -188,22 +206,45 @@ class ToolRegistry:
                 success=False, output=f"未知工具: {tool_name}"
             ).to_dict()
 
+        self._emit_event("tool_before", {"tool_name": tool_name, "arguments": arguments})
+
         try:
             logger.info(f"[ToolRegistry] 执行: {tool_name}({arguments})")
             result = tool.handler(**arguments)
             if isinstance(result, str):
-                return ToolResult(success=True, output=result).to_dict()
-            if isinstance(result, dict):
+                result_dict = ToolResult(success=True, output=result).to_dict()
+            elif isinstance(result, dict):
                 result["needs_confirmation"] = False
-                return result
-            return ToolResult(success=True, output=str(result)).to_dict()
+                result_dict = result
+            else:
+                result_dict = ToolResult(success=True, output=str(result)).to_dict()
+
+            # 运行 after hooks
+            if self._hook_chain is not None:
+                from voice_assistant.agent.hooks.chain import HookContext
+                ctx = HookContext(
+                    tool_name=tool_name,
+                    arguments=arguments,
+                    result=result_dict,
+                    metadata={"security_level": tool.security_level, "parameters": tool.parameters},
+                )
+                self._hook_chain.run_after(ctx)
+                final_result = ctx.result or result_dict
+                self._emit_event("tool_after", {"tool_name": tool_name, "success": True, "result_preview": str(final_result.get("result", ""))[:200]})
+                return final_result
+
+            self._emit_event("tool_after", {"tool_name": tool_name, "success": True, "result_preview": str(result_dict.get("result", ""))[:200]})
+            return result_dict
+
         except TypeError as e:
             logger.error(f"[ToolRegistry] 参数错误 {tool_name}: {e}")
+            self._emit_event("tool_after", {"tool_name": tool_name, "success": False, "error": str(e)})
             return ToolResult(
                 success=False, output=f"参数错误: {e}"
             ).to_dict()
         except Exception as e:
             logger.error(f"[ToolRegistry] 执行失败 {tool_name}: {e}")
+            self._emit_event("tool_after", {"tool_name": tool_name, "success": False, "error": str(e)})
             return ToolResult(
                 success=False, output=f"执行失败: {e}"
             ).to_dict()
@@ -213,3 +254,14 @@ class ToolRegistry:
 
     def get_tools_by_level(self, level: SecurityLevel) -> list[ToolDefinition]:
         return [t for t in self._tools.values() if t.security_level == level]
+
+    @staticmethod
+    def _emit_event(name: str, data: dict) -> None:
+        """通过 EventBus 发送全局事件（通知用途，不可拦截）"""
+        try:
+            from voice_assistant.core.events import Event, EventName, get_event_bus
+            bus = get_event_bus()
+            event_name = EventName(name) if name in EventName.__members__ else name
+            bus.emit(Event(name=event_name, data=data))
+        except Exception:
+            pass

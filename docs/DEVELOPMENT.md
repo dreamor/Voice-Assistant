@@ -46,8 +46,8 @@ voice-assistant/
 │   ├── db.py                       # SQLite
 │   ├── config/                     # 配置加载、custom_providers.yaml 读写
 │   ├── audio/                      # cloud_asr / funasr_asr / tts
-│   ├── core/                       # session / lifecycle / model_manager / asr_corrector
-│   ├── agent/                      # orchestrator / llm_client / retry (Agent Loop)
+│   ├── core/                       # session / lifecycle / model_manager / asr_corrector / compaction / events / session_tree
+│   ├── agent/                      # orchestrator / events / llm_client / retry / hooks (Agent Loop)
 │   ├── tools/                      # registry + tool_groups + universal + platform_specific + mcp
 │   ├── skills/                     # SKILL.md 加载 + selector + meta_tools
 │   ├── security/                   # validation + safe_guard + ws_auth
@@ -63,9 +63,9 @@ voice-assistant/
 │   │   └── middleware.py           # HTTP 中间件 + RateLimiter
 │   └── platform/                   # 平台检测
 ├── tests/
-│   ├── test_agent/                 # orchestrator / llm_client / retry / skill_injection
+│   ├── test_agent/                 # orchestrator / events / llm_client / retry / skill_injection / hooks
 │   ├── test_audio/                 # cloud_asr / tts
-│   ├── test_core/                  # session / lifecycle / session_history
+│   ├── test_core/                  # session / lifecycle / session_history / compaction / events / session_tree
 │   ├── test_security/              # safe_guard / ws_auth / tool_rate_limit
 │   ├── test_skills/                # meta_tools
 │   ├── test_tools/                 # registry / mcp / tool_groups
@@ -84,7 +84,7 @@ pytest tests/test_audio/test_cloud_asr_callback.py -v   # 单文件
 pytest --cov=voice_assistant tests/                     # 覆盖率
 ```
 
-当前测试统计：**512 passed**, 3 skipped（156 个集成/单元测试覆盖 Phase 1-4 优化）。
+当前测试统计：**563 passed**, 2 skipped（覆盖核心模块、Agent、工具、Web UI、Hook 系统、EventBus、Compaction、SessionTree）。
 
 新增功能必须配套测试，目标覆盖率 ≥ 80%。
 
@@ -110,7 +110,8 @@ from voice_assistant.tools.registry import register_tool, ToolResult
     safety_level="confirm",  # auto / confirm / double_confirm / blocked
 )
 def my_tool(arg1: str) -> ToolResult:
-    return ToolResult(success=True, data={"result": ...})
+    return ToolResult(success=True, output="结果", display_hint="text")
+    # display_hint: text | code | table | image | markdown | link | file | error
 ```
 
 会自动出现在 LLM 的 function calling 工具列表中。

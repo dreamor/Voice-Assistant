@@ -29,6 +29,26 @@ class TestToolResult:
         assert r.needs_confirmation is True
         assert r.guard_result is guard
 
+    def test_display_hint_default(self):
+        r = ToolResult(success=True, output="hello")
+        assert r.display_hint == "text"
+
+    def test_display_hint_code(self):
+        r = ToolResult(success=True, output="print('hi')", display_hint="code", data={"language": "python"})
+        d = r.to_dict()
+        assert d["display_hint"] == "code"
+        assert d["data"] == {"language": "python"}
+
+    def test_display_hint_error(self):
+        r = ToolResult(success=False, output="file not found", display_hint="error")
+        d = r.to_dict()
+        assert d["display_hint"] == "error"
+
+    def test_display_hint_omitted_for_text(self):
+        r = ToolResult(success=True, output="hello")
+        d = r.to_dict()
+        assert "display_hint" not in d
+
     def test_to_dict_basic(self):
         r = ToolResult(success=True, output="ok")
         d = r.to_dict()

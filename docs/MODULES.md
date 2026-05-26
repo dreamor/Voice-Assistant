@@ -18,11 +18,22 @@ voice-assistant/
 │   │   ├── lifecycle.py         # AppLifecycle 单例（MCP/Skill/Registry 生命周期）
 │   │   ├── model_manager.py     # Provider / 模型故障转移
 │   │   ├── asr_corrector.py     # LLM 语境纠错
+│   │   ├── compaction.py        # 上下文压缩（LLM 摘要式 Compaction）
+│   │   ├── events.py            # EventBus 全局事件总线
+│   │   ├── session_tree.py      # SessionTree 树形会话结构
 │   │   └── dependencies.py      # 依赖检查
 │   ├── agent/
 │   │   ├── orchestrator.py      # Agent Loop（run / run_stream）
+│   │   ├── events.py            # EventType 枚举 + AgentEvent 数据类
 │   │   ├── llm_client.py        # Function Calling 通信层（litellm + 重试 + 回退）
-│   │   └── retry.py             # RetryPolicy / ErrorClass / 指数退避
+│   │   ├── retry.py             # RetryPolicy / ErrorClass / 指数退避
+│   │   └── hooks/               # 工具执行中间件管道
+│   │       ├── chain.py         # HookChain / HookContext / HookResult / ToolHook
+│   │       ├── guard.py         # SafeGuardHook（安全分级拦截）
+│   │       ├── rate_limit.py    # RateLimitHook（速率限制）
+│   │       ├── validation.py    # ValidationHook（参数校验）
+│   │       ├── audit.py         # AuditLogHook（审计日志）
+│   │       └── metrics.py       # MetricsHook（执行指标）
 │   ├── security/
 │   │   ├── validation.py        # 输入边界 + 速率限制 + ToolRateLimiter
 │   │   ├── safe_guard.py        # 工具分级拦截
@@ -80,25 +91,35 @@ python -m voice_assistant --check    # 依赖检查
 
 | 文件 | 说明 |
 |------|------|
-| `session.py` | `VoiceSession` 统一入口：`process_text()` / `process_text_stream()` / `recognize()` / `synthesize()` / `synthesize_stream()` / `get_history()`。每次 LLM 调用前注入 skill addendum + tool group hint |
+| `session.py` | `VoiceSession` 统一入口：`process_text()` / `process_text_stream()` / `recognize()` / `synthesize()` / `synthesize_stream()` / `get_history()`。每次 LLM 调用前注入 skill addendum + tool group hint。`_trim_history()` 集成 compaction（LLM 摘要压缩），超限时先摘要再裁剪 |
 | `lifecycle.py` | `AppLifecycle` 单例：管理 MCPManager / SkillManager / ToolRegistry 的生命周期，提供 `build_tool_registry()` / `build_skill_addendum()` / `shutdown()` |
 | `model_manager.py` | Provider + 模型队列，HTTP 429/5xx 故障时自动切换备用模型 |
 | `asr_corrector.py` | 用 LLM 对 ASR 结果做语境纠错（如「open interpreter」→「Open Interpreter」） |
+| `compaction.py` | 上下文压缩：`compact()` / `should_compact()` / `estimate_tokens()`。当 token 逼近上限时，用 LLM 对旧消息生成结构化摘要，保留最近消息，用系统摘要替换旧消息。发射 COMPACT_START / COMPACT_END EventBus 事件 |
+| `events.py` | 全局事件总线：`EventBus` / `EventName` / `Event` / `get_event_bus()`。与 Hook 互补 — Hook 是工具执行中间件（可拦截），EventBus 是全局广播（不可拦截）。支持 on / off / emit / clear |
+| `session_tree.py` | 树形会话结构：`SessionTree` / `TreeNode`。支持 `append()` / `branch()` / `switch_branch()` / `list_branches()` / `to_messages()` / `from_messages()` / `to_dict()` / `from_dict()`。每条消息有 `id` + `parent_id`，可从任意节点创建分支 |
 | `dependencies.py` | 启动前依赖检查 |
 
 ## Agent 模块 (`agent/`)
 
 | 文件 | 说明 |
 |------|------|
-| `orchestrator.py` | `run()` / `run_stream()`，生成 `AgentEvent`（llm_token / tool_start / tool_result / complete / error） |
+| `orchestrator.py` | `run()` / `run_stream()`，生成结构化 `AgentEvent`（AGENT_START / MESSAGE_DELTA / TOOL_CALL / TOOL_EXECUTION_START / TOOL_EXECUTION_END / AGENT_END / ERROR 等），集成 EventBus 通知 |
+| `events.py` | `EventType` 枚举（13 种事件类型）+ `AgentEvent` 数据类 + `AgentResult` + `to_ws_message()` 序列化 + `new_call_id()` + `normalize_event_type()` 向后兼容 |
 | `llm_client.py` | `call_llm_with_tools()` / `call_llm_with_tools_stream()`，基于 litellm 统一 OpenAI / Anthropic / DashScope / DeepSeek 等，含重试循环与模型回退 |
 | `retry.py` | `RetryPolicy` / `ErrorClass` / `classify_error` / `compute_delay` / `should_retry` — 指数退避重试基础设施 |
+| `hooks/chain.py` | `HookChain` 中间件管道：`before` 拦截（可阻止执行）/ `after` 修改结果 |
+| `hooks/guard.py` | `SafeGuardHook`：安全分级拦截（auto / confirm / double_confirm / blocked） |
+| `hooks/rate_limit.py` | `RateLimitHook`：每工具 + 分组速率限制 |
+| `hooks/validation.py` | `ValidationHook`：JSON Schema 参数校验 |
+| `hooks/audit.py` | `AuditLogHook`：工具调用审计日志（after hook） |
+| `hooks/metrics.py` | `MetricsHook`：执行指标统计（调用次数 / 成功率 / 耗时） |
 
-**关键设计**：Agent Loop 是唯一执行路径。LLM 自己决定是否调 tool；不调则直接生成回答（覆盖纯对话场景）。无独立 router / chat executor 分支。
+**关键设计**：Agent Loop 是唯一执行路径。LLM 自己决定是否调 tool；不调则直接生成回答（覆盖纯对话场景）。无独立 router / chat executor 分支。工具执行经 HookChain 管道（速率限制 → 参数校验 → 安全检查 → 执行 → 审计/指标），并发射 EventBus 事件（tool_before / tool_after）。
 
 ## 工具系统 (`tools/`)
 
-- `registry.py`: `@register_tool` 装饰器、`ToolResult` 数据类、参数校验、平台过滤、`get_openai_tools(groups)` 按分组筛选
+- `registry.py`: `@register_tool` 装饰器、`ToolResult` 数据类（含 `display_hint` 声明展示意图：text / code / table / image / markdown / link / file / error）、参数校验、平台过滤、`get_openai_tools(groups)` 按分组筛选。`execute()` 经 HookChain 管道执行，发射 EventBus 事件
 - `tool_groups.py`: 工具分组定义（core / file_ops / system_ops / display_ops / media_ops / network_ops / input_ops），`get_group_summary()` 生成 LLM 提示
 - `universal/`: 文件、剪贴板、屏幕、键鼠输入、系统、计算、窗口、浏览器、媒体、网络、显示、通知、文件高级、快捷操作，`run_python_code`（兜底任意 Python 任务，DANGEROUS 级别需二次确认）
 - `platform_specific/`: 按系统加载 `mac_ops.py` / `win_ops.py`
@@ -141,15 +162,18 @@ REST: `GET /api/mcp/servers`, `GET /api/skills`, `POST /api/skills/{name}/{enabl
 
 ## 数据库 (`db.py`)
 
-SQLite，表：`conversations` / `messages`。
+SQLite，表：`conversations` / `messages`（含树结构字段 `node_id` / `parent_id` / `metadata`）。启动时自动迁移。
 
 ```python
-create_conversation(title)             # -> id
-save_message(conv_id, role, content)
-get_conversation_history(conv_id, limit)
-get_history(limit)                     # 列表
+create_conversation(title)                         # -> id
+save_message(conv_id, role, content)               # 基本保存
+save_message_with_tree(conv_id, role, content,     # 含树结构字段
+                       node_id=..., parent_id=..., metadata=...)
+get_conversation_tree(conv_id)                     # 含 node_id/parent_id 的消息列表
+get_conversation_history(conv_id, limit)           # 扁平消息列表
+get_history(limit)                                 # 对话列表
 delete_conversation(conv_id)
-delete_conversations(ids)              # 批量
+delete_conversations(ids)                          # 批量
 clear_history()
 ```
 

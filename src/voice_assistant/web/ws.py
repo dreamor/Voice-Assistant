@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import WebSocket, WebSocketDisconnect
 
+from voice_assistant.agent.events import EventType
 from voice_assistant.config import config
 from voice_assistant.core import VoiceSession
 from voice_assistant.db import create_conversation, get_conversation_history, save_message
@@ -308,33 +309,55 @@ async def process_llm_response(client_id: str, conversation_id: str, user_text: 
                     if event is None:
                         break
 
-                    if event.type == "llm_token":
+                    event_type = event.type if isinstance(event.type, str) else event.type.value
+
+                    if event_type == EventType.MESSAGE_DELTA.value:
                         full_response += (event.content or "")
                         await manager.send_message(client_id, {
                             "type": "llm_stream",
                             "content": event.content,
                         })
 
-                    elif event.type == "tool_start":
+                    elif event_type == EventType.TOOL_CALL.value:
+                        await manager.send_message(client_id, {
+                            "type": "tool_call",
+                            "tool_name": event.tool_name,
+                            "tool_arguments": event.tool_arguments,
+                            "tool_call_id": event.tool_call_id,
+                        })
+
+                    elif event_type == EventType.TOOL_EXECUTION_START.value:
                         await manager.send_message(client_id, {
                             "type": "executing",
+                            "tool_name": event.tool_name,
+                            "tool_call_id": event.tool_call_id,
                             "message": f"执行: {event.tool_name}",
                         })
 
-                    elif event.type == "tool_result":
-                        await manager.send_message(client_id, {
+                    elif event_type == EventType.TOOL_EXECUTION_END.value:
+                        msg = {
                             "type": "execution_complete",
+                            "tool_name": event.tool_name,
+                            "tool_call_id": event.tool_call_id,
+                            "success": event.tool_success,
                             "message": f"{event.tool_name}: {event.tool_result or '完成'}",
-                        })
+                        }
+                        if event.tool_result_data:
+                            msg["data"] = event.tool_result_data
+                        if event.tool_display_hint and event.tool_display_hint != "text":
+                            msg["display_hint"] = event.tool_display_hint
+                        if event.duration_ms is not None:
+                            msg["duration_ms"] = event.duration_ms
+                        await manager.send_message(client_id, msg)
 
-                    elif event.type == "complete":
+                    elif event_type == EventType.AGENT_END.value:
                         process_result = event.result
                         if process_result and hasattr(process_result, 'response'):
                             full_response = process_result.response
                             if process_result.execution_output:
                                 full_response = f"{full_response}\n\n执行结果:\n{process_result.execution_output}"
 
-                    elif event.type == "error":
+                    elif event_type == EventType.ERROR.value:
                         await manager.send_message(client_id, {
                             "type": "error",
                             "message": event.content or "处理失败",

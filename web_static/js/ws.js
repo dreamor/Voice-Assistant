@@ -64,12 +64,50 @@ function handleWebSocketMessage(data) {
             ui.showThinking('AI 正在思考...');
             break;
 
+        case 'agent_start':
+            // Agent 循环开始
+            break;
+
+        case 'turn_start':
+            // 新一轮 LLM 调用开始
+            break;
+
+        case 'message_delta':
+            ui.hideThinking();
+            ui.updateStreamingMessage(data.content);
+            break;
+
+        case 'tool_call':
+            ui.showToolCall(data.tool_name, data.tool_arguments, data.tool_call_id);
+            break;
+
         case 'executing':
-            ui.showThinking(data.message || '正在执行操作...');
+            ui.showThinking(data.message || `正在执行: ${data.tool_name || '操作'}...`);
             break;
 
         case 'execution_complete':
             ui.hideThinking();
+            ui.showToolResult({
+                toolName: data.tool_name,
+                toolCallId: data.tool_call_id,
+                success: data.success,
+                message: data.message,
+                data: data.data,
+                displayHint: data.display_hint,
+                durationMs: data.duration_ms,
+            });
+            break;
+
+        case 'turn_end':
+            // 一轮 LLM 调用结束
+            break;
+
+        case 'agent_end':
+            // Agent 循环结束
+            break;
+
+        case 'compact':
+            // 上下文压缩通知（预留）
             break;
 
         case 'llm_stream':

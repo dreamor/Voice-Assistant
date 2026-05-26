@@ -46,6 +46,9 @@ def init_db():
         )
     """)
 
+    # 增量迁移：添加树结构字段
+    _migrate_tree_columns(cursor)
+
     conn.commit()
     conn.close()
     logger.info(f"[DB] 数据库初始化完成: {DB_PATH}")
@@ -157,3 +160,86 @@ def clear_history():
     cursor.execute("DELETE FROM conversations")
     conn.commit()
     conn.close()
+
+
+def _migrate_tree_columns(cursor) -> None:
+    """增量迁移：为 messages 表添加树结构字段"""
+    # 获取现有列名
+    cursor.execute("PRAGMA table_info(messages)")
+    existing = {row[1] for row in cursor.fetchall()}
+
+    if "node_id" not in existing:
+        cursor.execute("ALTER TABLE messages ADD COLUMN node_id TEXT")
+    if "parent_id" not in existing:
+        cursor.execute("ALTER TABLE messages ADD COLUMN parent_id TEXT")
+    if "metadata" not in existing:
+        cursor.execute("ALTER TABLE messages ADD COLUMN metadata TEXT")
+
+    # 添加索引
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_messages_node_id ON messages(node_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_messages_parent_id ON messages(parent_id)")
+
+
+def save_message_with_tree(
+    conversation_id: str,
+    role: str,
+    content: str,
+    node_id: str | None = None,
+    parent_id: str | None = None,
+    metadata: dict | None = None,
+    audio_path: str | None = None,
+) -> str:
+    """保存消息到数据库（支持树结构字段）"""
+    import json
+
+    if node_id is None:
+        node_id = str(uuid.uuid4())
+
+    conn = sqlite3.connect(str(DB_PATH))
+    cursor = conn.cursor()
+    cursor.execute(
+        """INSERT INTO messages (conversation_id, role, content, audio_path, node_id, parent_id, metadata)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (conversation_id, role, content, audio_path, node_id, parent_id,
+         json.dumps(metadata) if metadata else None),
+    )
+    cursor.execute(
+        "UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        (conversation_id,),
+    )
+    conn.commit()
+    conn.close()
+    return node_id
+
+
+def get_conversation_tree(conversation_id: str) -> list[dict]:
+    """获取对话的树结构消息（包含 node_id 和 parent_id）"""
+    import json
+
+    conn = sqlite3.connect(str(DB_PATH))
+    cursor = conn.cursor()
+    cursor.execute(
+        """SELECT id, role, content, created_at, node_id, parent_id, metadata
+           FROM messages WHERE conversation_id = ? ORDER BY created_at""",
+        (conversation_id,),
+    )
+    rows = cursor.fetchall()
+    conn.close()
+
+    result = []
+    for r in rows:
+        item = {
+            "id": r[0],
+            "role": r[1],
+            "content": r[2],
+            "created_at": r[3],
+            "node_id": r[4],
+            "parent_id": r[5],
+        }
+        if r[6]:
+            try:
+                item["metadata"] = json.loads(r[6])
+            except (json.JSONDecodeError, TypeError):
+                item["metadata"] = {}
+        result.append(item)
+    return result

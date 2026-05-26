@@ -1633,3 +1633,118 @@ html, body {
     padding: 0 4px;
     border-radius: 3px;
 }
+
+/* ===== Tool Call & Result Styles ===== */
+
+.tool-call-msg .message-content {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+}
+
+.tool-call-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.tool-call-name {
+    font-family: var(--font-mono, 'SF Mono', 'Fira Code', monospace);
+    color: var(--color-accent);
+    background: var(--color-bg);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+}
+
+.tool-call-status {
+    color: var(--color-text-muted);
+    font-size: 0.8rem;
+}
+
+.tool-call-status.tool-status-ok {
+    color: #16a34a;
+}
+
+.tool-call-status.tool-status-err {
+    color: #dc2626;
+}
+
+.tool-call-duration {
+    color: var(--color-text-muted);
+    font-size: 0.75rem;
+    margin-left: auto;
+}
+
+.tool-call-args {
+    margin-top: var(--space-xs);
+    font-size: 0.8rem;
+    color: var(--color-text-secondary);
+    font-family: var(--font-mono, 'SF Mono', 'Fira Code', monospace);
+    word-break: break-all;
+}
+
+.tool-result {
+    margin-top: var(--space-sm);
+    padding: var(--space-sm);
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.tool-result-ok {
+    background: #f0fdf4;
+    border-left: 3px solid #16a34a;
+}
+
+.tool-result-err {
+    background: #fef2f2;
+    border-left: 3px solid #dc2626;
+}
+
+.tool-result-error {
+    color: #dc2626;
+    font-weight: 500;
+}
+
+.tool-result-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: var(--space-xs);
+    font-size: 0.8rem;
+}
+
+.tool-result-table th,
+.tool-result-table td {
+    padding: var(--space-xs) var(--space-sm);
+    border: 1px solid var(--color-border);
+    text-align: left;
+}
+
+.tool-result-table th {
+    background: var(--color-bg);
+    font-weight: 600;
+}
+
+.tool-result-image {
+    max-width: 100%;
+    border-radius: var(--radius-sm);
+    margin-top: var(--space-xs);
+}
+
+.tool-result-msg .message-content {
+    border-radius: var(--radius-sm);
+}
+
+.tool-result-header {
+    font-weight: 600;
+    font-size: 0.85rem;
+    margin-bottom: var(--space-xs);
+}
+
+.tool-result-body {
+    font-size: 0.85rem;
+    line-height: 1.5;
+}

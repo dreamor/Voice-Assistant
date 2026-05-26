@@ -190,12 +190,12 @@ class VoiceSession:
 
     def process_text_stream(self, user_text: str, history: list | None = None):
         """流式处理（生成 AgentEvent）"""
-        from voice_assistant.agent.orchestrator import AgentEvent
+        from voice_assistant.agent.events import AgentEvent, EventType
 
         self._ensure_initialized()
         if not user_text.strip():
             yield AgentEvent(
-                type="complete",
+                type=EventType.AGENT_END,
                 result=ProcessResult(response="", intent_type="unknown", confidence=0.0),
             )
             return
@@ -215,11 +215,11 @@ class VoiceSession:
                 conversation_history=context_history,
                 extra_system=extra_system,
             ):
-                if event.type == "complete" and event.result:
+                if event.type == EventType.AGENT_END and event.result:
                     response = event.result.response or "(无回复)"
                     self._append_history(user_text, response)
                     yield AgentEvent(
-                        type="complete",
+                        type=EventType.AGENT_END,
                         result=ProcessResult(
                             response=response,
                             intent_type="agent",
@@ -237,7 +237,7 @@ class VoiceSession:
         except Exception as e:
             logger.error(f"[VoiceSession] Stream Agent 循环失败: {e}", exc_info=True)
             yield AgentEvent(
-                type="error",
+                type=EventType.ERROR,
                 content=f"抱歉，处理失败: {e}",
             )
         finally:
@@ -332,26 +332,60 @@ class VoiceSession:
         return total
 
     def _trim_history(self):
-        """按 token 数和轮次双重上限裁剪历史，保留系统消息。"""
+        """按 token 数和轮次双重上限裁剪历史，保留系统消息。
+
+        当 token 超限时先尝试 compaction（LLM 摘要），
+        只在 compaction 后仍超限时才裁剪。
+        """
         # 1. 轮次上限裁剪
         if len(self._history) > self._max_history_turns:
             self._history = self._history[-self._max_history_turns:]
 
-        # 2. token 上限裁剪：从最旧的消息开始移除
+        # 2. token 上限：先尝试 compaction，再裁剪
         if self._estimate_tokens(self._history) > self._max_context_tokens:
-            # 保留系统消息（如果有）
-            system_msgs = [m for m in self._history if m.get("role") == "system"]
-            non_system = [m for m in self._history if m.get("role") != "system"]
+            try:
+                from voice_assistant.core.compaction import compact, should_compact
 
-            while non_system and self._estimate_tokens(system_msgs + non_system) > self._max_context_tokens:
-                non_system.pop(0)
+                if should_compact(self._history, self._max_context_tokens):
+                    result = compact(self._history, self._max_context_tokens)
+                    if result.messages_removed > 0:
+                        # 用压缩后的消息替换（保留系统摘要 + 最近消息）
+                        self._history = [
+                            m for m in self._history
+                            if m.get("role") == "system"
+                            and not m.get("content", "").startswith("[上下文摘要]")
+                        ]
+                        # 添加摘要
+                        self._history.insert(0, {
+                            "role": "system",
+                            "content": f"[上下文摘要]\n{result.summary}",
+                        })
+                        # 保留最近消息
+                        recent_count = result.messages_kept - 1  # 减去摘要消息
+                        if recent_count > 0:
+                            self._history.extend(self._history[-recent_count:])
 
-            self._history = system_msgs + non_system
-            if non_system:
-                logger.debug(
-                    f"[VoiceSession] 历史裁剪至 {len(self._history)} 条消息, "
-                    f"约 {self._estimate_tokens(self._history)} tokens"
-                )
+                        logger.info(
+                            f"[VoiceSession] 上下文压缩: 移除 {result.messages_removed} 条, "
+                            f"{result.tokens_before} → {result.tokens_after} tokens"
+                        )
+            except Exception as e:
+                logger.warning(f"[VoiceSession] 上下文压缩失败，降级为裁剪: {e}")
+
+            # compaction 后仍超限，回退到简单裁剪
+            if self._estimate_tokens(self._history) > self._max_context_tokens:
+                system_msgs = [m for m in self._history if m.get("role") == "system"]
+                non_system = [m for m in self._history if m.get("role") != "system"]
+
+                while non_system and self._estimate_tokens(system_msgs + non_system) > self._max_context_tokens:
+                    non_system.pop(0)
+
+                self._history = system_msgs + non_system
+                if non_system:
+                    logger.debug(
+                        f"[VoiceSession] 历史裁剪至 {len(self._history)} 条消息, "
+                        f"约 {self._estimate_tokens(self._history)} tokens"
+                    )
 
     def toggle_asr_mode(self) -> tuple[bool, str]:
         """切换本地/云端 ASR 模式"""

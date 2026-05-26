@@ -16,10 +16,13 @@
                               │     │     └─ RetryPolicy (agent/retry.py, 指数退避 + 模型回退)
                               │     ├─ ModelManager (core/model_manager.py, 故障切换)
                               │     ├─ ToolRegistry (tools/) + ToolGroups (tools/tool_groups.py)
-                              │     ├─ SafeGuard (security/) + ToolRateLimiter (security/validation.py)
-                              │     └─ 循环：function call → tool → 结果回传 → 直到无 tool 或 stop
+                              │     │     └─ HookChain (agent/hooks/) ← SafeGuard / RateLimit / Validation / Audit / Metrics
+                              │     ├─ EventBus (core/events.py) ← 全局事件通知
+                              │     └─ 循环：function call → hook before → tool → hook after → 结果回传
                               │
                               ├─ SkillManager (skills/) → extra_system prompt 注入
+                              │
+                              ├─ Compaction (core/compaction.py) ← 长对话 LLM 摘要压缩
                               │
                               └─ TTS (audio/tts.py, 分句流式合成, 超时保护)
                                        │
@@ -49,21 +52,32 @@
 
 ### `voice_assistant.agent`
 
+- `events.py` — 结构化事件流协议：`EventType` 枚举（13 种事件类型）+ `AgentEvent` 数据类 + `AgentResult` + `to_ws_message()` 序列化 + `new_call_id()` 调用 ID 生成 + `normalize_event_type()` 向后兼容映射
+- `orchestrator.py` — Agent 循环控制：`run` / `run_stream`，生成结构化 `AgentEvent`（MESSAGE_DELTA / TOOL_CALL / TOOL_EXECUTION_START / TOOL_EXECUTION_END / AGENT_START / AGENT_END / TURN_START / TURN_END / ERROR），集成 EventBus 通知
 - `llm_client.py` — `call_llm_with_tools` / `call_llm_with_tools_stream`（基于 litellm 统一多 Provider 接口，含重试循环与模型回退）
-- `orchestrator.py` — Agent 循环控制：`run` / `run_stream`，逐 token 流式 + tool 调度
 - `retry.py` — `RetryPolicy`、`ErrorClass`、`classify_error`、`compute_delay`（指数退避 + 抖动）
+- `hooks/` — 工具执行中间件管道：
+  - `chain.py` — `HookChain` / `HookContext` / `HookResult` / `ToolHook` Protocol
+  - `guard.py` — `SafeGuardHook`（安全分级拦截）
+  - `rate_limit.py` — `RateLimitHook`（速率限制）
+  - `validation.py` — `ValidationHook`（参数校验）
+  - `audit.py` — `AuditLogHook`（审计日志）
+  - `metrics.py` — `MetricsHook`（执行指标统计）
 
 ### `voice_assistant.core`
 
-- `session.py` — `VoiceSession`：ASR + Agent Loop + TTS + 历史的统一入口（含 tool group hint 注入）
+- `session.py` — `VoiceSession`：ASR + Agent Loop + TTS + 历史的统一入口（含 tool group hint 注入 + 上下文压缩）
 - `lifecycle.py` — `AppLifecycle` 单例：管理 MCPManager / SkillManager / ToolRegistry 生命周期
 - `model_manager.py` — 模型队列与故障切换（429/500 切换备用，400 不切）
 - `asr_corrector.py` — 用 LLM 对 ASR 结果做语境纠错
+- `compaction.py` — 上下文压缩：当 token 逼近上限时，用 LLM 对旧消息生成结构化摘要，替换原始消息（`compact()` / `should_compact()` / `estimate_tokens()`）
+- `events.py` — 全局事件总线 `EventBus`：`EventName` 枚举 + `Event` 数据类 + `on/off/emit/clear` + `get_event_bus()` 单例。与 Hook 互补：Hook 是工具执行中间件（可拦截），EventBus 是全局广播（不可拦截）
+- `session_tree.py` — 树形会话结构 `SessionTree` / `TreeNode`：支持分支创建、分支切换、活跃分支导出为消息列表、从扁平消息列表构建（兼容旧数据）、序列化/反序列化
 - `dependencies.py` — 启动时依赖检查
 
 ### `voice_assistant.tools`
 
-- `registry.py` — `@register_tool` 装饰器、`ToolResult`、参数校验、平台过滤、`get_openai_tools(groups)` 按分组筛选
+- `registry.py` — `@register_tool` 装饰器、`ToolResult`（含 `display_hint` 声明展示意图）、参数校验、平台过滤、`get_openai_tools(groups)` 按分组筛选。工具执行经 `HookChain` 中间件管道（速率限制 → 参数校验 → 安全检查 → 执行 → 审计/指标），并发射 `EventBus` 事件
 - `tool_groups.py` — 工具分组定义（core / file_ops / system_ops / display_ops / media_ops / network_ops / input_ops），`get_group_summary()` 生成 LLM 提示
 - `universal/` — 通用工具：文件 / 剪贴板 / 屏幕 / 输入 / 系统 / 实用 / 窗口 / 浏览器 / 媒体 / 网络 / 显示 / 通知 / 文件高级 / 快捷操作
 - `platform_specific/mac_ops.py` `win_ops.py` — 平台原生操作
@@ -97,7 +111,7 @@
 
 ### `voice_assistant.db`
 
-SQLite 对话历史，表 `conversations` / `messages`。导出函数：`create_conversation` / `save_message` / `get_history` / `delete_conversation` / `delete_conversations` / `clear_history`。
+SQLite 对话历史，表 `conversations` / `messages`（含 `node_id` / `parent_id` / `metadata` 树结构字段）。导出函数：`create_conversation` / `save_message` / `save_message_with_tree` / `get_conversation_tree` / `get_history` / `delete_conversation` / `delete_conversations` / `clear_history`。启动时自动迁移添加树结构字段。
 
 ## Web 层
 
@@ -164,11 +178,16 @@ ES Module 拆分：
 浏览器输入 → ws 发送 user_text
   → web_ui.py: VoiceSession.process_text_stream
   → AgentOrchestrator.run_stream
-       ├─ 推 llm_token 事件（逐 token）
-       ├─ 推 tool_start / tool_result（tool 调用）
-       └─ 推 complete（最终回复）
+       ├─ AGENT_START 事件
+       ├─ TURN_START / TURN_END（每轮 LLM 调用）
+       ├─ MESSAGE_DELTA 事件（逐 token）
+       ├─ TOOL_CALL → TOOL_EXECUTION_START → TOOL_EXECUTION_END（工具调用全生命周期）
+       │    └─ HookChain: RateLimit → Validation → SafeGuard → execute → Audit → Metrics
+       │    └─ EventBus: tool_before / tool_after 全局通知
+       └─ AGENT_END 事件（最终回复）
   → web_ui.py 边收边推到前端
-       ├─ ws 推 token → ui.js 增量渲染
+       ├─ ws 推 message_delta → ui.js 增量渲染
+       ├─ ws 推 tool_call / execution_complete → ui.js 结构化工具结果展示
        └─ ws 推 tts_chunk → audio.js StreamingAudioPlayer 逐句播放
 ```
 
