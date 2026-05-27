@@ -64,3 +64,11 @@ models/*
 !models/.gitkeep
 default.profraw
 .ruff_cache/
+
+# Node.js
+node_modules/
+
+# Claude Code / Agent config
+.claude/
+.agents/
+.codegraph/
