@@ -215,9 +215,11 @@ class CloudASR:
             with open(audio_file_path, 'rb') as f:
                 audio_data = f.read()
 
-            # 如果是 WAV 格式，跳过文件头
+            # 如果是 WAV 格式，使用 wave 模块正确提取 PCM 数据
             if audio_data[:4] == b'RIFF':
-                audio_data = audio_data[44:]
+                import wave as wave_mod
+                with wave_mod.open(audio_file_path, 'rb') as wf:
+                    audio_data = wf.readframes(wf.getnframes())
 
             # 创建 Recognition 对象
             recognition = Recognition(

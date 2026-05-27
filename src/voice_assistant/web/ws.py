@@ -124,7 +124,19 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                     logger.info(f"[WebUI] 收到音频数据: {len(audio_bytes)} bytes, 格式: {audio_format}")
                 except Exception as e:
                     logger.error(f"[WebUI] Base64 decode failed: {e}, base64 length: {len(audio_base64)}")
-                    raise
+                    await manager.send_message(client_id, {
+                        "type": "error",
+                        "message": "音频数据解码失败，请重试"
+                    })
+                    continue
+
+                if len(audio_bytes) < 100:
+                    logger.warning(f"[WebUI] 音频数据过小: {len(audio_bytes)} bytes，可能未录制到有效音频")
+                    await manager.send_message(client_id, {
+                        "type": "error",
+                        "message": "录制的音频太短，请重试"
+                    })
+                    continue
 
                 wav_bytes = convert_audio_to_wav(audio_bytes, audio_format)
 

@@ -41,22 +41,36 @@ export async function startRecording() {
 
         const audioChunks = [];
         let isSpeechDetected = false;
-        let silenceTimer = null;
         let speechStartTime = null;
+        const recordingStartTime = Date.now();
+        const MAX_RECORDING_DURATION = 30000; // 最长录音 30 秒
 
-        // VAD 检测循环
-        const vadInterval = setInterval(() => {
-            const dataArray = new Uint8Array(analyser.frequencyBinCount);
-            analyser.getByteFrequencyData(dataArray);
+        // VAD 检测循环（使用频域 RMS — 已验证稳定，阈值在 vadConfig.speechThreshold ≈ 0.02 工作）
+        state.vadIntervalId = setInterval(() => {
+            if (!state.isRecording) return;
 
-            // 计算音量（RMS）
-            let sum = 0;
-            for (let i = 0; i < dataArray.length; i++) {
-                sum += dataArray[i] * dataArray[i];
+            let rms;
+            try {
+                const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                analyser.getByteFrequencyData(dataArray);
+                let sum = 0;
+                for (let i = 0; i < dataArray.length; i++) {
+                    sum += dataArray[i] * dataArray[i];
+                }
+                rms = Math.sqrt(sum / dataArray.length) / 255;
+            } catch (e) {
+                // AudioContext 已关闭
+                return;
             }
-            const rms = Math.sqrt(sum / dataArray.length) / 255;
 
             const now = Date.now();
+
+            // 最大录音时长保护
+            if (now - recordingStartTime > MAX_RECORDING_DURATION) {
+                logger.info('[WebUI] VAD: 录音超时，自动停止');
+                stopRecording();
+                return;
+            }
 
             if (rms > vadConfig.speechThreshold) {
                 // 检测到语音
@@ -71,15 +85,17 @@ export async function startRecording() {
                 }
 
                 // 清除静音定时器
-                if (silenceTimer) {
-                    clearTimeout(silenceTimer);
-                    silenceTimer = null;
+                if (state.silenceTimerId) {
+                    clearTimeout(state.silenceTimerId);
+                    state.silenceTimerId = null;
                 }
             } else if (isSpeechDetected) {
                 // 语音中但音量低
-                if (!silenceTimer) {
-                    silenceTimer = setTimeout(() => {
-                        const speechDuration = Date.now() - speechStartTime;
+                if (!state.silenceTimerId) {
+                    state.silenceTimerId = setTimeout(() => {
+                        if (!state.isRecording) return;
+
+                        const speechDuration = Date.now() - (speechStartTime || Date.now());
                         if (speechDuration >= vadConfig.minSpeechDuration) {
                             logger.info('[WebUI] VAD: 静音超时，自动停止录音');
                             stopRecording();
@@ -88,12 +104,19 @@ export async function startRecording() {
                             isSpeechDetected = false;
                             state.vad.speechDetected = false;
                             state.vad.isSpeaking = false;
-                            silenceTimer = null;
+                            state.silenceTimerId = null;
                             updateRecordingIndicator('listening');
                             logger.info('[WebUI] VAD: 语音太短，继续等待');
                         }
                     }, vadConfig.silenceDuration);
                     updateRecordingIndicator('silence');
+                }
+            } else {
+                // 未检测到语音
+                const elapsed = now - recordingStartTime;
+                if (elapsed > 5000 && !isSpeechDetected) {
+                    logger.info('[WebUI] VAD: 5秒内未检测到语音，自动停止');
+                    stopRecording();
                 }
             }
         }, 100);
@@ -107,8 +130,7 @@ export async function startRecording() {
 
         // MediaRecorder 停止回调
         mediaRecorder.onstop = async () => {
-            clearInterval(vadInterval);
-            if (silenceTimer) clearTimeout(silenceTimer);
+            // VAD 定时器已由 stopRecording() 清除
 
             // 合并所有音频块
             const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
@@ -172,6 +194,21 @@ export function stopRecording() {
     }
 
     logger.info('[WebUI] 停止录音...');
+
+    // 立即清除 VAD 定时器和静音定时器，防止重复触发
+    if (state.vadIntervalId) {
+        clearInterval(state.vadIntervalId);
+        state.vadIntervalId = null;
+    }
+    if (state.silenceTimerId) {
+        clearTimeout(state.silenceTimerId);
+        state.silenceTimerId = null;
+    }
+
+    // 重置 VAD 状态
+    state.vad.speechDetected = false;
+    state.vad.isSpeaking = false;
+    state.vad.speechStartTime = null;
 
     state.mediaRecorder.stop();
     state.isRecording = false;
@@ -264,7 +301,7 @@ class StreamingAudioPlayer {
             this.chunks.delete(this.nextChunkIndex);
             this.nextChunkIndex++;
 
-            this.audio.src = `audio/mp3;base64,${base64Data}`;
+            this.audio.src = `data:audio/mp3;base64,${base64Data}`;
             this.audio.play().catch(error => {
                 logger.error('[WebUI] 播放音频块失败:', error);
                 this.isPlaying = false;

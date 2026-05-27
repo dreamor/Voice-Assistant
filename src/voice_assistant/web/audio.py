@@ -56,10 +56,12 @@ def convert_audio_to_wav(audio_bytes: bytes, audio_format: str = "audio/wav") ->
             if data.ndim > 1:
                 data = data.mean(axis=1)
             if sr != 16000:
-                ratio = 16000 / sr
-                n_samples = int(len(data) * ratio)
-                indices = np.linspace(0, len(data) - 1, n_samples).astype(int)
-                data = data[indices]
+                n_samples = int(len(data) * 16000 / sr)
+                data = np.interp(
+                    np.linspace(0, len(data) - 1, n_samples),
+                    np.arange(len(data)),
+                    data,
+                )
 
             out = io.BytesIO()
             sf.write(out, data, 16000, format='WAV')
