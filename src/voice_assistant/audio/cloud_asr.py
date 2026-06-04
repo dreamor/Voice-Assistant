@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 
 import dashscope
@@ -169,7 +170,7 @@ class CloudASR:
         try:
             self._configure_dashscope()
 
-            from dashscope.audio.asr import Recognition, RecognitionCallback
+            from dashscope.audio.asr import Recognition, RecognitionCallback, RecognitionResult
 
             # 存储识别结果 - 使用 completed_sentences + current_sentence
             # 因为 get_sentence() 返回当前句子的累积文本（非增量），
@@ -189,15 +190,15 @@ class CloudASR:
                     sentence = result.get_sentence()
                     if sentence and 'text' in sentence:
                         text = sentence['text']
-                        prev = result_container["current_sentence"]
-                        if prev and text.startswith(prev):
-                            result_container["current_sentence"] = text
-                        elif prev:
-                            result_container["completed_sentences"].append(prev)
-                            result_container["current_sentence"] = text
+                        if RecognitionResult.is_sentence_end(sentence):
+                            # 句子已完成，移入 completed_sentences
+                            result_container["completed_sentences"].append(text)
+                            result_container["current_sentence"] = ""
+                            logger.info(f"  [ASR] Sentence end: {text}")
                         else:
+                            # 句子仍在更新中，只覆盖 current_sentence
                             result_container["current_sentence"] = text
-                        logger.info(f"  [ASR] Got: {text}")
+                            logger.info(f"  [ASR] Partial: {text}")
 
                 def on_complete(self):
                     logger.info("  [ASR] Complete")
@@ -344,3 +345,98 @@ class CloudASR:
     def close(self) -> None:
         """释放资源（云端 ASR 无需特殊清理）"""
         pass
+
+
+class RealtimeASRSession:
+    """流式 ASR 会话：边录边识别，语义完整时触发回调。
+
+    用法：
+        session = RealtimeASRSession(on_sentence_end=..., on_error=...)
+        session.start()
+        session.send_chunk(pcm_int16_bytes)  # 多次调用
+        session.stop()                        # 结束并等待最终结果
+    """
+
+    def __init__(
+        self,
+        on_sentence_end: "Callable[[str], None]",
+        on_error: "Callable[[str], None] | None" = None,
+        sample_rate: int | None = None,
+    ):
+        self._on_sentence_end = on_sentence_end
+        self._on_error = on_error
+        self._sample_rate = sample_rate or config.audio.sample_rate
+        self._recognition = None
+        self._completed: list[str] = []
+        self._current = ""
+        self._started = False
+
+    def start(self) -> None:
+        from dashscope.audio.asr import Recognition, RecognitionCallback, RecognitionResult
+
+        asr_cfg = config.asr
+        dashscope.api_key = asr_cfg.api_key
+        dashscope.base_http_api_url = asr_cfg.base_url
+
+        completed = self._completed
+        current_box = [""]
+        on_sentence_end = self._on_sentence_end
+        on_error = self._on_error
+
+        class _CB(RecognitionCallback):
+            def on_event(self, result):
+                sentence = result.get_sentence()
+                if not sentence or 'text' not in sentence:
+                    return
+                text = sentence['text']
+                if RecognitionResult.is_sentence_end(sentence):
+                    completed.append(text)
+                    current_box[0] = ""
+                    logger.info(f"[RealtimeASR] sentence_end: {text}")
+                    full = "".join(completed)
+                    on_sentence_end(full)
+                else:
+                    current_box[0] = text
+
+            def on_complete(self):
+                logger.info("[RealtimeASR] complete")
+
+            def on_error(self, result):
+                msg = str(result)
+                logger.error(f"[RealtimeASR] error: {msg}")
+                if on_error:
+                    on_error(msg)
+
+            def on_open(self):
+                logger.info("[RealtimeASR] opened")
+
+            def on_close(self):
+                logger.info("[RealtimeASR] closed")
+
+        vocabulary_id = None
+        if asr_cfg.hotwords.enabled and asr_cfg.hotwords.vocabulary_id:
+            vocabulary_id = asr_cfg.hotwords.vocabulary_id
+
+        self._recognition = Recognition(
+            model=asr_cfg.model,
+            format='pcm',
+            sample_rate=self._sample_rate,
+            language_hints=asr_cfg.language_hints or ["zh", "en"],
+            disfluency_removal_enabled=asr_cfg.disfluency_removal_enabled,
+            max_sentence_silence=asr_cfg.max_sentence_silence,
+            vocabulary_id=vocabulary_id,
+            callback=_CB(),
+        )
+        self._recognition.start()
+        self._started = True
+        logger.info("[RealtimeASR] session started")
+
+    def send_chunk(self, pcm_bytes: bytes) -> None:
+        if self._started and self._recognition:
+            self._recognition.send_audio_frame(pcm_bytes)
+
+    def stop(self) -> None:
+        if self._started and self._recognition:
+            self._recognition.stop()
+            self._started = False
+            logger.info("[RealtimeASR] session stopped")

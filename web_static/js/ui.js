@@ -445,6 +445,20 @@ export function showThinking(text) {
 }
 
 /**
+ * 更新思考中提示文字（不重建 DOM，避免闪烁）
+ * @param {string} text - 新提示文本
+ */
+export function updateThinkingText(text) {
+    const thinkingDiv = document.getElementById('thinking-indicator');
+    if (thinkingDiv) {
+        const span = thinkingDiv.querySelector('.thinking-indicator > span:last-child');
+        if (span) span.textContent = text;
+    } else {
+        showThinking(text);
+    }
+}
+
+/**
  * 隐藏思考中
  */
 export function hideThinking() {

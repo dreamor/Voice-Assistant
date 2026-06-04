@@ -52,8 +52,12 @@ function handleWebSocketMessage(data) {
             ui.addUserMessage(data.content);
             break;
 
+        case 'vad_end':
+            handleVadEnd(data);
+            break;
+
         case 'asr_processing':
-            ui.showThinking('正在识别语音...');
+            ui.updateThinkingText('正在识别语音...');
             break;
 
         case 'asr_result':
@@ -153,6 +157,24 @@ function handleWebSocketMessage(data) {
 }
 
 /**
+ * 处理实时 VAD 结束（流式 ASR 检测到语义完整）
+ * @param {Object} data - { text: string }
+ */
+function handleVadEnd(data) {
+    // 停止录音（如果还在录）
+    import('./audio.js').then(audio => audio.stopRecording());
+
+    ui.hideThinking();
+    const text = data.text?.trim();
+    if (text) {
+        ui.addUserMessage(text);
+        sendTextMessage(text);
+    } else {
+        ui.showError('未能识别语音，请重试');
+    }
+}
+
+/**
  * 处理语音识别结果
  * @param {Object} data - ASR 数据
  */
@@ -195,23 +217,48 @@ export function sendTextMessage(text) {
 }
 
 /**
- * 发送音频数据
- * @param {string} base64Audio - Base64 编码的音频
- * @param {string} format - 音频格式
+ * 发送音频数据（旧路径，保留兼容）
  */
 export function sendAudioData(base64Audio, format) {
     if (state.ws && state.ws.readyState === WebSocket.OPEN) {
         if (!state.conversationId) {
-            state.ws.send(JSON.stringify({
-                type: 'start_conversation',
-                title: '语音对话'
-            }));
+            state.ws.send(JSON.stringify({ type: 'start_conversation', title: '语音对话' }));
         }
-        state.ws.send(JSON.stringify({
-            type: 'audio_data',
-            base64Audio: base64Audio,
-            format: format || 'audio/webm'
-        }));
+        state.ws.send(JSON.stringify({ type: 'audio_data', base64Audio, format: format || 'audio/webm' }));
+    }
+}
+
+/**
+ * 启动流式 ASR 会话
+ */
+export function startAudioStream() {
+    if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+        if (!state.conversationId) {
+            state.ws.send(JSON.stringify({ type: 'start_conversation', title: '语音对话' }));
+        }
+        state.ws.send(JSON.stringify({ type: 'start_audio_stream' }));
+    }
+}
+
+/**
+ * 发送实时 PCM 块
+ * @param {ArrayBuffer} buffer - int16 PCM 数据
+ */
+export function sendAudioChunk(buffer) {
+    if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+        const bytes = new Uint8Array(buffer);
+        let bin = '';
+        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        state.ws.send(JSON.stringify({ type: 'audio_chunk', data: btoa(bin) }));
+    }
+}
+
+/**
+ * 停止流式 ASR 会话
+ */
+export function stopAudioStream() {
+    if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+        state.ws.send(JSON.stringify({ type: 'stop_audio_stream' }));
     }
 }
 

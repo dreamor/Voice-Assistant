@@ -70,16 +70,60 @@ def convert_audio_to_wav(audio_bytes: bytes, audio_format: str = "audio/wav") ->
             logger.warning(f"[WebUI] WAV 重采样失败，使用原始数据: {e}")
             return audio_bytes
 
-    # 其他格式：使用 pydub 转换
-    try:
-        from pydub import AudioSegment
-        audio = AudioSegment.from_file(io.BytesIO(audio_bytes))
-        audio = audio.set_channels(1).set_frame_rate(16000)
-        out = io.BytesIO()
-        audio.export(out, format='wav')
-        wav_data = out.getvalue()
-        logger.info(f"[WebUI] {audio_format} -> WAV 转换完成: {len(audio_bytes)} -> {len(wav_data)} bytes")
-        return wav_data
-    except Exception as e:
-        logger.warning(f"[WebUI] pydub 转换失败，使用原始数据: {e}")
+    # 其他格式：用 ffmpeg subprocess 转换（避免 pydub PATH 问题）
+    return _convert_with_ffmpeg(audio_bytes, audio_format)
+
+
+def _find_ffmpeg() -> str | None:
+    """查找 ffmpeg 可执行文件路径"""
+    import os
+    import shutil
+    if path := shutil.which("ffmpeg"):
+        return path
+    for candidate in ("/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"):
+        if os.path.isfile(candidate):
+            return candidate
+    return None
+
+
+def _convert_with_ffmpeg(audio_bytes: bytes, audio_format: str) -> bytes:
+    """用 ffmpeg subprocess 将任意格式转为 16kHz 单声道 WAV"""
+    import os
+    import subprocess
+    import tempfile
+
+    ffmpeg = _find_ffmpeg()
+    if not ffmpeg:
+        logger.warning("[WebUI] ffmpeg 未找到，使用原始数据（ASR 可能失败）")
         return audio_bytes
+
+    src_path = dst_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as src_f:
+            src_f.write(audio_bytes)
+            src_path = src_f.name
+
+        dst_path = src_path.replace('.webm', '.wav')
+        cmd = [ffmpeg, '-y', '-i', src_path, '-ar', '16000', '-ac', '1', '-f', 'wav', dst_path]
+        result = subprocess.run(cmd, capture_output=True, timeout=30)
+
+        if result.returncode != 0:
+            logger.warning(f"[WebUI] ffmpeg 转换失败: {result.stderr.decode()[:200]}")
+            return audio_bytes
+
+        with open(dst_path, 'rb') as f:
+            wav_data = f.read()
+
+        logger.info(f"[WebUI] {audio_format} -> WAV: {len(audio_bytes)} -> {len(wav_data)} bytes")
+        return wav_data
+
+    except Exception as e:
+        logger.warning(f"[WebUI] ffmpeg 转换异常: {e}")
+        return audio_bytes
+    finally:
+        for p in (src_path, dst_path):
+            if p:
+                try:
+                    os.unlink(p)
+                except OSError:
+                    pass

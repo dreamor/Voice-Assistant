@@ -7,8 +7,8 @@ export const vadConfig = {
     enabled: true,                    // 启用/禁用 VAD
     silenceThreshold: 0.01,           // 静音 RMS 阈值（频域归一化）
     speechThreshold: 0.02,            // 语音 RMS 阈值（频域归一化）
-    silenceDuration: 1500,            // 静音持续时间触发停止 (ms)
-    minSpeechDuration: 500,           // 最小语音持续时间 (ms)
+    silenceDuration: 700,             // 静音持续时间触发停止 (ms)
+    minSpeechDuration: 300,           // 最小语音持续时间 (ms)
 };
 
 // 生成客户端 ID

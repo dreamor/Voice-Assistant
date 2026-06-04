@@ -21,6 +21,10 @@ sessions: dict[str, VoiceSession] = {}
 # 待确认操作
 pending_confirms: dict[str, asyncio.Future] = {}
 
+# 每个客户端的流式 ASR 会话
+from voice_assistant.audio.cloud_asr import RealtimeASRSession  # noqa: E402
+streaming_asr: dict[str, RealtimeASRSession] = {}
+
 
 def get_or_create_session(client_id: str) -> VoiceSession:
     """获取或创建客户端会话"""
@@ -41,6 +45,12 @@ def cleanup_session(client_id: str):
         sessions[client_id].cleanup()
         del sessions[client_id]
         logger.info(f"[WebUI] 清理会话: {client_id}")
+    asr = streaming_asr.pop(client_id, None)
+    if asr:
+        try:
+            asr.stop()
+        except Exception:
+            pass
 
 
 class ConnectionManager:
@@ -110,6 +120,52 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                     "conversation_id": conversation_id
                 })
 
+            elif msg_type == "start_audio_stream":
+                if not conversation_id:
+                    conversation_id = create_conversation()
+
+                loop = asyncio.get_event_loop()
+
+                def _on_sentence_end(text: str, _cid: str = client_id, _loop: asyncio.AbstractEventLoop = loop) -> None:
+                    asyncio.run_coroutine_threadsafe(
+                        manager.send_message(_cid, {"type": "vad_end", "text": text}),
+                        _loop,
+                    )
+
+                def _on_error(msg: str, _cid: str = client_id, _loop: asyncio.AbstractEventLoop = loop) -> None:
+                    asyncio.run_coroutine_threadsafe(
+                        manager.send_message(_cid, {"type": "error", "message": f"实时识别错误: {msg}"}),
+                        _loop,
+                    )
+
+                asr_session = RealtimeASRSession(on_sentence_end=_on_sentence_end, on_error=_on_error)
+                try:
+                    with ThreadPoolExecutor() as pool:
+                        await loop.run_in_executor(pool, asr_session.start)
+                    streaming_asr[client_id] = asr_session
+                    logger.info(f"[WebUI] 流式 ASR 会话已启动: {client_id}")
+                except Exception as e:
+                    logger.error(f"[WebUI] 流式 ASR 启动失败: {e}")
+                    await manager.send_message(client_id, {"type": "error", "message": "实时识别启动失败，请重试"})
+
+            elif msg_type == "audio_chunk":
+                session = streaming_asr.get(client_id)
+                if session:
+                    try:
+                        chunk_bytes = base64.b64decode(data.get("data", ""))
+                        session.send_chunk(chunk_bytes)
+                    except Exception as e:
+                        logger.warning(f"[WebUI] 转发音频块失败: {e}")
+
+            elif msg_type == "stop_audio_stream":
+                session = streaming_asr.pop(client_id, None)
+                if session:
+                    try:
+                        with ThreadPoolExecutor() as pool:
+                            await asyncio.get_event_loop().run_in_executor(pool, session.stop)
+                    except Exception as e:
+                        logger.warning(f"[WebUI] 停止流式 ASR 失败: {e}")
+
             elif msg_type == "audio_data":
                 from voice_assistant.web.audio import convert_audio_to_wav
 
@@ -138,9 +194,10 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                     })
                     continue
 
-                wav_bytes = convert_audio_to_wav(audio_bytes, audio_format)
-
+                # 尽早通知前端：音频已收到，正在识别
                 await manager.send_message(client_id, {"type": "asr_processing"})
+
+                wav_bytes = convert_audio_to_wav(audio_bytes, audio_format)
 
                 try:
                     session = get_or_create_session(client_id)
