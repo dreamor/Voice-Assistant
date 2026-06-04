@@ -2,7 +2,7 @@
 import asyncio
 import base64
 import logging
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 
 from fastapi import WebSocket, WebSocketDisconnect
 
@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 # 客户端会话存储
 sessions: dict[str, VoiceSession] = {}
 
-# 待确认操作
-pending_confirms: dict[str, asyncio.Future] = {}
+# 待确认操作（用 concurrent.futures.Future 才能在同步线程里 .result(timeout=...)）
+pending_confirms: dict[str, Future] = {}
 
 # 每个客户端的流式 ASR 会话
 streaming_asr: dict[str, RealtimeASRSession] = {}
@@ -294,11 +294,11 @@ async def process_llm_response(client_id: str, conversation_id: str, user_text: 
         loop = asyncio.get_event_loop()
 
         def confirm_callback(tool_name: str, arguments: dict, guard_result) -> bool:
-            """同步回调 — 通过 asyncio.Future 等待前端确认"""
-            future = None
+            """同步回调 — 通过 concurrent.futures.Future 等待前端确认"""
+            future: Future | None = None
             confirm_id = None
             try:
-                future = loop.create_future()
+                future = Future()
                 confirm_id = f"{client_id}_{tool_name}_{id(future)}"
                 pending_confirms[confirm_id] = future
 

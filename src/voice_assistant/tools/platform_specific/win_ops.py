@@ -239,24 +239,127 @@ def empty_trash() -> str:
 
 _APP_NAME_BLOCKED_CHARS = ("&", "|", "<", ">", "^", "`", "\"", "'", "\n", "\r")
 
+# 常见应用友好名 -> 可执行名/UWP 启动 ID 映射
+# 解决 LLM 用"Calculator"/"计算器"等友好名称时，os.startfile 找不到的问题
+_APP_NAME_ALIASES = {
+    # Windows 内置
+    "calculator": "calc.exe",
+    "计算器": "calc.exe",
+    "notepad": "notepad.exe",
+    "记事本": "notepad.exe",
+    "paint": "mspaint.exe",
+    "画图": "mspaint.exe",
+    "snippingtool": "snippingtool.exe",
+    "截图工具": "snippingtool.exe",
+    "snip": "snippingtool.exe",
+    "截图": "snippingtool.exe",
+    "taskmgr": "taskmgr.exe",
+    "任务管理器": "taskmgr.exe",
+    "task manager": "taskmgr.exe",
+    "control": "control.exe",
+    "控制面板": "control.exe",
+    "settings": "ms-settings:",
+    "设置": "ms-settings:",
+    "explorer": "explorer.exe",
+    "文件资源管理器": "explorer.exe",
+    "file explorer": "explorer.exe",
+    "cmd": "cmd.exe",
+    "command prompt": "cmd.exe",
+    "终端": "wt.exe",
+    "terminal": "wt.exe",
+    "powershell": "powershell.exe",
+    # 微软全家桶
+    "word": "winword.exe",
+    "excel": "excel.exe",
+    "powerpoint": "powerpoint.exe",
+    "ppt": "powerpoint.exe",
+    "outlook": "outlook.exe",
+    "邮件": "outlook.exe",
+    "edge": "msedge.exe",
+    "浏览器": "msedge.exe",
+    "browser": "msedge.exe",
+    # 第三方常用
+    "chrome": "chrome.exe",
+    "谷歌浏览器": "chrome.exe",
+    "firefox": "firefox.exe",
+    "火狐": "firefox.exe",
+    "vscode": "code.exe",
+    "vs code": "code.exe",
+    "代码": "code.exe",
+    "wechat": "WeChat.exe",
+    "微信": "WeChat.exe",
+    "qq": "QQ.exe",
+    "telegram": "Telegram.exe",
+    "spotify": "Spotify.exe",
+}
+
 
 def launch_application(app_name: str) -> str:
-    """启动应用程序（按可执行名称、Start Menu 应用名或路径）"""
+    """启动应用程序（按可执行名、Start Menu 名、UWP 友好名或路径）"""
     if not app_name or not app_name.strip():
         return "应用名称不能为空"
     app_name = app_name.strip()
     if any(c in app_name for c in _APP_NAME_BLOCKED_CHARS):
         return "应用名包含非法字符"
+
+    import os
+    import subprocess
+
+    # 1) 友好名 -> 可执行名（大小写不敏感）
+    # LLM 常输出 "Calculator"（首字母大写），所以统一转小写查询
+    target = _APP_NAME_ALIASES.get(app_name.lower(), app_name)
+    if target != app_name and not target.endswith(":"):
+        return _launch_by_path_or_start(target, app_name)
+
+    # 2) 路径或可执行名
+    return _launch_by_path_or_start(target, app_name)
+
+
+def _launch_by_path_or_start(target: str, display_name: str) -> str:
+    """先按文件路径启动，否则用 cmd /c start 让 Windows shell 解析"""
+    import os
+    import subprocess
+
     try:
-        import os
-        if os.path.exists(app_name):
-            os.startfile(app_name)  # type: ignore[attr-defined]
-            return f"已启动: {app_name}"
-        # 非路径：交给 Windows shell 解析（Start Menu 名、协议、PATH 可执行）
-        os.startfile(app_name)  # type: ignore[attr-defined]
-        return f"已启动: {app_name}"
+        # 绝对路径且文件存在 -> os.startfile
+        if os.path.isabs(target) and os.path.exists(target):
+            os.startfile(target)  # type: ignore[attr-defined]
+            return f"已启动: {display_name}"
+
+        # 相对路径存在 -> 也直接启动
+        if os.path.exists(target):
+            os.startfile(target)  # type: ignore[attr-defined]
+            return f"已启动: {display_name}"
+
+        # 尝试补 .exe 后缀（PATH 中的可执行名）
+        if not target.lower().endswith(".exe") and not target.endswith(":"):
+            exe = target + ".exe"
+            if os.path.exists(exe):
+                os.startfile(exe)  # type: ignore[attr-defined]
+                return f"已启动: {display_name}"
+
+        # 协议/URI 启动（ms-settings: 等）
+        if target.endswith(":"):
+            subprocess.Popen(
+                ["cmd", "/c", "start", "", target],
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            return f"已启动: {display_name}"
+
+        # 兜底：交给 Windows shell 解析（Start Menu、UWP、PATH 等）
+        # 不用 shell=True 避免注入；用 list 形式传参
+        result = subprocess.run(
+            ["cmd", "/c", "start", "", target],
+            capture_output=True, text=True, timeout=15,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        if result.returncode == 0:
+            return f"已启动: {display_name}"
+        return f"启动失败: {result.stderr.strip() or '未知错误'}"
+    except subprocess.TimeoutExpired:
+        return f"启动超时: {display_name}"
     except FileNotFoundError:
-        return f"未找到应用: {app_name}"
+        return f"未找到应用: {display_name}"
     except OSError as e:
         return f"启动失败: {e}"
 

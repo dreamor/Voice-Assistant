@@ -43,8 +43,8 @@ providers:
     base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
     api_key_env: "DASHSCOPE_API_KEY"
     models:
-      - id: "gui-plus-2026-02-26"
-        name: "gui-plus"
+      - id: "kimi-k2.6"
+        name: "kimi-k2.6"
   openai:
     name: "OpenAI"
     litellm_prefix: "openai"
