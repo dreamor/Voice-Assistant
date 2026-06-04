@@ -45,7 +45,7 @@
 
 ### `voice_assistant.audio`
 
-- `cloud_asr.py` — 云端 ASR（DashScope Paraformer），含 `HotwordsManager` 和回调累积纠正
+- `cloud_asr.py` — 云端 ASR（DashScope Paraformer），含 `HotwordsManager`、`CloudASR`（批量识别）、`RealtimeASRSession`（流式识别，边录边识别，`is_sentence_end` 触发语义停录）
 - `funasr_asr.py` — 本地 ASR（可选）
 - `asr_provider.py` — ASR 注册表，`create_asr_provider(config)` 按配置选择
 - `tts.py` — `TTSProvider` Protocol + `EdgeTTSProvider`，提供 `synthesize` / `synthesize_to_bytes` / `synthesize_stream`
@@ -194,10 +194,13 @@ ES Module 拆分：
 ### 语音输入
 
 ```
-浏览器麦克风 → MediaRecorder（前端 VAD 静音检测）
-  → ws 上传 audio_chunk
-  → CloudASR.recognize_bytes
-  → 与文本输入相同的下游
+浏览器麦克风 → AudioWorklet（PCM float32 → int16，100ms/块）
+  → 能量 VAD 检测语音开始
+  → ws 发 start_audio_stream → 建立 RealtimeASRSession（DashScope WebSocket）
+  → ws 实时发 audio_chunk（int16 PCM）
+  → DashScope is_sentence_end=True → 后端发 vad_end（含识别文本）
+  → 前端停录，直接发 text_message → 与文本输入相同的下游
+  （兜底：本地静音 1.2s 未收到 vad_end 则自动停录）
 ```
 
 ### 故障切换与重试

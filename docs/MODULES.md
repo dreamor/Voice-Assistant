@@ -56,6 +56,7 @@ voice-assistant/
 │   └── platform/                # detect_platform + MacAdapter / WindowsAdapter
 ├── web_ui.py                    # 薄入口：from voice_assistant.web import create_app
 ├── web_static/                  # Web 前端 ES Module
+│   └── worklets/pcm-processor.js  # AudioWorklet PCM 处理器
 ├── config.yaml                  # 内置配置 + 内置 Provider
 ├── config/
 │   ├── hotwords.json
@@ -80,12 +81,12 @@ python -m voice_assistant --check    # 依赖检查
 
 | 文件 | 说明 |
 |------|------|
-| `cloud_asr.py` | DashScope Paraformer 实时 ASR，含 `HotwordsManager`，提供 `recognize_bytes()` |
+| `cloud_asr.py` | DashScope Paraformer 实时 ASR，含 `HotwordsManager`、`CloudASR`（批量识别）、`RealtimeASRSession`（流式识别，录音期间保持 WebSocket 连接，`is_sentence_end` 回调通知前端语义停录） |
 | `funasr_asr.py` | 本地 FunASR Paraformer-zh |
 | `asr_provider.py` | ASR Protocol + 注册表，`create_asr_provider(config)` 按配置返回实例 |
 | `tts.py` | `TTSProvider` Protocol + `EdgeTTSProvider`（含 `synthesize_stream()` 分句流式） |
 
-注：旧版的 `vad.py` 与 `player.py` 已移除。VAD 由浏览器 MediaRecorder + 能量阈值在前端 `web_static/js/audio.js` 实现；播放由浏览器 `AudioContext` + `StreamingAudioPlayer` 负责。
+注：旧版的 `vad.py` 与 `player.py` 已移除。VAD 由浏览器 AudioWorklet（`web_static/worklets/pcm-processor.js`）+ 能量阈值在前端 `web_static/js/audio.js` 实现；后端 `RealtimeASRSession` 通过 `is_sentence_end` 实现语义停录；播放由浏览器 `StreamingAudioPlayer` 负责。
 
 ## 核心模块 (`core/`)
 
@@ -202,7 +203,8 @@ clear_history()
 | `web_static/js/app.js` | 入口 + 事件绑定 |
 | `web_static/js/api.js` | REST 封装 |
 | `web_static/js/ws.js` | WebSocket 消息收发 |
-| `web_static/js/audio.js` | 录音 + `StreamingAudioPlayer`（逐句播放 TTS chunk） |
+| `web_static/js/audio.js` | AudioWorklet 录音 + 能量 VAD + 实时 PCM 流发送 + `StreamingAudioPlayer`（逐句播放 TTS chunk） |
+| `web_static/worklets/pcm-processor.js` | AudioWorklet 处理器，float32→int16，100ms/块输出 |
 | `web_static/js/ui.js` | 列表渲染、批量选择、消息流式渲染 |
 | `web_static/js/config.js` | 配置页 + Provider 管理（含 base_url 编辑、模型增删） |
 | `web_static/js/state.js` | 全局状态 |
