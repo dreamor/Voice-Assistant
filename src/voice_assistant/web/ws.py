@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from fastapi import WebSocket, WebSocketDisconnect
 
 from voice_assistant.agent.events import EventType
+from voice_assistant.audio.cloud_asr import RealtimeASRSession
 from voice_assistant.config import config
 from voice_assistant.core import VoiceSession
 from voice_assistant.db import create_conversation, get_conversation_history, save_message
@@ -22,7 +23,6 @@ sessions: dict[str, VoiceSession] = {}
 pending_confirms: dict[str, asyncio.Future] = {}
 
 # 每个客户端的流式 ASR 会话
-from voice_assistant.audio.cloud_asr import RealtimeASRSession  # noqa: E402
 streaming_asr: dict[str, RealtimeASRSession] = {}
 
 
