@@ -86,16 +86,21 @@ def set_brightness(level: int) -> str:
             return f"设置亮度失败: {e}"
     elif _is_win():
         try:
+            # 使用 WMI WmiMonitorBrightnessMethods 设置亮度
+            # 需要 Windows 7+ 且显示器支持 DDC/CI
             ps_cmd = (
-                "Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;"
-                "public class Brightness{[DllImport(\"user32.dll\")]"
-                "public static extern IntPtr SendMessage(IntPtr hWnd,int Msg,IntPtr wParam,IntPtr lParam);}';"
-                f"[Brightness]::SendMessage([IntPtr]0xffff,0x0112,[IntPtr]0xf170,[IntPtr]{level})"
+                "Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightnessMethods | "
+                f"ForEach-Object {{ $_.WmiSetBrightness(1, {level}) }}"
             )
-            subprocess.run(
+            result = subprocess.run(
                 ["powershell", "-Command", ps_cmd],
                 capture_output=True, text=True, timeout=10
             )
+            if result.returncode != 0:
+                stderr = (result.stderr or "").lower()
+                if "access" in stderr or "denied" in stderr:
+                    return "设置亮度需要管理员权限"
+                return f"设置亮度失败: {result.stderr.strip() or '显示器可能不支持亮度调节'}"
             return f"亮度已设置为 {level}%"
         except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
             return f"设置亮度失败: {e}"

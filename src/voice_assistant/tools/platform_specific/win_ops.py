@@ -302,9 +302,6 @@ def launch_application(app_name: str) -> str:
     if any(c in app_name for c in _APP_NAME_BLOCKED_CHARS):
         return "应用名包含非法字符"
 
-    import os
-    import subprocess
-
     # 1) 友好名 -> 可执行名（大小写不敏感）
     # LLM 常输出 "Calculator"（首字母大写），所以统一转小写查询
     target = _APP_NAME_ALIASES.get(app_name.lower(), app_name)
@@ -316,47 +313,98 @@ def launch_application(app_name: str) -> str:
 
 
 def _launch_by_path_or_start(target: str, display_name: str) -> str:
-    """先按文件路径启动，否则用 cmd /c start 让 Windows shell 解析"""
+    """先按文件路径启动，再搜索 Start Menu，最后用 cmd /c start 兜底"""
     import os
-    import subprocess
+    import subprocess as sp
 
     try:
-        # 绝对路径且文件存在 -> os.startfile
+        # 1) 绝对路径且文件存在 -> os.startfile
         if os.path.isabs(target) and os.path.exists(target):
             os.startfile(target)  # type: ignore[attr-defined]
             return f"已启动: {display_name}"
 
-        # 相对路径存在 -> 也直接启动
+        # 2) 相对路径存在 -> 也直接启动
         if os.path.exists(target):
             os.startfile(target)  # type: ignore[attr-defined]
             return f"已启动: {display_name}"
 
-        # 尝试补 .exe 后缀（PATH 中的可执行名）
+        # 3) 尝试补 .exe 后缀（PATH 中的可执行名）
         if not target.lower().endswith(".exe") and not target.endswith(":"):
             exe = target + ".exe"
             if os.path.exists(exe):
                 os.startfile(exe)  # type: ignore[attr-defined]
                 return f"已启动: {display_name}"
 
-        # 协议/URI 启动（ms-settings: 等）
+        # 4) 协议/URI 启动（ms-settings: 等）
         if target.endswith(":"):
-            subprocess.Popen(
+            sp.Popen(
                 ["cmd", "/c", "start", "", target],
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                creationflags=getattr(sp, "CREATE_NO_WINDOW", 0),
             )
             return f"已启动: {display_name}"
 
-        # 兜底：交给 Windows shell 解析（Start Menu、UWP、PATH 等）
+        # 5) 搜索 Get-StartApps 匹配 UWP/开始菜单应用
+        safe_name = target.replace("'", "''")
+        try:
+            ps_cmd = (
+                "$apps = Get-StartApps | Where-Object { $_.Name -like '*"
+                + safe_name + "*' }; "
+                "if ($apps) { Start-Process ($apps[0].AppID); $apps[0].Name }"
+            )
+            result = sp.run(
+                ["powershell", "-Command", ps_cmd],
+                capture_output=True, text=True, timeout=15,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return f"已启动应用: {result.stdout.strip()}"
+        except (sp.TimeoutExpired, FileNotFoundError, OSError):
+            pass
+
+        # 6) 搜索 Start Menu .lnk 快捷方式
+        try:
+            ps_cmd = (
+                "$lnk = Get-ChildItem -Path "
+                "'$env:APPDATA\\Microsoft\\Windows\\Start Menu\\Programs',"
+                "'$env:ProgramData\\Microsoft\\Windows\\Start Menu\\Programs' "
+                "-Filter '*.lnk' -Recurse -ErrorAction SilentlyContinue "
+                "| Where-Object { $_.BaseName -like '*" + safe_name + "*' } "
+                "| Select-Object -First 1; "
+                "if ($lnk) { Start-Process $lnk.FullName; $lnk.BaseName }"
+            )
+            result = sp.run(
+                ["powershell", "-Command", ps_cmd],
+                capture_output=True, text=True, timeout=15,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return f"已启动应用: {result.stdout.strip()}"
+        except (sp.TimeoutExpired, FileNotFoundError, OSError):
+            pass
+
+        # 7) 尝试 where.exe 查找 PATH 中的可执行文件
+        exe_name = target if target.lower().endswith(".exe") else target + ".exe"
+        try:
+            where_result = sp.run(
+                ["where.exe", exe_name],
+                capture_output=True, text=True, timeout=10,
+            )
+            if where_result.returncode == 0 and where_result.stdout.strip():
+                exe_path = where_result.stdout.strip().split("\n")[0].strip()
+                os.startfile(exe_path)  # type: ignore[attr-defined]
+                return f"已启动: {display_name}"
+        except (FileNotFoundError, OSError):
+            pass
+
+        # 8) 兜底：交给 Windows shell 解析（Start Menu、UWP、PATH 等）
         # 不用 shell=True 避免注入；用 list 形式传参
-        result = subprocess.run(
+        result = sp.run(
             ["cmd", "/c", "start", "", target],
             capture_output=True, text=True, timeout=15,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            creationflags=getattr(sp, "CREATE_NO_WINDOW", 0),
         )
         if result.returncode == 0:
             return f"已启动: {display_name}"
         return f"启动失败: {result.stderr.strip() or '未知错误'}"
-    except subprocess.TimeoutExpired:
+    except sp.TimeoutExpired:
         return f"启动超时: {display_name}"
     except FileNotFoundError:
         return f"未找到应用: {display_name}"

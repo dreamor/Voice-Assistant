@@ -82,10 +82,8 @@ def get_active_window_title() -> str:
         elif system == "Windows":
             result = subprocess.run(
                 ["powershell", "-Command",
-                 "[System.Runtime.InteropServices.Marshal]::PtrToStringAuto("
-                 "[System.Runtime.InteropServices.Marshal]::SecureStringToBSTR("
                  "(Get-Process | Where-Object {$_.MainWindowTitle -ne ''} | "
-                 "Select-Object -First 1).MainWindowTitle))"],
+                 "Select-Object -First 1).MainWindowTitle"],
                 capture_output=True, text=True, timeout=5
             )
             if result.returncode == 0 and result.stdout.strip():

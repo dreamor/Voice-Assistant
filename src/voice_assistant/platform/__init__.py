@@ -108,11 +108,15 @@ class WindowsAdapter(PlatformAdapter):
     """Windows 适配器"""
 
     def open_file(self, path: str) -> str:
-        result = subprocess.run(
-            ["start", "", path],
-            shell=True, capture_output=True, text=True, timeout=30
-        )
-        return "已打开" if result.returncode == 0 else f"打开失败: {result.stderr}"
+        import os
+        expanded = os.path.expanduser(path)
+        if not os.path.exists(expanded):
+            return f"文件不存在: {path}"
+        try:
+            os.startfile(expanded)  # type: ignore[attr-defined]
+            return "已打开"
+        except OSError as e:
+            return f"打开失败: {e}"
 
     def reveal_in_finder(self, path: str) -> str:
         subprocess.run(
@@ -137,17 +141,15 @@ class WindowsAdapter(PlatformAdapter):
         return "未知应用"
 
     def open_url(self, url: str, browser: str = None) -> str:
-        if browser:
-            subprocess.run(
-                ["start", browser, url],
-                shell=True, capture_output=True, text=True, timeout=30
-            )
-        else:
-            subprocess.run(
-                ["start", url],
-                shell=True, capture_output=True, text=True, timeout=30
-            )
-        return f"已在{' ' + browser if browser else ''}中打开"
+        import webbrowser
+        try:
+            if browser:
+                webbrowser.get(browser).open(url)
+            else:
+                webbrowser.open(url)
+            return f"已在{' ' + browser if browser else ''}中打开"
+        except webbrowser.Error as e:
+            return f"打开失败: {e}"
 
     def run_script(self, script: str, shell: str = None) -> tuple[int, str, str]:
         result = subprocess.run(
