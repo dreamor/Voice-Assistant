@@ -296,19 +296,18 @@ _APP_NAME_ALIASES = {
 
 def launch_application(app_name: str) -> str:
     """启动应用程序（按可执行名、Start Menu 名、UWP 友好名或路径）"""
+    logger.info(f"[LAUNCH] enter launch_application app_name={app_name!r} pid={__import__('os').getpid()}")
     if not app_name or not app_name.strip():
         return "应用名称不能为空"
     app_name = app_name.strip()
     if any(c in app_name for c in _APP_NAME_BLOCKED_CHARS):
         return "应用名包含非法字符"
 
-    # 1) 友好名 -> 可执行名（大小写不敏感）
-    # LLM 常输出 "Calculator"（首字母大写），所以统一转小写查询
     target = _APP_NAME_ALIASES.get(app_name.lower(), app_name)
+    logger.info(f"[LAUNCH] resolved target={target!r} (from alias? {target != app_name})")
     if target != app_name and not target.endswith(":"):
         return _launch_by_path_or_start(target, app_name)
 
-    # 2) 路径或可执行名
     return _launch_by_path_or_start(target, app_name)
 
 
@@ -317,14 +316,17 @@ def _launch_by_path_or_start(target: str, display_name: str) -> str:
     import os
     import subprocess as sp
 
+    logger.info(f"[LAUNCH] _launch_by_path_or_start target={target!r} display={display_name!r}")
     try:
         # 1) 绝对路径且文件存在 -> os.startfile
         if os.path.isabs(target) and os.path.exists(target):
+            logger.info(f"[LAUNCH] branch=1 os.startfile(absolute path)")
             os.startfile(target)  # type: ignore[attr-defined]
             return f"已启动: {display_name}"
 
         # 2) 相对路径存在 -> 也直接启动
         if os.path.exists(target):
+            logger.info(f"[LAUNCH] branch=2 os.startfile(relative path)")
             os.startfile(target)  # type: ignore[attr-defined]
             return f"已启动: {display_name}"
 
@@ -332,6 +334,7 @@ def _launch_by_path_or_start(target: str, display_name: str) -> str:
         if not target.lower().endswith(".exe") and not target.endswith(":"):
             exe = target + ".exe"
             if os.path.exists(exe):
+                logger.info(f"[LAUNCH] branch=3 os.startfile({exe})")
                 os.startfile(exe)  # type: ignore[attr-defined]
                 return f"已启动: {display_name}"
 
@@ -389,18 +392,21 @@ def _launch_by_path_or_start(target: str, display_name: str) -> str:
             )
             if where_result.returncode == 0 and where_result.stdout.strip():
                 exe_path = where_result.stdout.strip().split("\n")[0].strip()
+                logger.info(f"[LAUNCH] branch=7 where.exe found {exe_path}, os.startfile")
                 os.startfile(exe_path)  # type: ignore[attr-defined]
                 return f"已启动: {display_name}"
-        except (FileNotFoundError, OSError):
-            pass
+            logger.info(f"[LAUNCH] branch=7 where.exe rc={where_result.returncode} out={where_result.stdout!r}")
+        except (FileNotFoundError, OSError) as e:
+            logger.info(f"[LAUNCH] branch=7 where.exe error {e}")
 
         # 8) 兜底：交给 Windows shell 解析（Start Menu、UWP、PATH 等）
-        # 不用 shell=True 避免注入；用 list 形式传参
+        logger.info(f"[LAUNCH] branch=8 fallback cmd /c start '' {target}")
         result = sp.run(
             ["cmd", "/c", "start", "", target],
             capture_output=True, text=True, timeout=15,
             creationflags=getattr(sp, "CREATE_NO_WINDOW", 0),
         )
+        logger.info(f"[LAUNCH] branch=8 rc={result.returncode} stdout={result.stdout!r} stderr={result.stderr!r}")
         if result.returncode == 0:
             return f"已启动: {display_name}"
         return f"启动失败: {result.stderr.strip() or '未知错误'}"
