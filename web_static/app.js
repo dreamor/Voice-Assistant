@@ -263,10 +263,33 @@ async function loadConfig() {
         }
         // 根据VAD开关显示/隐藏时长设置
         updateVadDurationVisibility();
+
+        // 同步首页顶部 chip
+        updateHeaderStatus();
     } catch (error) {
         console.error('[WebUI] 加载配置失败:', error);
     }
 }
+
+// 同步首页顶部 Provider / 模型 chip
+function updateHeaderStatus() {
+    const providerEl = document.getElementById('chip-provider');
+    const providerLabel = document.getElementById('chip-provider-label');
+    const modelEl = document.getElementById('chip-model');
+    const modelLabel = document.getElementById('chip-model-label');
+    if (!providerEl || !modelEl) return;
+
+    const activePid = state.activeProvider;
+    const provider = activePid ? state.providers?.[activePid] : null;
+    const providerName = provider?.name || '未选择';
+    const model = state.config?.llm?.model || '未选择';
+
+    providerLabel.textContent = providerName;
+    modelLabel.textContent = model;
+    providerEl.classList.toggle('chip-warn', !activePid);
+    modelEl.classList.toggle('chip-warn', !model || model === '未选择');
+}
+window.updateHeaderStatus = updateHeaderStatus;
 
 // 加载模型列表
 async function loadModels() {
@@ -1181,6 +1204,7 @@ function bindEvents() {
                 if (data.success) {
                     state.config.llm.model = model;
                     console.log('[WebUI] 模型已切换为:', model);
+                    if (typeof updateHeaderStatus === 'function') updateHeaderStatus();
                 } else {
                     console.error('[WebUI] 切换模型失败:', data.error);
                 }

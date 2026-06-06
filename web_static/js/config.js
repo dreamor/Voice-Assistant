@@ -198,6 +198,7 @@ function renderProviderDetail(page, provider) {
                 state.activeProvider = pid;
                 state.config.llm.model = modelId || state.config.llm.model;
                 renderConfigPage();
+                if (typeof window.updateHeaderStatus === 'function') window.updateHeaderStatus();
             } catch (error) {
                 alert('切换失败: ' + error.message);
             }
@@ -228,6 +229,7 @@ function renderProviderDetail(page, provider) {
                     }
                 }
                 renderConfigPage();
+                if (typeof window.updateHeaderStatus === 'function') window.updateHeaderStatus();
             } catch (error) {
                 alert('应用模型失败: ' + error.message);
             } finally {

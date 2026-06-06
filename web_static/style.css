@@ -192,8 +192,57 @@ html, body {
 .header {
     padding: var(--space-md) var(--space-xl);
     display: flex;
-    justify-content: center;
+    justify-content: space-between;
+    align-items: center;
     border-bottom: 1px solid transparent;
+}
+
+/* 顶部状态条：Provider · 模型 chip */
+.header-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    user-select: none;
+}
+
+.header-sep {
+    opacity: 0.5;
+}
+
+.header-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: var(--radius-full);
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    max-width: 240px;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.header-chip .chip-icon {
+    font-size: 10px;
+    line-height: 1;
+    color: var(--color-accent);
+}
+
+.header-chip .chip-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.header-chip.chip-warn {
+    background: rgba(245, 158, 11, 0.12);
+    border-color: #f59e0b;
+}
+
+.header-chip.chip-warn .chip-icon {
+    color: #f59e0b;
 }
 
 .model-selector select {
