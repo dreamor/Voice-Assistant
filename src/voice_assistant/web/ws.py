@@ -236,13 +236,17 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 await manager.send_message(client_id, {"type": "pong"})
 
             elif msg_type == "confirm_response":
+                import time as _t
+                _t_recv = _t.time()
                 confirm_id = data.get("confirm_id", client_id)
                 approved = data.get("approved", False)
+                logger.info(f"[CONFIRM-WS] t+{_t_recv-(_t.time()):.3f}s received confirm_response confirm_id={confirm_id} approved={approved} pending_keys={list(pending_confirms.keys())[-5:]}")
                 if confirm_id in pending_confirms:
                     future = pending_confirms.pop(confirm_id)
                     future.set_result(approved)
+                    logger.info(f"[CONFIRM-WS] set_result({approved}) done for {confirm_id}")
                 else:
-                    logger.warning(f"[WebUI] 收到未知确认响应: {confirm_id}")
+                    logger.warning(f"[CONFIRM-WS] 收到未知确认响应: {confirm_id}")
 
             elif msg_type == "replay_tts":
                 text = data.get("content", "")
@@ -295,12 +299,15 @@ async def process_llm_response(client_id: str, conversation_id: str, user_text: 
 
         def confirm_callback(tool_name: str, arguments: dict, guard_result) -> bool:
             """同步回调 — 通过 concurrent.futures.Future 等待前端确认"""
+            import time as _t
             future: Future | None = None
             confirm_id = None
+            t0 = _t.time()
             try:
                 future = Future()
                 confirm_id = f"{client_id}_{tool_name}_{id(future)}"
                 pending_confirms[confirm_id] = future
+                logger.info(f"[CONFIRM] t+{_t.time()-t0:.2f}s created future confirm_id={confirm_id} args={arguments}")
 
                 asyncio.run_coroutine_threadsafe(
                     manager.send_message(client_id, {
@@ -313,11 +320,15 @@ async def process_llm_response(client_id: str, conversation_id: str, user_text: 
                     }),
                     loop
                 )
+                logger.info(f"[CONFIRM] t+{_t.time()-t0:.2f}s sent confirm_required to client")
 
                 timeout = config.agent.confirmation_timeout
-                return future.result(timeout=timeout)
+                logger.info(f"[CONFIRM] t+{_t.time()-t0:.2f}s waiting for client confirm, timeout={timeout}s")
+                result = future.result(timeout=timeout)
+                logger.info(f"[CONFIRM] t+{_t.time()-t0:.2f}s got result={result}")
+                return result
             except Exception as e:
-                logger.error(f"[WebUI] 确认回调错误: {e}")
+                logger.error(f"[CONFIRM] t+{_t.time()-t0:.2f}s 确认回调错误: type={type(e).__name__} msg={e!r}")
                 return False
             finally:
                 if confirm_id is not None:
