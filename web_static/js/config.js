@@ -154,12 +154,15 @@ function renderProviderDetail(page, provider) {
 
             <div class="detail-field">
                 <label>当前模型</label>
-                <div class="detail-inline-edit">
-                    <input type="text" id="detail-model-input" list="provider-models-${pid}"
-                           value="${initialModel}" placeholder="输入或选择模型 ID" autocomplete="off">
-                    <datalist id="provider-models-${pid}">
-                        ${provider.models.map(m => `<option value="${m.id}"></option>`).join('')}
-                    </datalist>
+                <div class="detail-inline-edit detail-model-edit">
+                    <select id="detail-model-select" class="detail-model-select">
+                        ${provider.models.length > 0
+                            ? provider.models.map(m => `<option value="${m.id}" ${m.id === initialModel ? 'selected' : ''}>${m.id}</option>`).join('')
+                            : '<option value="" disabled selected>暂无模型，请先从 API 获取</option>'}
+                        <option value="__custom__">— 自定义输入 —</option>
+                    </select>
+                    <input type="text" id="detail-model-custom" class="detail-model-custom"
+                           placeholder="输入自定义模型 ID" style="display:none" autocomplete="off">
                     <button class="btn-sm btn-primary" id="btn-apply-model">应用</button>
                 </div>
                 ${provider.base_url ? `<button class="btn-sm btn-secondary" id="btn-fetch-models">从 API 获取模型</button>` : ''}
@@ -192,13 +195,38 @@ function renderProviderDetail(page, provider) {
         </div>
     `;
 
+    // 辅助：拿到"当前模型"实际值（select 或 custom input）
+    const getSelectedModel = () => {
+        const sel = panel.querySelector('#detail-model-select');
+        const custom = panel.querySelector('#detail-model-custom');
+        if (sel && sel.value === '__custom__') {
+            return custom?.value.trim() || '';
+        }
+        return sel?.value.trim() || '';
+    };
+
+    // 监听 select 变化：选了"自定义输入"时露出输入框
+    const modelSelectEl = panel.querySelector('#detail-model-select');
+    if (modelSelectEl) {
+        modelSelectEl.addEventListener('change', () => {
+            const custom = panel.querySelector('#detail-model-custom');
+            if (!custom) return;
+            if (modelSelectEl.value === '__custom__') {
+                custom.style.display = '';
+                custom.focus();
+            } else {
+                custom.style.display = 'none';
+                custom.value = '';
+            }
+        });
+    }
+
     // 切换 Provider
     const switchBtn = panel.querySelector('#btn-switch-provider');
     if (switchBtn) {
         switchBtn.addEventListener('click', async () => {
             try {
-                const modelInput = panel.querySelector('#detail-model-input');
-                const modelId = modelInput?.value.trim() || (provider.models[0]?.id);
+                const modelId = getSelectedModel() || (provider.models[0]?.id);
                 await api.switchProvider(pid, modelId);
                 state.activeProvider = pid;
                 state.config.llm.model = modelId || state.config.llm.model;
@@ -214,18 +242,20 @@ function renderProviderDetail(page, provider) {
     const applyModelBtn = panel.querySelector('#btn-apply-model');
     if (applyModelBtn) {
         applyModelBtn.addEventListener('click', async () => {
-            const modelInput = panel.querySelector('#detail-model-input');
-            const newModel = modelInput?.value.trim();
+            const newModel = getSelectedModel();
             if (!newModel) {
-                alert('请输入模型 ID');
+                alert('请选择或输入模型 ID');
                 return;
             }
             try {
                 applyModelBtn.textContent = '应用中...';
                 applyModelBtn.disabled = true;
                 if (pid === state.activeProvider) {
-                    await api.switchProvider(pid, newModel);
+                    const result = await api.switchProvider(pid, newModel);
                     state.config.llm.model = newModel;
+                    if (result?.provider && state.providers[pid]) {
+                        state.providers[pid] = result.provider;
+                    }
                 } else {
                     // 非当前 Provider：仅记入候选（暂存到内存）
                     if (!state.providers[pid]) return;
@@ -244,10 +274,10 @@ function renderProviderDetail(page, provider) {
         });
     }
 
-    // 当前模型 input 回车也触发应用
-    const modelInputEl = panel.querySelector('#detail-model-input');
-    if (modelInputEl) {
-        modelInputEl.addEventListener('keydown', (e) => {
+    // 自定义 input 回车也触发应用
+    const customInputEl = panel.querySelector('#detail-model-custom');
+    if (customInputEl) {
+        customInputEl.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
                 applyModelBtn?.click();
@@ -356,11 +386,22 @@ function renderProviderDetail(page, provider) {
 
             if (labelEl) {
                 labelEl.addEventListener('click', () => {
-                    const input = panel.querySelector('#detail-model-input');
-                    if (input) {
-                        input.value = mid;
-                        input.focus();
-                        input.select();
+                    const sel = panel.querySelector('#detail-model-select');
+                    const custom = panel.querySelector('#detail-model-custom');
+                    if (!sel) return;
+                    // 如果该模型在 select 里就选中，否则塞进 custom
+                    const has = Array.from(sel.options).some(o => o.value === mid);
+                    if (has) {
+                        sel.value = mid;
+                        if (custom) { custom.style.display = 'none'; custom.value = ''; }
+                    } else {
+                        sel.value = '__custom__';
+                        if (custom) {
+                            custom.style.display = '';
+                            custom.value = mid;
+                            custom.focus();
+                            custom.select();
+                        }
                     }
                 });
             }
@@ -390,13 +431,6 @@ function renderProviderDetail(page, provider) {
             try {
                 const data = await api.fetchProviderModels(pid);
                 if (data.models && data.models.length > 0) {
-                    // 1) 更新 datalist（让"当前模型"下拉可选项刷新）
-                    const datalist = panel.querySelector(`#provider-models-${pid}`);
-                    if (datalist) {
-                        datalist.innerHTML = data.models
-                            .map(m => `<option value="${m.id}"></option>`)
-                            .join('');
-                    }
                     if (isCustom) {
                         // 自定义 Provider：合并后持久化
                         const existing = new Set(provider.models.map(m => m.id));
