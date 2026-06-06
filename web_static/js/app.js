@@ -39,6 +39,7 @@ async function init() {
 async function loadConfig() {
     try {
         const config = await api.loadConfig();
+        state.config = config;
         // VAD 配置同步
         const vadEnabled = config.vad?.enabled !== false;
         const vadDuration = config.vad?.silenceDuration || 1500;
@@ -62,10 +63,33 @@ async function loadProviders() {
             state.providers = data.providers;
             state.activeProvider = data.current_provider || null;
         }
+        updateHeaderStatus();
     } catch (error) {
         console.error('[WebUI] 加载 Provider 列表失败:', error);
     }
 }
+
+/**
+ * 同步首页顶部 Provider / 模型 chip
+ */
+function updateHeaderStatus() {
+    const providerEl = document.getElementById('chip-provider');
+    const providerLabel = document.getElementById('chip-provider-label');
+    const modelEl = document.getElementById('chip-model');
+    const modelLabel = document.getElementById('chip-model-label');
+    if (!providerEl || !modelEl) return;
+
+    const activePid = state.activeProvider;
+    const provider = activePid ? state.providers?.[activePid] : null;
+    const providerName = provider?.name || '未选择';
+    const model = state.config?.llm?.model || '未选择';
+
+    providerLabel.textContent = providerName;
+    modelLabel.textContent = model;
+    providerEl.classList.toggle('chip-warn', !activePid);
+    modelEl.classList.toggle('chip-warn', !model || model === '未选择');
+}
+window.updateHeaderStatus = updateHeaderStatus;
 
 /**
  * 加载模型列表
