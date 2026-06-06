@@ -137,14 +137,8 @@ function renderProviderDetail(page, provider) {
                 <label>API Key</label>
                 <div class="detail-api-key">
                     <input type="password" id="detail-api-key-input"
-                           placeholder="${provider.has_key ? '已配置（输入可更新）' : '输入 API Key...'}"
+                           placeholder="${provider.has_key ? '已配置 · 出于安全前端不可查看 · 输入新 Key 可覆盖' : '输入 API Key...'}"
                            autocomplete="off">
-                    <button class="btn-icon" id="toggle-detail-key" title="显示/隐藏">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                            <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                    </button>
                     <button class="btn-sm btn-primary" id="btn-save-api-key">保存</button>
                 </div>
                 <span class="api-key-status ${provider.has_key ? 'configured' : 'not-configured'}">
@@ -322,17 +316,9 @@ function renderProviderDetail(page, provider) {
         });
     }
 
-    // API Key 显示/隐藏
-    const toggleKeyBtn = panel.querySelector('#toggle-detail-key');
-    const keyInput = panel.querySelector('#detail-api-key-input');
-    if (toggleKeyBtn && keyInput) {
-        toggleKeyBtn.addEventListener('click', () => {
-            keyInput.type = keyInput.type === 'password' ? 'text' : 'password';
-        });
-    }
-
     // 保存 API Key
     const saveKeyBtn = panel.querySelector('#btn-save-api-key');
+    const keyInput = panel.querySelector('#detail-api-key-input');
     if (saveKeyBtn) {
         saveKeyBtn.addEventListener('click', async () => {
             const key = keyInput.value.trim();
