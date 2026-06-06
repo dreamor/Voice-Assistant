@@ -110,6 +110,9 @@ function renderProviderDetail(page, provider) {
 
     const pid = selectedProviderId;
     const isCustom = provider.is_custom;
+    const isActive = pid === state.activeProvider;
+    const currentModel = state.config?.llm?.model || '';
+    const initialModel = isActive ? currentModel : (provider.models[0]?.id || '');
 
     panel.innerHTML = `
         <div class="detail-header">
@@ -150,18 +153,30 @@ function renderProviderDetail(page, provider) {
             </div>
 
             <div class="detail-field">
-                <label>模型列表 ${isCustom ? '（可增删）' : ''}</label>
-                <div class="detail-models" id="detail-models-container">
-                    ${provider.models.map(m => `<span class="model-tag ${isCustom ? 'removable' : ''}" data-model-id="${m.id}">${m.id}${isCustom ? ' ✕' : ''}</span>`).join('')}
-                    ${provider.models.length === 0 ? '<span class="no-models">暂无模型</span>' : ''}
+                <label>当前模型</label>
+                <div class="detail-inline-edit">
+                    <input type="text" id="detail-model-input" list="provider-models-${pid}"
+                           value="${initialModel}" placeholder="输入或选择模型 ID" autocomplete="off">
+                    <datalist id="provider-models-${pid}">
+                        ${provider.models.map(m => `<option value="${m.id}"></option>`).join('')}
+                    </datalist>
+                    <button class="btn-sm btn-primary" id="btn-apply-model">应用</button>
                 </div>
-                ${isCustom ? `
-                    <div class="detail-inline-edit">
-                        <input type="text" id="detail-new-model-input" placeholder="输入模型 ID 后按 Enter 添加" autocomplete="off">
-                    </div>
-                ` : ''}
                 ${provider.base_url ? `<button class="btn-sm btn-secondary" id="btn-fetch-models">从 API 获取模型</button>` : ''}
             </div>
+
+            ${isCustom ? `
+            <div class="detail-field">
+                <label>已保存的模型（可增删）</label>
+                <div class="detail-models" id="detail-models-container">
+                    ${provider.models.map(m => `<span class="model-tag removable" data-model-id="${m.id}">${m.id} ✕</span>`).join('')}
+                    ${provider.models.length === 0 ? '<span class="no-models">暂无模型</span>' : ''}
+                </div>
+                <div class="detail-inline-edit">
+                    <input type="text" id="detail-new-model-input" placeholder="输入模型 ID 后按 Enter 添加" autocomplete="off">
+                </div>
+            </div>
+            ` : ''}
 
             ${isCustom ? `
             <div class="detail-field">
@@ -177,13 +192,58 @@ function renderProviderDetail(page, provider) {
     if (switchBtn) {
         switchBtn.addEventListener('click', async () => {
             try {
-                const modelId = provider.models.length > 0 ? provider.models[0].id : undefined;
+                const modelInput = panel.querySelector('#detail-model-input');
+                const modelId = modelInput?.value.trim() || (provider.models[0]?.id);
                 await api.switchProvider(pid, modelId);
                 state.activeProvider = pid;
                 state.config.llm.model = modelId || state.config.llm.model;
                 renderConfigPage();
             } catch (error) {
                 alert('切换失败: ' + error.message);
+            }
+        });
+    }
+
+    // 应用模型（修改当前活跃模型）
+    const applyModelBtn = panel.querySelector('#btn-apply-model');
+    if (applyModelBtn) {
+        applyModelBtn.addEventListener('click', async () => {
+            const modelInput = panel.querySelector('#detail-model-input');
+            const newModel = modelInput?.value.trim();
+            if (!newModel) {
+                alert('请输入模型 ID');
+                return;
+            }
+            try {
+                applyModelBtn.textContent = '应用中...';
+                applyModelBtn.disabled = true;
+                if (pid === state.activeProvider) {
+                    await api.switchProvider(pid, newModel);
+                    state.config.llm.model = newModel;
+                } else {
+                    // 非当前 Provider：仅记入候选（暂存到内存）
+                    if (!state.providers[pid]) return;
+                    if (!state.providers[pid].models.some(m => m.id === newModel)) {
+                        state.providers[pid].models.push({ id: newModel });
+                    }
+                }
+                renderConfigPage();
+            } catch (error) {
+                alert('应用模型失败: ' + error.message);
+            } finally {
+                applyModelBtn.textContent = '应用';
+                applyModelBtn.disabled = false;
+            }
+        });
+    }
+
+    // 当前模型 input 回车也触发应用
+    const modelInputEl = panel.querySelector('#detail-model-input');
+    if (modelInputEl) {
+        modelInputEl.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                applyModelBtn?.click();
             }
         });
     }
@@ -307,6 +367,13 @@ function renderProviderDetail(page, provider) {
             try {
                 const data = await api.fetchProviderModels(pid);
                 if (data.models && data.models.length > 0) {
+                    // 1) 更新 datalist（让"当前模型"下拉可选项刷新）
+                    const datalist = panel.querySelector(`#provider-models-${pid}`);
+                    if (datalist) {
+                        datalist.innerHTML = data.models
+                            .map(m => `<option value="${m.id}"></option>`)
+                            .join('');
+                    }
                     if (isCustom) {
                         // 自定义 Provider：合并后持久化
                         const existing = new Set(provider.models.map(m => m.id));
