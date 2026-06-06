@@ -1225,9 +1225,99 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// 确认弹窗状态（用于倒计时 / 标题闪烁 / 提示音）
+const _confirmState = {
+    countdownTimer: null,
+    titleFlashTimer: null,
+    audioCtx: null,
+    originalTitle: null,
+};
+
+// 启动倒计时 + 标题闪烁 + 提示音
+function _startConfirmAlerts(overlay, secondsLeft) {
+    const countdownEl = overlay.querySelector('.confirm-countdown');
+    const titlePrefix = '[待确认] ';
+
+    // 保存原始标题
+    if (_confirmState.originalTitle === null) {
+        _confirmState.originalTitle = document.title;
+    }
+    document.title = titlePrefix + _confirmState.originalTitle;
+
+    // 标题闪烁（每 1s 切换一次）
+    let flashOn = true;
+    _confirmState.titleFlashTimer = setInterval(() => {
+        flashOn = !flashOn;
+        document.title = (flashOn ? titlePrefix : '🔔 ') + _confirmState.originalTitle;
+    }, 1000);
+
+    // 提示音（用 Web Audio API 生成短促哔声，每 2s 一次，不依赖音频文件）
+    try {
+        if (!_confirmState.audioCtx) {
+            _confirmState.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        const ctx = _confirmState.audioCtx;
+        const beep = () => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.frequency.value = 880;
+            osc.type = 'sine';
+            gain.gain.setValueAtTime(0, ctx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.01);
+            gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.15);
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + 0.15);
+        };
+        beep();
+        _confirmState.beepTimer = setInterval(beep, 2000);
+    } catch (e) {
+        console.warn('AudioContext 不可用，跳过提示音:', e);
+    }
+
+    // 倒计时
+    _confirmState.countdownTimer = setInterval(() => {
+        secondsLeft -= 1;
+        if (countdownEl) {
+            countdownEl.textContent = secondsLeft;
+            countdownEl.classList.toggle('countdown-urgent', secondsLeft <= 10);
+        }
+        if (secondsLeft <= 0) {
+            clearInterval(_confirmState.countdownTimer);
+            _confirmState.countdownTimer = null;
+        }
+    }, 1000);
+}
+
+// 清理倒计时 / 标题 / 提示音
+function _stopConfirmAlerts() {
+    if (_confirmState.countdownTimer) {
+        clearInterval(_confirmState.countdownTimer);
+        _confirmState.countdownTimer = null;
+    }
+    if (_confirmState.titleFlashTimer) {
+        clearInterval(_confirmState.titleFlashTimer);
+        _confirmState.titleFlashTimer = null;
+    }
+    if (_confirmState.beepTimer) {
+        clearInterval(_confirmState.beepTimer);
+        _confirmState.beepTimer = null;
+    }
+    if (_confirmState.originalTitle !== null) {
+        document.title = _confirmState.originalTitle;
+    }
+}
+
 // 确认弹窗：显示需要用户确认的操作
 function showConfirmDialog(data) {
-    const { confirm_id, tool_name, arguments: args, message, level } = data;
+    const { confirm_id, tool_name, arguments: args, message, level, timeout } = data;
+    const seconds = Number(timeout) || 60;
+
+    // 先关掉旧的弹窗和计时器
+    _stopConfirmAlerts();
+    const old = document.querySelector('.confirm-overlay');
+    if (old) old.remove();
 
     const overlay = document.createElement('div');
     overlay.className = 'confirm-overlay';
@@ -1241,7 +1331,7 @@ function showConfirmDialog(data) {
 
     overlay.innerHTML = `
         <div class="confirm-dialog ${levelClass}">
-            <div class="confirm-header">${levelLabel}</div>
+            <div class="confirm-header">${levelLabel} <span class="confirm-countdown-wrap">⏱ <span class="confirm-countdown">${seconds}</span>s</span></div>
             <div class="confirm-tool-name">${escapeHtml(tool_name)}</div>
             <div class="confirm-message">${escapeHtml(message)}</div>
             ${argsText ? `<pre class="confirm-args">${escapeHtml(argsText)}</pre>` : ''}
@@ -1253,15 +1343,15 @@ function showConfirmDialog(data) {
     `;
 
     document.body.appendChild(overlay);
+    _startConfirmAlerts(overlay, seconds);
 }
 
 // 处理确认/拒绝
 function handleConfirm(confirmId, approved) {
-    // 移除弹窗
+    _stopConfirmAlerts();
     const overlay = document.querySelector('.confirm-overlay');
     if (overlay) overlay.remove();
 
-    // 发送响应到后端
     if (state.ws && state.ws.readyState === WebSocket.OPEN) {
         state.ws.send(JSON.stringify({
             type: 'confirm_response',

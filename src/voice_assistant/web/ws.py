@@ -317,6 +317,7 @@ async def process_llm_response(client_id: str, conversation_id: str, user_text: 
                         "arguments": arguments,
                         "message": guard_result.message,
                         "level": guard_result.action.value,
+                        "timeout": timeout,
                     }),
                     loop
                 )

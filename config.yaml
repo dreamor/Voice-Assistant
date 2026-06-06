@@ -107,9 +107,23 @@ logging:
 # Agent 配置（LLM function calling 循环）
 agent:
   max_iterations: 5          # Agent 循环最大迭代次数
-  confirmation_timeout: 300  # 确认等待超时（秒）
+  confirmation_timeout: 60   # 确认等待超时（秒），前端弹窗会显示倒计时
 
 # Tools 配置
 tools:
   blocked: []  # 被阻止的工具名称列表，如 ["delete_file", "kill_process"]
-  overrides: []  # 工具安全级别覆盖，格式: [{name: "tool_name", level: "read_only"}]
+  overrides:  # 工具安全级别覆盖，格式: [{name: "tool_name", level: "read_only"}]
+    # ----- 免确认（只读 / 可逆操作）-----
+    - {name: "launch_application", level: "read_only"}   # 启动应用（计算器/记事本等）
+    - {name: "is_application_running", level: "read_only"}  # 查询进程
+    - {name: "get_battery", level: "read_only"}            # 读电池
+    - {name: "show_notification", level: "read_only"}      # 系统通知
+    - {name: "set_system_volume", level: "read_only"}      # 调音量（可逆）
+    - {name: "toggle_dark_mode", level: "read_only"}       # 切换深色模式（可逆）
+    - {name: "set_wallpaper", level: "read_only"}          # 换壁纸（可逆）
+    - {name: "set_display_mode", level: "read_only"}       # 切换显示模式
+    - {name: "toggle_bluetooth", level: "read_only"}       # 蓝牙开关（可逆）
+    - {name: "toggle_wifi", level: "read_only"}            # WiFi 开关（可逆）
+    - {name: "lock_screen", level: "read_only"}            # 锁屏
+    # ----- 仍需确认的高危操作 -----
+    # empty_trash, run_powershell_script, quit_application, delete_file, kill_process
