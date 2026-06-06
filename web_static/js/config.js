@@ -251,11 +251,8 @@ function renderProviderDetail(page, provider) {
                 applyModelBtn.textContent = '应用中...';
                 applyModelBtn.disabled = true;
                 if (pid === state.activeProvider) {
-                    const result = await api.switchProvider(pid, newModel);
+                    await api.switchProvider(pid, newModel);
                     state.config.llm.model = newModel;
-                    if (result?.provider && state.providers[pid]) {
-                        state.providers[pid] = result.provider;
-                    }
                 } else {
                     // 非当前 Provider：仅记入候选（暂存到内存）
                     if (!state.providers[pid]) return;
