@@ -167,9 +167,14 @@ function renderProviderDetail(page, provider) {
 
             ${isCustom ? `
             <div class="detail-field">
-                <label>已保存的模型（可增删）</label>
+                <label>已保存的模型（点击名称设为当前模型，✕ 删除）</label>
                 <div class="detail-models" id="detail-models-container">
-                    ${provider.models.map(m => `<span class="model-tag removable" data-model-id="${m.id}">${m.id} ✕</span>`).join('')}
+                    ${provider.models.map(m => `
+                        <span class="model-tag" data-model-id="${m.id}">
+                            <span class="tag-label" data-action="select" title="点击设为当前模型">${m.id}</span>
+                            <button class="tag-remove" data-action="remove" title="删除">✕</button>
+                        </span>
+                    `).join('')}
                     ${provider.models.length === 0 ? '<span class="no-models">暂无模型</span>' : ''}
                 </div>
                 <div class="detail-inline-edit">
@@ -343,20 +348,36 @@ function renderProviderDetail(page, provider) {
             });
         }
 
-        // 点击标签 ✕ 删除
-        panel.querySelectorAll('.model-tag.removable').forEach(tag => {
-            tag.addEventListener('click', async () => {
-                const mid = tag.dataset.modelId;
-                if (!confirm(`删除模型 "${mid}"？`)) return;
-                const newModels = provider.models.map(m => m.id).filter(id => id !== mid);
-                try {
-                    const result = await api.updateProvider(pid, { models: newModels });
-                    state.providers[pid] = result.provider;
-                    renderConfigPage();
-                } catch (error) {
-                    alert('删除模型失败: ' + error.message);
-                }
-            });
+        // 点击标签名字 → 设为当前模型；点 ✕ → 删除
+        panel.querySelectorAll('.model-tag').forEach(tag => {
+            const mid = tag.dataset.modelId;
+            const labelEl = tag.querySelector('[data-action="select"]');
+            const removeEl = tag.querySelector('[data-action="remove"]');
+
+            if (labelEl) {
+                labelEl.addEventListener('click', () => {
+                    const input = panel.querySelector('#detail-model-input');
+                    if (input) {
+                        input.value = mid;
+                        input.focus();
+                        input.select();
+                    }
+                });
+            }
+            if (removeEl) {
+                removeEl.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    if (!confirm(`删除模型 "${mid}"？`)) return;
+                    const newModels = provider.models.map(m => m.id).filter(id => id !== mid);
+                    try {
+                        const result = await api.updateProvider(pid, { models: newModels });
+                        state.providers[pid] = result.provider;
+                        renderConfigPage();
+                    } catch (error) {
+                        alert('删除模型失败: ' + error.message);
+                    }
+                });
+            }
         });
     }
 

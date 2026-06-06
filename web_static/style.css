@@ -1485,12 +1485,48 @@ html, body {
 }
 
 .model-tag {
-    display: inline-block;
-    padding: 3px 10px;
+    display: inline-flex;
+    align-items: center;
+    padding: 0;
     background: var(--color-surface-hover);
     border-radius: var(--radius-full);
     font-size: 0.8125rem;
     color: var(--color-text);
+    overflow: hidden;
+    transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.model-tag .tag-label {
+    padding: 3px 4px 3px 10px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.model-tag .tag-label:hover {
+    background: var(--color-accent);
+    color: #fff;
+}
+
+.model-tag .tag-label:active {
+    background: var(--color-accent-hover, var(--color-accent));
+}
+
+.model-tag .tag-remove {
+    border: none;
+    background: transparent;
+    color: var(--color-text-muted);
+    font-size: 12px;
+    line-height: 1;
+    padding: 3px 8px 3px 4px;
+    cursor: pointer;
+    border-left: 1px solid transparent;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+
+.model-tag .tag-remove:hover {
+    color: #DC2626;
+    background: #FEE2E2;
 }
 
 .model-tag.removable {
