@@ -105,6 +105,7 @@ export function formatMessageContent(content) {
  * @param {number} maxHeight - 最大高度（默认 200）
  */
 export function autoResizeTextarea(textarea, maxHeight = 200) {
+    if (!textarea) return;
     textarea.addEventListener('input', () => {
         textarea.style.height = 'auto';
         textarea.style.height = Math.min(textarea.scrollHeight, maxHeight) + 'px';

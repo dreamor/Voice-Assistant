@@ -17,17 +17,26 @@ export function connectWebSocket() {
     };
 
     state.ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
+        let data;
+        try {
+            data = JSON.parse(event.data);
+        } catch (e) {
+            logger.error('[WebUI] WebSocket 收到无效 JSON:', event.data);
+            return;
+        }
         handleWebSocketMessage(data);
     };
 
     state.ws.onclose = () => {
         logger.info('[WebUI] WebSocket 断开，5秒后重连...');
-        setTimeout(connectWebSocket, 5000);
+        if (state.reconnectTimerId) {
+            clearTimeout(state.reconnectTimerId);
+        }
+        state.reconnectTimerId = setTimeout(connectWebSocket, 5000);
     };
 
     state.ws.onerror = (error) => {
-        logger.error('[WebUI] WebSocket 错误:', error);
+        logger.error('[WebUI] WebSocket 错误，类型:', error.type);
     };
 }
 

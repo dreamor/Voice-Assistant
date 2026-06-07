@@ -34,6 +34,7 @@ export const state = {
     modelsError: null,
     providers: {},
     activeProvider: null,
+    reconnectTimerId: null,
     // VAD 相关状态
     vadRecordingStarted: false,
     preBufferChunks: [],

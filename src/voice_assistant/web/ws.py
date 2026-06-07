@@ -303,6 +303,7 @@ async def process_llm_response(client_id: str, conversation_id: str, user_text: 
             future: Future | None = None
             confirm_id = None
             t0 = _t.time()
+            timeout = config.agent.confirmation_timeout
             try:
                 future = Future()
                 confirm_id = f"{client_id}_{tool_name}_{id(future)}"
@@ -323,7 +324,6 @@ async def process_llm_response(client_id: str, conversation_id: str, user_text: 
                 )
                 logger.info(f"[CONFIRM] t+{_t.time()-t0:.2f}s sent confirm_required to client")
 
-                timeout = config.agent.confirmation_timeout
                 logger.info(f"[CONFIRM] t+{_t.time()-t0:.2f}s waiting for client confirm, timeout={timeout}s")
                 result = future.result(timeout=timeout)
                 logger.info(f"[CONFIRM] t+{_t.time()-t0:.2f}s got result={result}")

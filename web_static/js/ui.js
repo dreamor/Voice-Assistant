@@ -660,11 +660,18 @@ export function showConfirmDialog(data) {
             <div class="confirm-message">${escapeHtml(message)}</div>
             ${argsText ? `<pre class="confirm-args">${escapeHtml(argsText)}</pre>` : ''}
             <div class="confirm-actions">
-                <button class="confirm-btn confirm-reject" onclick="window.handleConfirm('${confirm_id}', false)">拒绝</button>
-                <button class="confirm-btn confirm-approve" onclick="window.handleConfirm('${confirm_id}', true)">确认执行</button>
+                <button class="confirm-btn confirm-reject" data-confirm-id="${escapeHtml(confirm_id)}" data-approved="false">拒绝</button>
+                <button class="confirm-btn confirm-approve" data-confirm-id="${escapeHtml(confirm_id)}" data-approved="true">确认执行</button>
             </div>
         </div>
     `;
+
+    overlay.querySelectorAll('.confirm-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const approved = btn.dataset.approved === 'true';
+            window.handleConfirm(btn.dataset.confirmId, approved);
+        });
+    });
 
     document.body.appendChild(overlay);
 }
