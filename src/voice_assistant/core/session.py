@@ -350,11 +350,6 @@ class VoiceSession:
                     result = compact(self._history, self._max_context_tokens)
                     if result.messages_removed > 0:
                         # 用压缩后的消息替换（保留系统摘要 + 最近消息）
-                        remaining = [
-                            m for m in self._history
-                            if m.get("role") == "system"
-                            and not m.get("content", "").startswith("[上下文摘要]")
-                        ]
                         recent_messages = self._history[-result.messages_kept:]
                         # 添加摘要
                         self._history = [

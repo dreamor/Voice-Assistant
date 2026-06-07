@@ -320,13 +320,13 @@ def _launch_by_path_or_start(target: str, display_name: str) -> str:
     try:
         # 1) 绝对路径且文件存在 -> os.startfile
         if os.path.isabs(target) and os.path.exists(target):
-            logger.info(f"[LAUNCH] branch=1 os.startfile(absolute path)")
+            logger.info("[LAUNCH] branch=1 os.startfile(absolute path)")
             os.startfile(target)  # type: ignore[attr-defined]
             return f"已启动: {display_name}"
 
         # 2) 相对路径存在 -> 也直接启动
         if os.path.exists(target):
-            logger.info(f"[LAUNCH] branch=2 os.startfile(relative path)")
+            logger.info("[LAUNCH] branch=2 os.startfile(relative path)")
             os.startfile(target)  # type: ignore[attr-defined]
             return f"已启动: {display_name}"
 
