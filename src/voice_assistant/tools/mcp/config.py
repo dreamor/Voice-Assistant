@@ -52,7 +52,7 @@ def load_secrets(path: Path) -> dict:
     if not path.exists():
         return {}
     try:
-        return yaml.safe_load(path.read_text("utf-8")) or {}
+        return yaml.safe_load(path.read_text("utf-8", errors="replace")) or {}
     except yaml.YAMLError as e:
         logger.error(f"[MCP] secrets 加载失败 {path}: {e}")
         return {}
@@ -63,7 +63,7 @@ def load_servers(path: Path, secrets_path: Path | None = None) -> list[MCPServer
         logger.info(f"[MCP] 配置文件不存在，跳过: {path}")
         return []
 
-    raw = yaml.safe_load(path.read_text("utf-8")) or {}
+    raw = yaml.safe_load(path.read_text("utf-8", errors="replace")) or {}
     secrets = load_secrets(secrets_path) if secrets_path else {}
 
     servers: list[MCPServerConfig] = []
