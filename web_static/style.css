@@ -1572,6 +1572,41 @@ html, body {
 }
 
 /* 添加 Provider 表单 */
+/* 模型标签 / 模型编辑 */
+.detail-model-add-row {
+display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    margin-top: 6px;
+    flex-wrap: wrap;
+}
+
+.detail-model-add-row input {
+flex: 1;
+    min-width: 100px;
+    padding: 5px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: 0.875rem;
+    background: var(--color-bg);
+}
+
+.detail-model-add-row input:focus {
+outline: none;
+    border-color: var(--color-accent);
+}
+
+.model-tag.active {
+background: var(--color-accent);
+    color: #fff;
+    box-shadow: 0 0 0 2px rgba(var(--accent-rgb, 59,130,246), 0.3);
+}
+
+.model-tag:hover {
+background: var(--color-accent);
+    color: #fff;
+}
+
 .add-provider-form {
     background: var(--color-surface);
     border: 1px solid var(--color-border);

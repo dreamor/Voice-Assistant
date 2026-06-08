@@ -212,15 +212,30 @@ def _load_custom_providers(project_root: Path) -> dict[str, ProviderConfig]:
     return providers
 
 
+def _normalize_model_entry(m: "str | dict") -> dict:
+    """将字符串或 {id, name} 字典统一为 {id, name} 字典。"""
+    if isinstance(m, dict):
+        mid = m.get("id", "")
+        return {"id": mid, "name": m.get("name", mid) or mid}
+    return {"id": m, "name": m}
+
+
+def _to_model_cfg(m: "str | dict") -> ProviderModelConfig:
+    d = _normalize_model_entry(m)
+    return ProviderModelConfig(id=d["id"], name=d["name"])
+
+
 def save_custom_provider(
     provider_id: str,
     name: str,
     base_url: str,
     api_key_env: str,
     litellm_prefix: str,
-    models: list[str],
+    models: "list[str | dict]",
 ) -> ProviderConfig:
-    """保存自定义 Provider 到 config/custom_providers.yaml 并更新内存配置"""
+    """保存自定义 Provider 到 config/custom_providers.yaml 并更新内存配置。
+    models 元素可以是纯字符串 ID，也可以是 {"id": ..., "name": ...} 字典。
+    """
     project_root = _find_project_root()
     config_dir = project_root / "config"
     config_dir.mkdir(exist_ok=True)
@@ -232,12 +247,13 @@ def save_custom_provider(
     else:
         data = {}
 
+    normalized = [_normalize_model_entry(m) for m in models]
     data[provider_id] = {
         'name': name,
         'litellm_prefix': litellm_prefix,
         'base_url': base_url,
         'api_key_env': api_key_env,
-        'models': [{'id': m, 'name': m} for m in models],
+        'models': normalized,
     }
 
     with open(path, 'w', encoding='utf-8') as f:
@@ -248,7 +264,7 @@ def save_custom_provider(
         litellm_prefix=litellm_prefix,
         base_url=base_url,
         api_key_env=api_key_env,
-        models=[ProviderModelConfig(id=m, name=m) for m in models],
+        models=[_to_model_cfg(m) for m in models],
         is_custom=True,
     )
     config.providers.providers[provider_id] = provider_cfg
@@ -262,9 +278,10 @@ def update_custom_provider(
     name: str | None = None,
     base_url: str | None = None,
     litellm_prefix: str | None = None,
-    models: list[str] | None = None,
+    models: "list[str | dict] | None" = None,
 ) -> ProviderConfig | None:
     """部分更新自定义 Provider。仅传入的字段被更新。
+    models 元素可以是纯字符串 ID，也可以是 {"id": ..., "name": ...} 字典。
 
     Returns:
         更新后的 ProviderConfig，若 Provider 不存在或非自定义则返回 None。
@@ -276,7 +293,11 @@ def update_custom_provider(
     new_name = name if name is not None else existing.name
     new_base_url = base_url if base_url is not None else existing.base_url
     new_prefix = litellm_prefix if litellm_prefix is not None else existing.litellm_prefix
-    new_models = models if models is not None else [m.id for m in existing.models]
+    # 保留现有模型的显示名称
+    new_models: list[str | dict] = (
+        models if models is not None
+        else [{"id": m.id, "name": m.name} for m in existing.models]
+    )
 
     return save_custom_provider(
         provider_id=provider_id,

@@ -147,33 +147,23 @@ function renderProviderDetail(page, provider) {
             </div>
 
             <div class="detail-field">
-                <label>当前模型</label>
-                <div class="detail-inline-edit detail-model-edit">
-                    <select id="detail-model-select" class="detail-model-select">
-                        ${provider.models.length > 0
-                            ? provider.models.map(m => `<option value="${m.id}" ${m.id === initialModel ? 'selected' : ''}>${m.id}</option>`).join('')
-                            : '<option value="" disabled selected>暂无模型，请先从 API 获取</option>'}
-                        <option value="__custom__">— 自定义输入 —</option>
-                    </select>
-                    <input type="text" id="detail-model-custom" class="detail-model-custom"
-                           placeholder="输入自定义模型 ID" style="display:none" autocomplete="off">
-                    <button class="btn-sm btn-primary" id="btn-apply-model">应用</button>
-                </div>
-                ${provider.base_url ? `<button class="btn-sm btn-secondary" id="btn-fetch-models">从 API 获取模型</button>` : ''}
-            </div>
-
-            ${isCustom ? `
-            <div class="detail-field">
-                <label>已保存的模型（点击名称设为当前模型，✕ 删除）</label>
+    <div class="detail-field">
+                <label>模型列表 ${isCustom ? '（可增删）' : '（点击切换）'}</label>
                 <div class="detail-models" id="detail-models-container">
-                    ${provider.models.map(m => `
-                        <span class="model-tag" data-model-id="${m.id}">
-                            <span class="tag-label" data-action="select" title="点击设为当前模型">${m.id}</span>
-                            <button class="tag-remove" data-action="remove" title="删除">✕</button>
-                        </span>
-                    `).join('')}
+                    ${provider.models.map(m => {
+                        const label = (m.name && m.name !== m.id) ? m.name : m.id;
+                        const isActive = m.id === currentModel && pid === currentProvider;
+                        return `<span class="model-tag ${isActive ? 'active' : ''} ${isCustom ? 'removable' : ''}" data-model-id="${m.id}" title="${m.id}">${label}${isCustom ? ' ✕' : ''}</span>`;
+                    }).join('')}
                     ${provider.models.length === 0 ? '<span class="no-models">暂无模型</span>' : ''}
                 </div>
+                <div class="detail-model-add-row">
+                        <input type="text" id="detail-new-model-id" placeholder="模型 ID（必填）" autocomplete="off">
+                        <input type="text" id="detail-new-model-name" placeholder="显示名称（可选）" autocomplete="off">
+                        <button class="btn-sm btn-primary" id="btn-add-model">添加</button>
+                    </div>
+                ${provider.base_url ? `<button class="btn-sm btn-secondary" id="btn-fetch-models">从 API 获取模型</button>` : ''}
+            </div>
                 <div class="detail-inline-edit">
                     <input type="text" id="detail-new-model-input" placeholder="输入模型 ID 后按 Enter 添加" autocomplete="off">
                 </div>
